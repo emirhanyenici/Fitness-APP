@@ -1,0 +1,282 @@
+import { useState, useRef, useCallback } from 'react';
+import {
+  View, Text, TextInput, TouchableOpacity, FlatList,
+  StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator,
+  Alert,
+} from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useUserStore } from '../../stores/userStore';
+import { useRecoveryStore } from '../../stores/recoveryStore';
+import { useAISuggestionsStore, SuggestionType } from '../../stores/aiSuggestionsStore';
+import { useAIChatStore, ChatMessage, WELCOME_MESSAGE } from '../../stores/aiChatStore';
+import { useAuthStore } from '../../stores/authStore';
+import { colors } from '../../constants/colors';
+import { typography } from '../../constants/typography';
+import { spacing, radius } from '../../constants/spacing';
+
+const EDGE_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/ai-coach`;
+const ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
+
+type Role = 'user' | 'assistant';
+type Message = ChatMessage;
+
+/** Strip leading/trailing whitespace, collapse excessive newlines, hard-cap length. */
+function sanitizeInput(text: string): string {
+  return text.replace(/\n{3,}/g, '\n\n').trim().slice(0, 500);
+}
+
+/** Only non-PII goal/preference fields — never email, name, weight, height. */
+const SAFE_PROFILE_KEYS = ['primary_goal', 'workout_frequency', 'diet_type', 'fitness_level', 'activity_level', 'gender', 'workout_environment'] as const;
+
+const NUTRITION_KW = ['meal', 'food', 'eat', 'diet', 'protein', 'calorie', 'nutrition', 'breakfast', 'lunch', 'dinner', 'snack', 'recipe', 'carb', 'fat', 'macro', 'vegetarian', 'keto', 'portion'];
+const WORKOUT_KW   = ['workout', 'exercise', 'gym', 'train', 'muscle', 'strength', 'cardio', 'rep', 'set', 'pushup', 'squat', 'deadlift', 'bench', 'run', 'lifting', 'hiit'];
+
+function detectType(userMsg: string, aiMsg: string): SuggestionType | null {
+  const userLower = userMsg.toLowerCase();
+  const combined  = (userMsg + ' ' + aiMsg).toLowerCase();
+  // User message intent takes priority
+  const userWantsWorkout   = WORKOUT_KW.some((k) => userLower.includes(k));
+  const userWantsNutrition = NUTRITION_KW.some((k) => userLower.includes(k));
+  if (userWantsWorkout && !userWantsNutrition) return 'workout';
+  if (userWantsNutrition && !userWantsWorkout) return 'nutrition';
+  // Fall back to keyword count in full response
+  const workoutHits   = WORKOUT_KW.filter((k) => combined.includes(k)).length;
+  const nutritionHits = NUTRITION_KW.filter((k) => combined.includes(k)).length;
+  if (workoutHits > nutritionHits) return 'workout';
+  if (nutritionHits > workoutHits) return 'nutrition';
+  return null;
+}
+
+const QUICK_PROMPTS = [
+  { label: '📋 Weekly Plan',   prompt: 'Generate a weekly workout plan for me based on my goals.' },
+  { label: '🥗 Meal Ideas',    prompt: 'Give me healthy meal ideas for today based on my diet preferences.' },
+  { label: '😴 Sleep Tips',    prompt: 'Give me 3 tips to improve my sleep and recovery tonight.' },
+  { label: '🔥 Motivation',    prompt: 'I need motivation to keep going. Give me a short pep talk.' },
+];
+
+export default function AICoachModal() {
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const userId          = useAuthStore((s) => s.user?.id ?? 'anonymous');
+  const profile         = useUserStore((s) => s.profile);
+  const recoveryEntries = useRecoveryStore((s) => s.entries);
+  const saveSuggestion  = useAISuggestionsStore((s) => s.save);
+  const rawMessages     = useAIChatStore((s) => s.chats[userId]);
+  const messages        = rawMessages ?? [WELCOME_MESSAGE];
+  const addMessage      = useAIChatStore((s) => s.addMessage);
+  const clearHistory    = useAIChatStore((s) => s.clearHistory);
+
+  const [input,   setInput]   = useState('');
+  const [loading, setLoading] = useState(false);
+  const listRef = useRef<FlatList>(null);
+
+  const send = useCallback(async (text: string) => {
+    const clean = sanitizeInput(text);
+    if (!clean || loading) return;
+
+    const userMsg: Message = { id: Date.now().toString(), role: 'user', text: clean };
+    const history = [...messages, userMsg].slice(-10).map((m) => ({ role: m.role, content: m.text }));
+
+    // Strip PII — only forward safe preference fields to the AI.
+    const safeProfile = profile
+      ? Object.fromEntries(
+          SAFE_PROFILE_KEYS
+            .filter((k) => profile[k] !== undefined)
+            .map((k) => [k, profile[k]])
+        )
+      : null;
+
+    addMessage(userId, userMsg);
+    setInput('');
+    setLoading(true);
+
+    try {
+      const res = await fetch(EDGE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
+        body: JSON.stringify({
+          messages: history,
+          userProfile: safeProfile,
+          mode: mode ?? 'chat',
+          recoveryTrend: recoveryEntries.slice(-7),
+        }),
+      });
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const data = await res.json();
+
+      const replyText = data?.content ?? 'Sorry, I could not generate a response.';
+      const sType = detectType(text, replyText);
+      if (sType) saveSuggestion(sType, replyText);
+
+      const reply: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        text: replyText,
+        suggestionType: sType,
+      };
+      addMessage(userId, reply);
+    } catch (e: any) {
+      Alert.alert('Error', e.message ?? 'Something went wrong');
+    } finally {
+      setLoading(false);
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+    }
+  }, [messages, loading, profile, recoveryEntries, mode, saveSuggestion, userId]);
+
+  const renderMessage = ({ item }: { item: Message }) => {
+    const isUser = item.role === 'user';
+    const navTarget = item.suggestionType === 'nutrition'
+      ? { label: '📊 View in Nutrition →', route: '/(tabs)/nutrition' }
+      : item.suggestionType === 'workout'
+      ? { label: '💪 View in Workout →',   route: '/(tabs)/workout' }
+      : null;
+
+    return (
+      <View style={[styles.msgRow, isUser && styles.msgRowUser]}>
+        {!isUser && (
+          <View style={styles.avatar}>
+            <Text style={{ fontSize: 14 }}>✦</Text>
+          </View>
+        )}
+        <View style={{ maxWidth: '78%' }}>
+          <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAI]}>
+            <Text style={[styles.bubbleText, isUser && styles.bubbleTextUser]}>{item.text}</Text>
+          </View>
+          {navTarget && (
+            <TouchableOpacity
+              style={styles.viewTabBtn}
+              onPress={() => {
+                router.back();
+                setTimeout(() => router.push(navTarget.route as any), 300);
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.viewTabText}>{navTarget.label}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <View style={styles.aiBadge}><Text style={styles.aiBadgeText}>✦</Text></View>
+          <View>
+            <Text style={styles.title}>AI Coach</Text>
+            <Text style={styles.sub}>Powered by Claude</Text>
+          </View>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+          <TouchableOpacity onPress={() => Alert.alert('Clear Chat', 'Delete all chat history?', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Clear', style: 'destructive', onPress: () => clearHistory(userId) },
+          ])} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+            <Text style={styles.clearBtn}>Clear</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+            <Text style={styles.closeBtn}>✕</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Messages */}
+      <FlatList
+        ref={listRef}
+        data={messages}
+        keyExtractor={(m) => m.id}
+        renderItem={renderMessage}
+        contentContainerStyle={styles.list}
+        showsVerticalScrollIndicator={false}
+        onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
+      />
+
+      {/* Loading indicator */}
+      {loading && (
+        <View style={styles.typingRow}>
+          <View style={styles.avatar}><Text style={{ fontSize: 14 }}>✦</Text></View>
+          <View style={styles.typingBubble}>
+            <ActivityIndicator size="small" color={colors.accent.primary} />
+          </View>
+        </View>
+      )}
+
+      {/* Quick prompts */}
+      {messages.length <= 1 && !loading && (
+        <View style={styles.quickRow}>
+          {QUICK_PROMPTS.map((q) => (
+            <TouchableOpacity key={q.label} style={styles.quickChip} onPress={() => send(q.prompt)} activeOpacity={0.75}>
+              <Text style={styles.quickText}>{q.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {/* Input */}
+      <View style={styles.inputRow}>
+        <TextInput
+          style={styles.input}
+          value={input}
+          onChangeText={setInput}
+          placeholder="Ask your AI coach..."
+          placeholderTextColor={colors.text.tertiary}
+          multiline
+          maxLength={500}
+          returnKeyType="send"
+          onSubmitEditing={() => send(input)}
+        />
+        <TouchableOpacity
+          style={[styles.sendBtn, (!input.trim() || loading) && styles.sendBtnDisabled]}
+          onPress={() => send(input)}
+          disabled={!input.trim() || loading}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.sendIcon}>↑</Text>
+        </TouchableOpacity>
+      </View>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.bg.tertiary },
+
+  header:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.base, paddingTop: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.border.subtle, backgroundColor: colors.bg.secondary },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  aiBadge:    { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.accent.dim, alignItems: 'center', justifyContent: 'center' },
+  aiBadgeText:{ fontSize: 18, color: colors.accent.primary },
+  title:      { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.primary },
+  sub:        { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary },
+  closeBtn:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.base, color: colors.text.secondary },
+  clearBtn:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.tertiary },
+
+  list: { padding: spacing.base, gap: spacing.sm, paddingBottom: spacing.lg },
+
+  msgRow:     { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, marginBottom: spacing.sm },
+  msgRowUser: { flexDirection: 'row-reverse' },
+  avatar:     { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.accent.dim, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+
+  bubble:         { maxWidth: '78%', borderRadius: radius.xl, paddingHorizontal: 14, paddingVertical: 10 },
+  bubbleAI:       { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle },
+  bubbleUser:     { backgroundColor: colors.accent.primary },
+  bubbleText:     { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.primary, lineHeight: 20 },
+  bubbleTextUser: { color: colors.text.inverse },
+
+  typingRow:    { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.base, paddingBottom: spacing.sm },
+  typingBubble: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, paddingHorizontal: 16, paddingVertical: 10 },
+
+  quickRow:  { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingHorizontal: spacing.base, paddingBottom: spacing.sm },
+  quickChip: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.accent.primary + '40', borderRadius: radius.full, paddingHorizontal: 14, paddingVertical: 8 },
+  quickText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.accent.primary },
+
+  inputRow:       { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, padding: spacing.base, paddingBottom: Platform.OS === 'ios' ? 32 : spacing.base, backgroundColor: colors.bg.secondary, borderTopWidth: 1, borderTopColor: colors.border.subtle },
+  input:          { flex: 1, fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.primary, backgroundColor: colors.bg.tertiary, borderRadius: radius.xl, paddingHorizontal: 14, paddingVertical: 10, maxHeight: 100 },
+  sendBtn:        { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.accent.primary, alignItems: 'center', justifyContent: 'center' },
+  sendBtnDisabled:{ backgroundColor: colors.border.default },
+  sendIcon:       { color: colors.text.inverse, fontSize: 18, fontWeight: '700' },
+
+  viewTabBtn:  { marginTop: 6, backgroundColor: colors.accent.dim, borderWidth: 1, borderColor: colors.accent.primary + '50', borderRadius: radius.full, paddingHorizontal: 14, paddingVertical: 7, alignSelf: 'flex-start' },
+  viewTabText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.accent.primary },
+});

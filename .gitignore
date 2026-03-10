@@ -30,8 +30,13 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
-.env*.local
+# local env files — NEVER commit secrets
+.env
+.env.*
+!.env.example
+
+# Security audit reports — contain vulnerability details and partial key values
+SECURITY_REPORT.md
 
 # typescript
 *.tsbuildinfo
