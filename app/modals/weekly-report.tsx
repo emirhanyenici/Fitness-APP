@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, ActivityIndicator,
@@ -10,6 +10,7 @@ import { useWorkoutStore } from '../../stores/workoutStore';
 import { useUserStore } from '../../stores/userStore';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { computeTargets } from '../../services/recommendations';
+import { buildLocalWeeklyReport } from '../../services/weeklyReport';
 import { daysAgoStr } from '../../services/dateUtils';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
@@ -24,20 +25,21 @@ export default function WeeklyReportModal() {
   const profile = useUserStore((s) => s.profile);
   const t = useT();
 
-  // Redirect free users immediately
-  if (!isPro) {
-    router.replace('/paywall');
-    return null;
-  }
-
   const entries         = useNutritionStore((s) => s.entries);
   const recoveryEntries = useRecoveryStore((s) => s.entries);
   const workoutHistory  = useWorkoutStore((s) => s.history);
   const targets         = useMemo(() => computeTargets(profile), [profile]);
 
   const [report,  setReport]  = useState<string | null>(null);
+  const [isLocal, setIsLocal] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState<string | null>(null);
+
+  // Redirect free users to the paywall. Done in an effect (not during render):
+  // navigating mid-render and returning before the hooks above run breaks the
+  // hooks order and crashes if `isPro` flips while mounted.
+  useEffect(() => {
+    if (!isPro) router.replace('/paywall');
+  }, [isPro]);
 
   // Build last 7 day summaries
   const weekSummary = useMemo(() => {
@@ -67,7 +69,7 @@ export default function WeeklyReportModal() {
 
   const generateReport = async () => {
     setLoading(true);
-    setError(null);
+    setIsLocal(false);
 
     const daysLogged   = weekSummary.filter((d) => d.calories > 0 || d.workoutsCompleted > 0).length;
     const avgCalories  = Math.round(weekSummary.filter((d) => d.calories > 0).reduce((s, d) => s + d.calories, 0) / Math.max(1, weekSummary.filter((d) => d.calories > 0).length));
@@ -121,12 +123,23 @@ Keep it motivating, honest, and specific to their numbers. Be brief and direct.`
       }
       const data = await res.json();
       setReport(data?.content ?? t('weeklyReport.noReport'));
-    } catch (e: any) {
-      setError(e.message ?? t('weeklyReport.genericError'));
+    } catch {
+      // AI path unavailable (edge function not deployed yet, offline, or
+      // server error) — build the report on-device from the same stats so
+      // the feature always produces a result.
+      setReport(buildLocalWeeklyReport(
+        { daysLogged, avgCalories, totalWorkouts, avgMood, avgSleep },
+        targets,
+        t,
+      ));
+      setIsLocal(true);
     } finally {
       setLoading(false);
     }
   };
+
+  // Render nothing while the paywall redirect (effect above) takes over.
+  if (!isPro) return null;
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -186,18 +199,10 @@ Keep it motivating, honest, and specific to their numbers. Be brief and direct.`
         </View>
       )}
 
-      {error && (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity onPress={generateReport} style={styles.retryBtn} accessibilityRole="button" accessibilityLabel={t('weeklyReport.tryAgainA11y')}>
-            <Text style={styles.retryText}>{t('weeklyReport.tryAgain')}</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
       {report && (
         <View style={styles.reportCard}>
           <Text style={styles.reportText}>{report}</Text>
+          {isLocal && <Text style={styles.localNote}>{t('weeklyReport.localNote')}</Text>}
           <TouchableOpacity style={styles.regenerateBtn} onPress={generateReport} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t('weeklyReport.regenerateA11y')}>
             <Text style={styles.regenerateText}>{t('weeklyReport.regenerate')}</Text>
           </TouchableOpacity>
@@ -239,12 +244,8 @@ const styles = StyleSheet.create({
   loadingBox:  { alignItems: 'center', gap: spacing.base, paddingVertical: spacing['2xl'] },
   loadingText: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary },
 
-  errorBox:   { backgroundColor: colors.bg.secondary, borderRadius: radius.xl, padding: spacing.base, gap: spacing.sm, alignItems: 'center' },
-  errorText:  { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.status.danger, textAlign: 'center' },
-  retryBtn:   { backgroundColor: colors.bg.elevated, borderRadius: radius.full, paddingHorizontal: 20, paddingVertical: 8 },
-  retryText:  { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.primary },
-
   reportCard:      { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.accent.primary + '30', borderRadius: radius['2xl'], padding: spacing.xl, gap: spacing.xl },
+  localNote:       { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textAlign: 'center', marginTop: -spacing.sm },
   reportText:      { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.primary, lineHeight: 22 },
   regenerateBtn:   { alignSelf: 'center', paddingVertical: spacing.sm, paddingHorizontal: spacing.xl },
   regenerateText:  { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.tertiary },
