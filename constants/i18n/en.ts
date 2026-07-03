@@ -30,6 +30,14 @@ export const en = {
     profile: 'Profile',
   },
 
+  score: {
+    pillarSleep: 'Sleep',
+    pillarFood: 'Food',
+    pillarMove: 'Move',
+    pillarMood: 'Mood',
+    sameAsYesterday: '= same as yesterday',
+  },
+
   home: {
     goodMorning: 'Good morning,',
     goodAfternoon: 'Good afternoon,',

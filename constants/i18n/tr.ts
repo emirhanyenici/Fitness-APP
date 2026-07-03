@@ -30,6 +30,14 @@ export const tr: Translations = {
     profile: 'Profil',
   },
 
+  score: {
+    pillarSleep: 'Uyku',
+    pillarFood: 'Beslenme',
+    pillarMove: 'Hareket',
+    pillarMood: 'Ruh Hali',
+    sameAsYesterday: '= aynı',
+  },
+
   home: {
     goodMorning: 'Günaydın,',
     goodAfternoon: 'İyi günler,',

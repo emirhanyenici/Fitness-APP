@@ -8,7 +8,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useUserStore } from '../../stores/userStore';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { useWeightLogStore } from '../../stores/weightLogStore';
-import { useZenovaScore } from '../../hooks/useNovraScore';
+import { useZenovaScore, formatDeltaLabel } from '../../hooks/useNovraScore';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
@@ -49,7 +49,8 @@ export default function ProfileScreen() {
     { icon: '📄', label: t('profile.termsOfService'), sub: '',                                                       action: 'terms',         pro: false },
   ];
 
-  const { score, scoreColor, deltaLabel, deltaColor } = useZenovaScore();
+  const { score, scoreColor, delta, deltaColor } = useZenovaScore();
+  const deltaLabel = formatDeltaLabel(delta, t('score.sameAsYesterday'));
 
   // ── Edit state ──
   const [editing, setEditing] = useState(false);

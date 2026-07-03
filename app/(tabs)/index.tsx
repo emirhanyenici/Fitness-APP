@@ -12,7 +12,7 @@ import { useRecoveryStore } from '../../stores/recoveryStore';
 import { GOAL_TO_BODY_PART, TYPE_TO_BODY_PART, BODY_PART_LABEL } from '../../services/exercisedb';
 import { computeTargets, GOAL_LABELS } from '../../services/recommendations';
 import { dateStr, daysAgoStr } from '../../services/dateUtils';
-import { useZenovaScore } from '../../hooks/useNovraScore';
+import { useZenovaScore, computeDayScore, formatDeltaLabel } from '../../hooks/useNovraScore';
 import { AICoachBanner } from '../../components/ui/AICoachBanner';
 import { SparklineChart } from '../../components/ui/SparklineChart';
 import { useT } from '../../constants/i18n';
@@ -39,7 +39,8 @@ export default function HomeScreen() {
   const today     = todayDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
   const targets    = useMemo(() => computeTargets(profile), [profile]);
-  const { score, scoreColor, pillars, deltaLabel, deltaColor, todayCalories, calPct } = useZenovaScore();
+  const { score, scoreColor, pillars, delta, deltaColor, todayCalories, calPct } = useZenovaScore();
+  const deltaLabel = formatDeltaLabel(delta, t('score.sameAsYesterday'));
 
   const proteinLeft = useMemo(() => {
     const todayProtein = entries
@@ -109,19 +110,20 @@ export default function HomeScreen() {
   const workoutTarget = targets.workoutMinutes;
 
   // ── 7-day LifeScore history (for trend chart) ──
+  // Same computeDayScore as the hero score/delta, so today's trend point
+  // always matches the hero number.
   const weekScores = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = daysAgoStr(6 - i);
-      const cal  = entries.filter((e) => e.date === d).reduce((s, e) => s + e.calories, 0);
-      const rec  = recoveryEntries.find((e) => e.date === d);
-      const hasW = workoutHistory.some((w) => w.date === d);
-      const calScore   = cal > 0 ? Math.min((cal / targets.calories) * 25, 25) : 0;
-      const moveScore  = hasW ? 25 : 0;
-      const moodScore  = rec ? rec.mood * 5 : 0;
-      const sleepScore = rec?.sleepHours ? Math.min((rec.sleepHours / targets.sleepHours) * 25, 25) : 0;
-      return Math.round(calScore + moveScore + moodScore + sleepScore);
-    });
-  }, [entries, recoveryEntries, workoutHistory, targets]);
+    const inputs = {
+      entries,
+      workoutHistory,
+      recoveryEntries,
+      targets: { calories: targets.calories, sleepHours: targets.sleepHours },
+      restDaySelected: selectedType === 'rest',
+    };
+    return Array.from({ length: 7 }, (_, i) =>
+      computeDayScore(daysAgoStr(6 - i), inputs).score
+    );
+  }, [entries, recoveryEntries, workoutHistory, targets, selectedType]);
 
   const weekLabels = weekDates.map((d) =>
     new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'narrow' })
@@ -164,11 +166,11 @@ export default function HomeScreen() {
         <View style={styles.pillsRow}>
           {pillars.map((p) => (
             <View
-              key={p.label}
+              key={p.labelKey}
               style={[styles.pill, { borderColor: p.color + '50' }]}
             >
               <View style={[styles.pillDot, { backgroundColor: p.color }]} />
-              <Text style={styles.pillLabel}>{p.label}</Text>
+              <Text style={styles.pillLabel}>{t(p.labelKey)}</Text>
               <Text style={[styles.pillScore, { color: p.color }]}>{p.value}/25</Text>
             </View>
           ))}
