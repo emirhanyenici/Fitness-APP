@@ -1,5 +1,6 @@
 import { WeightEntry } from '../stores/weightLogStore';
 import { RecoveryEntry } from '../stores/recoveryStore';
+import { dateStr } from './dateUtils';
 
 /**
  * Returns true when the user's weight hasn't changed meaningfully
@@ -13,8 +14,12 @@ export function detectPlateau(entries: WeightEntry[], weeks = 3): boolean {
   const latest = sorted[sorted.length - 1];
   const cutoff = new Date(latest.date);
   cutoff.setDate(cutoff.getDate() - weeks * 7);
-  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  const cutoffStr = dateStr(cutoff);
 
+  // `sorted` is ascending by date, so find() returns the *oldest* entry that is
+  // at or before the cutoff — i.e. the reference point `weeks` weeks back to
+  // compare the latest weight against. (Reads like it might grab the newest, but
+  // ascending order guarantees it's the earliest qualifying entry.)
   const earliest = sorted.find((e) => e.date <= cutoffStr);
   if (!earliest) return false;
 

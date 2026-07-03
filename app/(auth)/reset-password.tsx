@@ -54,7 +54,7 @@ export default function ResetPasswordScreen() {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.logoWrap}>
-        <Text style={styles.logo}>NOVRA</Text>
+        <Text style={styles.logo}>ZENOVA</Text>
         <View style={styles.logoLine} />
       </View>
 

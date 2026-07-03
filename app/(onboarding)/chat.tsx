@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '../../stores/authStore';
@@ -7,6 +7,7 @@ import { supabase } from '../../services/supabase';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
+import { useT } from '../../constants/i18n';
 
 /** Returns null when inputs are invalid (zero, negative, or missing). */
 function calcBMI(weightKg: number, heightCm: number): number | null {
@@ -15,87 +16,88 @@ function calcBMI(weightKg: number, heightCm: number): number | null {
   return Math.round((weightKg / (h * h)) * 100) / 100; // 2 decimal places
 }
 
-type BmiCat = { label: string; color: string; comment: string };
+type BmiCat = { labelKey: string; color: string; commentKey: string };
 
 function bmiCategory(bmi: number | null): BmiCat | null {
   if (bmi === null) return null;
-  if (bmi < 18.5) return { label: 'Underweight',     color: '#3B82F6', comment: 'Gaining a bit of weight will improve both your health and energy. Your plan has been adjusted accordingly.' };
-  if (bmi < 25)   return { label: 'Normal',           color: '#10B981', comment: 'Great! You are at a healthy weight. Your plan focuses on maintaining and improving your current fitness.' };
-  if (bmi < 30)   return { label: 'Overweight',       color: '#F59E0B', comment: 'No worries — this is very common. Your plan is designed for a slow and sustainable transformation.' };
-  if (bmi < 35)   return { label: 'Obese (Class I)',  color: '#F97316', comment: 'You are taking the right step. With consistent movement and nutrition, big changes are possible.' };
-  return           { label: 'Obese (Class II+)',       color: '#EF4444', comment: 'Investing in your health takes courage. Your plan will guide you step by step toward your goal.' };
+  if (bmi < 18.5) return { labelKey: 'onboarding.bmiUnderweight', color: '#3B82F6', commentKey: 'onboarding.bmiUnderweightComment' };
+  if (bmi < 25)   return { labelKey: 'onboarding.bmiNormal',      color: '#10B981', commentKey: 'onboarding.bmiNormalComment' };
+  if (bmi < 30)   return { labelKey: 'onboarding.bmiOverweight',  color: '#F59E0B', commentKey: 'onboarding.bmiOverweightComment' };
+  if (bmi < 35)   return { labelKey: 'onboarding.bmiObese1',      color: '#F97316', commentKey: 'onboarding.bmiObese1Comment' };
+  return           { labelKey: 'onboarding.bmiObese2',            color: '#EF4444', commentKey: 'onboarding.bmiObese2Comment' };
 }
 
 const STEPS = [
   {
     type: 'chips' as const,
-    message: "Hi! I'm Novra — your personal health coach.\nWhat do you most want to improve right now?",
+    messageKey: 'onboarding.goalMessage',
     options: [
-      { label: '🏃 Lose weight & get fit',       value: 'lose_weight' },
-      { label: '💪 Build muscle & strength',     value: 'gain_muscle' },
-      { label: '⚡ More energy & focus',          value: 'improve_energy' },
-      { label: '😴 Better sleep & recovery',     value: 'better_sleep' },
-      { label: '🧘 Reduce stress',               value: 'reduce_stress' },
-      { label: '✨ Overall healthier lifestyle', value: 'general_health' },
+      { labelKey: 'onboarding.goalLoseWeight', value: 'lose_weight' },
+      { labelKey: 'onboarding.goalGainMuscle', value: 'gain_muscle' },
+      { labelKey: 'onboarding.goalEnergy',     value: 'improve_energy' },
+      { labelKey: 'onboarding.goalSleep',      value: 'better_sleep' },
+      { labelKey: 'onboarding.goalStress',     value: 'reduce_stress' },
+      { labelKey: 'onboarding.goalGeneral',    value: 'general_health' },
     ],
     key: 'primary_goal',
   },
   {
     type: 'chips' as const,
-    message: 'What is your biological sex? This helps me calculate your calorie and nutrition targets accurately.',
+    messageKey: 'onboarding.sexMessage',
     options: [
-      { label: '♂ Male',              value: 'male' },
-      { label: '♀ Female',            value: 'female' },
-      { label: '⚧ Prefer not to say', value: 'other' },
+      { labelKey: 'onboarding.sexMale',   value: 'male' },
+      { labelKey: 'onboarding.sexFemale', value: 'female' },
+      { labelKey: 'onboarding.sexOther',  value: 'other' },
     ],
     key: 'gender',
   },
   {
     type: 'bmi' as const,
-    message: 'Enter your height and weight — I will calculate your BMI and personalise your plan.',
+    messageKey: 'onboarding.bmiMessage',
     key: null,
   },
   {
     type: 'chips' as const,
-    message: 'How many days per week do you exercise?',
+    messageKey: 'onboarding.freqMessage',
     options: [
-      { label: 'Never',           value: '0' },
-      { label: '1-2 days',        value: '2' },
-      { label: '3-4 days',        value: '3' },
-      { label: '5 days',          value: '5' },
-      { label: '6-7 days (Athlete)', value: '6' },
+      { labelKey: 'onboarding.freqNever', value: '0' },
+      { labelKey: 'onboarding.freq12',    value: '2' },
+      { labelKey: 'onboarding.freq34',    value: '3' },
+      { labelKey: 'onboarding.freq5',     value: '5' },
+      { labelKey: 'onboarding.freq67',    value: '6' },
     ],
     key: 'workout_frequency',
   },
   {
     type: 'chips' as const,
-    message: 'Where do you usually work out?',
+    messageKey: 'onboarding.envMessage',
     options: [
-      { label: '🏋️ Gym — full equipment', value: 'gym' },
-      { label: '🏠 Home — minimal gear',   value: 'home' },
+      { labelKey: 'onboarding.envGym',  value: 'gym' },
+      { labelKey: 'onboarding.envHome', value: 'home' },
     ],
     key: 'workout_environment',
   },
   {
     type: 'chips' as const,
-    message: 'What is the biggest obstacle keeping you from a healthy lifestyle?',
+    messageKey: 'onboarding.obstacleMessage',
     options: [
-      { label: 'Not enough time',              value: 'no_time' },
-      { label: 'Low motivation & energy',      value: 'low_motivation' },
-      { label: 'Not sure where to start',      value: 'no_knowledge' },
-      { label: 'Staying consistent with diet', value: 'food_discipline' },
+      { labelKey: 'onboarding.obstacleTime',       value: 'no_time' },
+      { labelKey: 'onboarding.obstacleMotivation', value: 'low_motivation' },
+      { labelKey: 'onboarding.obstacleKnowledge',  value: 'no_knowledge' },
+      { labelKey: 'onboarding.obstacleDiet',       value: 'food_discipline' },
     ],
     key: 'main_obstacle',
   },
   {
     type: 'text' as const,
-    message: 'Almost done! What should I call you?',
+    messageKey: 'onboarding.nameMessage',
     key: 'name',
   },
 ];
 
 export default function OnboardingChat() {
   const session = useAuthStore((s) => s.session);
+  const t = useT();
 
   useEffect(() => {
     if (!session) router.replace('/(auth)/login');
@@ -104,7 +106,6 @@ export default function OnboardingChat() {
   const [step, setStep]           = useState(0);
   const [answers, setAnswers]     = useState<Record<string, string>>({});
   const [done, setDone]           = useState(false);
-  const [bmiResult, setBmiResult] = useState<{ bmi: number; cat: BmiCat } | null>(null);
 
   const profile       = useUserStore((s) => s.profile);
   const updateProfile = useUserStore((s) => s.updateProfile);
@@ -114,6 +115,14 @@ export default function OnboardingChat() {
   const [weight,    setWeight]    = useState(profile?.weight_kg ? String(profile.weight_kg) : '');
   const [nameInput, setNameInput] = useState(profile?.name ?? '');
 
+  // BMI is computed live as user types — no separate "Calculate" button
+  const liveBmi = useMemo(() => {
+    const h = parseFloat(height);
+    const w = parseFloat(weight);
+    return calcBMI(w, h);
+  }, [height, weight]);
+  const liveCat = useMemo(() => bmiCategory(liveBmi), [liveBmi]);
+
   const current = STEPS[step];
 
   const goNext = async (final: Record<string, string>) => {
@@ -121,16 +130,22 @@ export default function OnboardingChat() {
       setStep((s) => s + 1);
     } else {
       setDone(true);
-      // Attach Supabase auth id + email so profile is never missing required fields
-      const { data: { user } } = await supabase.auth.getUser();
-      // Persist onboarding flag server-side so returning users skip onboarding after sign-out
-      await supabase.auth.updateUser({ data: { onboarding_completed: true } });
-      updateProfile({
-        ...final,
-        onboarding_completed: true,
-        id: user?.id ?? '',
-        email: user?.email ?? '',
-      });
+      try {
+        // Attach Supabase auth id + email so profile is never missing required fields
+        const { data: { user } } = await supabase.auth.getUser();
+        // Persist onboarding flag server-side so returning users skip onboarding after sign-out
+        await supabase.auth.updateUser({ data: { onboarding_completed: true } });
+        updateProfile({
+          ...final,
+          onboarding_completed: true,
+          id: user?.id ?? '',
+          email: user?.email ?? '',
+        });
+      } catch (e: any) {
+        // Supabase update failed — still complete onboarding locally
+        console.warn('[onboarding] Supabase update failed:', e?.message);
+        updateProfile({ ...final, onboarding_completed: true });
+      }
       setTimeout(() => router.replace('/(tabs)'), 1500);
     }
   };
@@ -152,26 +167,13 @@ export default function OnboardingChat() {
     goNext(updated);
   };
 
-  const handleBmiCalc = () => {
-    const h = parseFloat(height);
-    const w = parseFloat(weight);
-    if (!h || !w) return;
-    const bmi = calcBMI(w, h);
-    const cat = bmiCategory(bmi);
-    if (bmi === null || cat === null) return; // guard against invalid inputs
-    setBmiResult({ bmi, cat });
-    // Save numeric fields directly to profile so profile screen reflects them
-    updateProfile({ height_cm: h, weight_kg: w, bmi });
-  };
-
-  const canCalc = parseFloat(height) >= 50 && parseFloat(weight) >= 20;
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.container}>
         <View style={styles.header}>
           {step > 0 && !done && (
-            <TouchableOpacity onPress={() => { setStep((s) => Math.max(0, s - 1)); setBmiResult(null); }}>
+            <TouchableOpacity onPress={() => setStep((s) => Math.max(0, s - 1))} accessibilityRole="button" accessibilityLabel={t('onboarding.goBackStep')} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
               <Text style={styles.back}>&#8592;</Text>
             </TouchableOpacity>
           )}
@@ -181,7 +183,7 @@ export default function OnboardingChat() {
             ))}
           </View>
           <Text style={styles.stepLabel}>
-            {done ? 'Complete' : `Step ${step + 1} / ${STEPS.length}`}
+            {done ? t('onboarding.complete') : t('onboarding.stepXofY', { n: step + 1, total: STEPS.length })}
           </Text>
         </View>
 
@@ -190,59 +192,122 @@ export default function OnboardingChat() {
             <View style={styles.avatar}><Text style={styles.avatarText}>&#10022;</Text></View>
             <View style={styles.bubble}>
               <Text style={styles.bubbleText}>
-                {done ? 'Your plan is being prepared...' : current.message}
+                {done ? t('onboarding.planPreparing') : t(current.messageKey)}
               </Text>
             </View>
           </View>
 
           {!done && current.type === 'chips' && (
             <View style={styles.options}>
-              {(current as { options: { label: string; value: string }[] }).options.map((opt) => (
+              {(current as { options: { labelKey: string; value: string }[] }).options.map((opt) => (
                 <TouchableOpacity
                   key={opt.value}
                   style={styles.chip}
                   onPress={() => handleChip(opt.value)}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={t(opt.labelKey)}
                 >
-                  <Text style={styles.chipText}>{opt.label}</Text>
+                  <Text style={styles.chipText}>{t(opt.labelKey)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
           )}
 
-          {!done && current.type === 'bmi' && !bmiResult && (
+          {!done && current.type === 'bmi' && (
             <View style={styles.bmiForm}>
+              {/* Inputs */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Height (cm)</Text>
+                <Text style={styles.inputLabel}>{t('onboarding.heightCm')}</Text>
                 <TextInput
                   style={styles.input}
                   value={height}
                   onChangeText={setHeight}
-                  placeholder="e.g. 175"
+                  placeholder={t('onboarding.heightEg')}
                   placeholderTextColor={colors.text.tertiary}
                   keyboardType="numeric"
                   maxLength={3}
+                  accessibilityLabel={t('onboarding.heightA11y')}
                 />
               </View>
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Weight (kg)</Text>
+                <Text style={styles.inputLabel}>{t('onboarding.weightKg')}</Text>
                 <TextInput
                   style={styles.input}
                   value={weight}
                   onChangeText={setWeight}
-                  placeholder="e.g. 70"
+                  placeholder={t('onboarding.weightEg')}
                   placeholderTextColor={colors.text.tertiary}
                   keyboardType="numeric"
                   maxLength={4}
+                  accessibilityLabel={t('onboarding.weightA11y')}
                 />
               </View>
+
+              {/* Live BMI preview */}
+              {liveBmi !== null && liveCat !== null && (
+                <View style={styles.bmiPreview}>
+                  <View style={styles.bmiPreviewLeft}>
+                    <Text style={[styles.bmiPreviewNum, { color: liveCat.color }]}>{liveBmi}</Text>
+                    <Text style={styles.bmiPreviewUnit}>{t('onboarding.bmiUnit')}</Text>
+                  </View>
+                  <View style={[styles.bmiPreviewBadge, { backgroundColor: liveCat.color + '18', borderColor: liveCat.color + '40' }]}>
+                    <Text style={[styles.bmiPreviewLabel, { color: liveCat.color }]}>{t(liveCat.labelKey)}</Text>
+                  </View>
+                </View>
+              )}
+
+              {/* BMI scale bar */}
+              {liveBmi !== null && (
+                <View style={styles.bmiScaleRow}>
+                  {[
+                    { label: t('onboarding.scaleUnder'), range: '<18.5', color: '#3B82F6', threshold: 18.5 },
+                    { label: t('onboarding.scaleNormal'), range: '18.5–25', color: '#10B981', threshold: 25 },
+                    { label: t('onboarding.scaleOver'), range: '25–30', color: '#F59E0B', threshold: 30 },
+                    { label: t('onboarding.scaleObese'), range: '30+', color: '#EF4444', threshold: Infinity },
+                  ].map((r) => {
+                    const active = liveBmi !== null && (
+                      r.threshold === 18.5 ? liveBmi < 18.5 :
+                      r.threshold === 25   ? liveBmi >= 18.5 && liveBmi < 25 :
+                      r.threshold === 30   ? liveBmi >= 25   && liveBmi < 30 :
+                      liveBmi >= 30
+                    );
+                    return (
+                      <View key={r.label} style={[styles.bmiScaleSeg, active && { borderColor: r.color + '80', backgroundColor: r.color + '12' }]}>
+                        <View style={[styles.bmiScaleDot, { backgroundColor: r.color }]} />
+                        <Text style={[styles.bmiScaleLabel, active && { color: r.color, fontFamily: typography.fonts.bodyMed }]}>{r.label}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+
+              {/* Comment */}
+              {liveCat !== null && (
+                <View style={styles.commentBox}>
+                  <Text style={styles.commentText}>{t(liveCat.commentKey)}</Text>
+                </View>
+              )}
+
+              {/* Continue */}
               <TouchableOpacity
-                style={[styles.calcBtn, !canCalc && styles.calcBtnDisabled]}
-                onPress={handleBmiCalc}
-                disabled={!canCalc}
+                style={[styles.calcBtn, liveBmi === null && styles.calcBtnDisabled]}
+                onPress={() => {
+                  if (liveBmi === null || liveCat === null) return;
+                  const h = parseFloat(height);
+                  const w = parseFloat(weight);
+                  updateProfile({ height_cm: h, weight_kg: w, bmi: liveBmi });
+                  goNext(answers);
+                }}
+                disabled={liveBmi === null}
                 activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: liveBmi === null }}
+                accessibilityLabel={liveBmi !== null ? t('onboarding.continueA11y') : t('onboarding.enterHWA11y')}
               >
-                <Text style={styles.calcBtnText}>Calculate BMI</Text>
+                <Text style={styles.calcBtnText}>
+                  {liveBmi !== null ? t('onboarding.continueArrow') : t('onboarding.enterHW')}
+                </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -253,63 +318,28 @@ export default function OnboardingChat() {
                 style={styles.input}
                 value={nameInput}
                 onChangeText={setNameInput}
-                placeholder="Your name"
+                placeholder={t('onboarding.yourName')}
                 placeholderTextColor={colors.text.tertiary}
                 maxLength={30}
                 autoFocus
                 onSubmitEditing={handleNameSubmit}
                 returnKeyType="done"
+                accessibilityLabel={t('onboarding.yourName')}
               />
               <TouchableOpacity
                 style={[styles.calcBtn, !nameInput.trim() && styles.calcBtnDisabled]}
                 onPress={handleNameSubmit}
                 disabled={!nameInput.trim()}
                 activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !nameInput.trim() }}
+                accessibilityLabel={t('onboarding.getStartedNameA11y')}
               >
-                <Text style={styles.calcBtnText}>Get Started</Text>
+                <Text style={styles.calcBtnText}>{t('onboarding.getStarted')}</Text>
               </TouchableOpacity>
             </View>
           )}
 
-          {!done && current.type === 'bmi' && bmiResult && (
-            <View style={styles.bmiResult}>
-              <View style={[styles.bmiCircle, { borderColor: bmiResult.cat.color }]}>
-                <Text style={[styles.bmiNum, { color: bmiResult.cat.color }]}>{bmiResult.bmi}</Text>
-                <Text style={styles.bmiUnit}>BMI</Text>
-              </View>
-
-              <View style={[styles.catBadge, { backgroundColor: bmiResult.cat.color + '18', borderColor: bmiResult.cat.color + '40' }]}>
-                <Text style={[styles.catLabel, { color: bmiResult.cat.color }]}>{bmiResult.cat.label}</Text>
-              </View>
-
-              <View style={styles.scale}>
-                {[
-                  { label: 'Underweight', range: '< 18.5',    color: '#3B82F6' },
-                  { label: 'Normal',      range: '18.5-24.9', color: '#10B981' },
-                  { label: 'Overweight',  range: '25-29.9',   color: '#F59E0B' },
-                  { label: 'Obese',       range: '30+',       color: '#EF4444' },
-                ].map((r) => (
-                  <View key={r.label} style={styles.scaleRow}>
-                    <View style={[styles.scaleDot, { backgroundColor: r.color }]} />
-                    <Text style={styles.scaleLabel}>{r.label}</Text>
-                    <Text style={styles.scaleRange}>{r.range}</Text>
-                  </View>
-                ))}
-              </View>
-
-              <View style={styles.commentBox}>
-                <Text style={styles.commentText}>{bmiResult.cat.comment}</Text>
-              </View>
-
-              <TouchableOpacity
-                style={styles.continueBtn}
-                onPress={() => { setBmiResult(null); goNext(answers); }}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.continueBtnText}>Continue</Text>
-              </TouchableOpacity>
-            </View>
-          )}
         </ScrollView>
       </View>
     </KeyboardAvoidingView>
@@ -340,19 +370,16 @@ const styles = StyleSheet.create({
   calcBtn:         { backgroundColor: colors.accent.primary, borderRadius: radius.full, paddingVertical: 14, alignItems: 'center', marginTop: spacing.sm },
   calcBtnDisabled: { backgroundColor: colors.border.default },
   calcBtnText:     { fontFamily: typography.fonts.display, fontSize: typography.sizes.base, color: colors.text.inverse },
-  bmiResult:       { gap: spacing.base, alignItems: 'center' },
-  bmiCircle:       { width: 130, height: 130, borderRadius: 65, borderWidth: 10, alignItems: 'center', justifyContent: 'center' },
-  bmiNum:          { fontFamily: typography.fonts.display, fontSize: 36 },
-  bmiUnit:         { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, letterSpacing: 3 },
-  catBadge:        { borderWidth: 1, borderRadius: radius.full, paddingHorizontal: 18, paddingVertical: 6 },
-  catLabel:        { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base },
-  scale:           { backgroundColor: colors.bg.secondary, borderRadius: radius.xl, padding: spacing.base, width: '100%', gap: spacing.sm, borderWidth: 1, borderColor: colors.border.subtle },
-  scaleRow:        { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  scaleDot:        { width: 10, height: 10, borderRadius: 5 },
-  scaleLabel:      { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.primary, flex: 1 },
-  scaleRange:      { fontFamily: typography.fonts.mono, fontSize: typography.sizes.xs, color: colors.text.tertiary },
+  bmiPreview:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.bg.tertiary, borderRadius: radius.lg, padding: spacing.base },
+  bmiPreviewLeft:  { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },
+  bmiPreviewNum:   { fontFamily: typography.fonts.display, fontSize: typography.sizes['2xl'] },
+  bmiPreviewUnit:  { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, letterSpacing: 2 },
+  bmiPreviewBadge: { borderWidth: 1, borderRadius: radius.full, paddingHorizontal: 14, paddingVertical: 5 },
+  bmiPreviewLabel: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.sm },
+  bmiScaleRow:     { flexDirection: 'row', gap: spacing.xs },
+  bmiScaleSeg:     { flex: 1, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.md, paddingVertical: 6, paddingHorizontal: 4, alignItems: 'center', gap: 3 },
+  bmiScaleDot:     { width: 6, height: 6, borderRadius: 3 },
+  bmiScaleLabel:   { fontFamily: typography.fonts.body, fontSize: 9, color: colors.text.tertiary, textAlign: 'center' },
   commentBox:      { backgroundColor: colors.accent.dim, borderRadius: radius.xl, padding: spacing.base, width: '100%', borderWidth: 1, borderColor: colors.accent.primary + '30' },
   commentText:     { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.accent.primary, lineHeight: 20 },
-  continueBtn:     { backgroundColor: colors.accent.primary, borderRadius: radius.full, paddingVertical: 14, alignItems: 'center', width: '100%' },
-  continueBtnText: { fontFamily: typography.fonts.display, fontSize: typography.sizes.base, color: colors.text.inverse },
 });

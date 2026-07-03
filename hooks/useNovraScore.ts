@@ -4,9 +4,10 @@ import { useWorkoutStore } from '../stores/workoutStore';
 import { useRecoveryStore } from '../stores/recoveryStore';
 import { useUserStore } from '../stores/userStore';
 import { computeTargets } from '../services/recommendations';
+import { daysAgoStr } from '../services/dateUtils';
 import { colors } from '../constants/colors';
 
-export interface NovraScore {
+export interface ZenovaScore {
   /** Normalized 0-100 score (based on 3 active pillars, sleep excluded until sensor available) */
   score: number;
   scoreColor: string;
@@ -26,17 +27,18 @@ export interface NovraScore {
   todayStr: string;
 }
 
-export function useNovraScore(): NovraScore {
-  const entries        = useNutritionStore((s) => s.entries);
-  const selectedType   = useWorkoutStore((s) => s.selectedType);
+export function useZenovaScore(): ZenovaScore {
+  const entries         = useNutritionStore((s) => s.entries);
+  const selectedType    = useWorkoutStore((s) => s.selectedType);
+  const workoutHistory  = useWorkoutStore((s) => s.history);
   const recoveryEntries = useRecoveryStore((s) => s.entries);
-  const profile        = useUserStore((s) => s.profile);
+  const profile         = useUserStore((s) => s.profile);
 
   const targets = useMemo(() => computeTargets(profile), [profile]);
 
-  // Stable date strings — computed once per hook call, not per render tick
-  const todayStr     = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const yesterdayStr = useMemo(() => new Date(Date.now() - 86_400_000).toISOString().slice(0, 10), []);
+  // Recomputed on every render — avoids stale dates after midnight.
+  const todayStr     = daysAgoStr(0);
+  const yesterdayStr = daysAgoStr(1);
 
   // ── Today ──────────────────────────────────────────────────────────────
   const todayEntries = useMemo(
@@ -49,15 +51,26 @@ export function useNovraScore(): NovraScore {
   );
   const calPct = Math.min(todayCalories / targets.calories, 1);
 
-  const foodScore  = Math.min(Math.round(calPct * 25), 25);
-  // moveScore: 0 = no selection, 10 = rest day chosen, 25 = active workout chosen
-  const moveScore  = selectedType === 'rest' ? 10 : selectedType ? 25 : 0;
+  const foodScore = Math.min(Math.round(calPct * 25), 25);
+  // moveScore: 25 = workout completed today, 10 = rest day chosen, 0 = no activity
+  // Uses history (same logic as yesterday) so score only increases after completion
+  const moveScore = useMemo(() => {
+    if (workoutHistory.some((w) => w.date === todayStr)) return 25;
+    if (selectedType === 'rest') return 10;
+    return 0;
+  }, [workoutHistory, selectedType, todayStr]);
   const todayRecovery = useMemo(
     () => recoveryEntries.find((e) => e.date === todayStr),
     [recoveryEntries, todayStr],
   );
-  const moodScore  = todayRecovery ? Math.round(todayRecovery.mood * 5) : 0;
-  const sleepScore = 0; // no sensor yet
+  const moodScore = todayRecovery ? Math.round(todayRecovery.mood * 5) : 0;
+
+  // sleepScore: derived from logged sleep hours vs daily target (0-25)
+  const sleepScore = useMemo(() => {
+    const h = todayRecovery?.sleepHours;
+    if (!h || !targets.sleepHours) return 0;
+    return Math.min(Math.round((h / targets.sleepHours) * 25), 25);
+  }, [todayRecovery, targets.sleepHours]);
 
   const rawScore = foodScore + moveScore + moodScore + sleepScore;
   // Score is the sum of all 4 pillars (each 0-25, total 0-100)
@@ -91,8 +104,17 @@ export function useNovraScore(): NovraScore {
   );
   const yFoodScore = Math.min(Math.round(yCalPct * 25), 25);
   const yMoodScore = yRecovery ? Math.round(yRecovery.mood * 5) : 0;
-  const yRaw = yFoodScore + yMoodScore; // moveScore for yesterday unknowable
-  const yesterdayScore = Math.min(yRaw, 100);
+  const ySleepScore = useMemo(() => {
+    const h = yRecovery?.sleepHours;
+    if (!h || !targets.sleepHours) return 0;
+    return Math.min(Math.round((h / targets.sleepHours) * 25), 25);
+  }, [yRecovery, targets.sleepHours]);
+  // Use yesterday's completed workout in history as proxy for yMoveScore
+  const yMoveScore = useMemo(
+    () => (workoutHistory.some((w) => w.date === yesterdayStr) ? 25 : 0),
+    [workoutHistory, yesterdayStr],
+  );
+  const yesterdayScore = Math.min(yFoodScore + yMoveScore + yMoodScore + ySleepScore, 100);
 
   const delta = score - yesterdayScore;
   const deltaLabel =

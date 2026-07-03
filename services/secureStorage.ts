@@ -15,6 +15,7 @@
 
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { logError } from './monitoring';
 
 // Detect whether the native ExpoSecureStore module is actually linked.
 // In Expo Go it is not available; in a real dev/production build it is.
@@ -79,19 +80,27 @@ async function removeSecure(key: string): Promise<void> {
 export const secureStorage = {
   getItem: async (key: string): Promise<string | null> => {
     if (IS_SECURE_AVAILABLE) {
-      try { return await getSecure(key); } catch { /* fall through */ }
+      try { return await getSecure(key); } catch (e) {
+        // Surface the silent fallback via monitoring — an encrypted-store failure
+        // in production would otherwise be invisible. Key name only, never values.
+        logError(e, { scope: 'secureStorage', op: 'getItem', key });
+      }
     }
     return AsyncStorage.getItem(key);
   },
   setItem: async (key: string, value: string): Promise<void> => {
     if (IS_SECURE_AVAILABLE) {
-      try { return await setSecure(key, value); } catch { /* fall through */ }
+      try { return await setSecure(key, value); } catch (e) {
+        logError(e, { scope: 'secureStorage', op: 'setItem', key });
+      }
     }
     return AsyncStorage.setItem(key, value);
   },
   removeItem: async (key: string): Promise<void> => {
     if (IS_SECURE_AVAILABLE) {
-      try { return await removeSecure(key); } catch { /* fall through */ }
+      try { return await removeSecure(key); } catch (e) {
+        logError(e, { scope: 'secureStorage', op: 'removeItem', key });
+      }
     }
     return AsyncStorage.removeItem(key);
   },

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Zenova LifeScore — Android Adaptive Icon MONOCHROME  (1024 × 1024, transparent bg)
+  Used for themed icons (Android 13+). Single white channel — system tints it.
+  Identical geometry to foreground but all fills are white, all glows removed.
+  Arc: r=263, centre=(512,512)  Start=(327,698) 135°  End=(698,698) 45°
+  Z: proportionally scaled 75% from main icon.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+
+  <!-- ── Ring track ─────────────────────────────────────────────── -->
+  <circle cx="512" cy="512" r="263"
+          fill="none"
+          stroke="#FFFFFF"
+          stroke-width="15"
+          opacity="0.25"/>
+
+  <!-- ── Score arc — 270° ────────────────────────────────────────── -->
+  <path d="M 327,698 A 263,263 0 1,1 698,698"
+        fill="none"
+        stroke="#FFFFFF"
+        stroke-width="27"
+        stroke-linecap="round"/>
+
+  <!-- ── Endpoint dots ────────────────────────────────────────────── -->
+  <circle cx="327" cy="698" r="15" fill="#FFFFFF"/>
+  <circle cx="698" cy="698" r="15" fill="#FFFFFF"/>
+
+  <!-- ── Z lettermark ─────────────────────────────────────────────── -->
+  <path d="M 392,383 L 632,383 L 632,434
+           L 467,587 L 632,587 L 632,638
+           L 392,638 L 392,587 L 557,434
+           L 392,434 Z"
+        fill="#FFFFFF"/>
+
+  <!-- ── Gap dots ─────────────────────────────────────────────────── -->
+  <circle cx="450" cy="762" r="4" fill="#FFFFFF" opacity="0.6"/>
+  <circle cx="512" cy="772" r="5" fill="#FFFFFF" opacity="0.8"/>
+  <circle cx="574" cy="762" r="4" fill="#FFFFFF" opacity="0.6"/>
+
+</svg>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, Pressable } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { secureStorage } from '../../services/secureStorage';
 import { router } from 'expo-router';
 import { useAuthStore } from '../../stores/authStore';
@@ -9,8 +10,9 @@ import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { useAnalytics } from '../../services/analytics';
+import { useT } from '../../constants/i18n';
 
-const SAVED_EMAIL_KEY = 'novra_saved_email';
+const SAVED_EMAIL_KEY = 'zenova_saved_email';
 
 export default function LoginScreen() {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
@@ -19,10 +21,14 @@ export default function LoginScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [fieldError, setFieldError] = useState<{ field: 'email' | 'password' | 'confirm' | 'general'; msg: string } | null>(null);
 
   const { signIn, signUp, isLoading } = useAuthStore();
   const isOnboarded = useUserStore((s) => s.isOnboarded);
   const analytics = useAnalytics();
+  const t = useT();
   const isSignUp = mode === 'signup';
 
   useEffect(() => {
@@ -32,36 +38,38 @@ export default function LoginScreen() {
   }, []);
 
   const handleSubmit = async () => {
-    if (!email.trim() || !password.trim()) {
-      Alert.alert('Missing fields', 'Please enter your email and password.');
-      return;
+    setFieldError(null);
+    if (!email.trim()) {
+      setFieldError({ field: 'email', msg: t('auth.emailRequired') }); return;
+    }
+    if (!password.trim()) {
+      setFieldError({ field: 'password', msg: t('auth.passwordRequired') }); return;
     }
     if (isSignUp && password.length < 12) {
-      Alert.alert('Password too short', 'Password must be at least 12 characters.');
-      return;
+      setFieldError({ field: 'password', msg: t('auth.passwordMin') }); return;
     }
     if (isSignUp && !/[A-Z]/.test(password)) {
-      Alert.alert('Weak password', 'Include at least one uppercase letter.');
-      return;
+      setFieldError({ field: 'password', msg: t('auth.passwordUpper') }); return;
     }
     if (isSignUp && !/[0-9]/.test(password)) {
-      Alert.alert('Weak password', 'Include at least one number.');
-      return;
+      setFieldError({ field: 'password', msg: t('auth.passwordNumber') }); return;
     }
     if (isSignUp && password !== confirmPassword) {
-      Alert.alert('Passwords do not match', 'Please make sure both passwords are the same.');
-      return;
+      setFieldError({ field: 'confirm', msg: t('auth.passwordsNoMatch') }); return;
     }
     try {
       if (isSignUp) {
         await signUp(email.trim(), password);
         analytics.signedUp('email');
-        Alert.alert('Account created!', 'Check your email to confirm your account, then sign in.', [
-          { text: 'OK', onPress: () => setMode('signin') },
+        Alert.alert(t('auth.accountCreated'), t('auth.accountCreatedBody'), [
+          { text: t('common.ok'), onPress: () => setMode('signin') },
         ]);
       } else {
         await signIn(email.trim(), password);
         analytics.signedIn('email');
+        // Identify the user in PostHog for session tracking
+        const userId = useAuthStore.getState().user?.id;
+        if (userId) analytics.identify(userId, email.trim());
         if (rememberMe) {
           await secureStorage.setItem(SAVED_EMAIL_KEY, email.trim());
         } else {
@@ -76,28 +84,28 @@ export default function LoginScreen() {
         router.replace(serverOnboarded || isOnboarded ? '/(tabs)' : '/(onboarding)/welcome');
       }
     } catch (e: any) {
-      Alert.alert(isSignUp ? 'Sign up failed' : 'Sign in failed', e.message);
+      setFieldError({ field: 'general', msg: e.message ?? t('auth.somethingWrong') });
     }
   };
 
   const handleForgotPassword = async () => {
     if (!email.trim()) {
-      Alert.alert('Enter your email', 'Type your email address above, then tap Forgot Password.');
+      Alert.alert(t('auth.enterEmail'), t('auth.enterEmailBody'));
       return;
     }
     setResetLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: 'novra-health://reset-password',
+        redirectTo: 'zenova-lifescore://reset-password',
       });
       if (error) throw error;
-      Alert.alert('Email sent', `A password reset link has been sent to ${email.trim()}.`);
+      Alert.alert(t('auth.emailSent'), t('auth.resetLinkSent', { email: email.trim() }));
     } catch (e: any) {
-      const msg = e.message ?? 'Unknown error';
+      const msg = e.message ?? t('auth.unknownError');
       const hint = msg.toLowerCase().includes('sending')
-        ? 'Email could not be sent. Check Supabase → Authentication → URL Configuration and ensure SMTP is configured.'
+        ? t('auth.smtpHint')
         : msg;
-      Alert.alert('Error', hint);
+      Alert.alert(t('common.error'), hint);
     } finally {
       setResetLoading(false);
     }
@@ -112,7 +120,7 @@ export default function LoginScreen() {
     >
       {/* Logo */}
       <View style={styles.logoWrap}>
-        <Text style={styles.logo}>NOVRA</Text>
+        <Text style={styles.logo}>ZENOVA</Text>
         <View style={styles.logoLine} />
       </View>
 
@@ -122,87 +130,150 @@ export default function LoginScreen() {
           style={[styles.modeBtn, !isSignUp && styles.modeBtnActive]}
           onPress={() => setMode('signin')}
           activeOpacity={0.8}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: !isSignUp }}
+          accessibilityLabel={t('auth.signInTab')}
         >
-          <Text style={[styles.modeBtnText, !isSignUp && styles.modeBtnTextActive]}>Sign In</Text>
+          <Text style={[styles.modeBtnText, !isSignUp && styles.modeBtnTextActive]}>{t('auth.signIn')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.modeBtn, isSignUp && styles.modeBtnActive]}
           onPress={() => setMode('signup')}
           activeOpacity={0.8}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: isSignUp }}
+          accessibilityLabel={t('auth.createAccountTab')}
         >
-          <Text style={[styles.modeBtnText, isSignUp && styles.modeBtnTextActive]}>Create Account</Text>
+          <Text style={[styles.modeBtnText, isSignUp && styles.modeBtnTextActive]}>{t('auth.createAccount')}</Text>
         </TouchableOpacity>
       </View>
 
       <Text style={styles.sub}>
-        {isSignUp
-          ? 'Create your Novra account to save your progress.'
-          : 'Welcome back. Sign in to continue.'}
+        {isSignUp ? t('auth.signUpSub') : t('auth.signInSub')}
       </Text>
 
       <View style={{ height: spacing.xl }} />
 
       <TextInput
-        style={styles.input}
-        placeholder="Email"
+        style={[styles.input, fieldError?.field === 'email' && styles.inputError]}
+        placeholder={t('auth.email')}
         placeholderTextColor={colors.text.tertiary}
         value={email}
-        onChangeText={setEmail}
+        onChangeText={(v) => { setEmail(v); setFieldError(null); }}
         autoCapitalize="none"
         keyboardType="email-address"
       />
+      {fieldError?.field === 'email' && <Text style={styles.inlineError}>{fieldError.msg}</Text>}
       <View style={{ height: spacing.sm }} />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        placeholderTextColor={colors.text.tertiary}
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
+      <View style={[styles.pwWrap, fieldError?.field === 'password' && styles.inputError]}>
+        <TextInput
+          style={styles.pwInput}
+          placeholder={t('auth.password')}
+          placeholderTextColor={colors.text.tertiary}
+          value={password}
+          onChangeText={(v) => { setPassword(v); setFieldError(null); }}
+          secureTextEntry={!showPassword}
+          autoCapitalize="none"
+        />
+        <Pressable
+          style={styles.pwEye}
+          onPress={() => setShowPassword((v) => !v)}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          accessibilityRole="button"
+          accessibilityLabel={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
+        >
+          <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.text.tertiary} />
+        </Pressable>
+      </View>
+      {fieldError?.field === 'password' && <Text style={styles.inlineError}>{fieldError.msg}</Text>}
       {isSignUp && (
         <>
           <View style={{ height: spacing.sm }} />
-          <TextInput
-            style={styles.input}
-            placeholder="Confirm Password"
-            placeholderTextColor={colors.text.tertiary}
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            secureTextEntry
-          />
+          <View style={[styles.pwWrap, fieldError?.field === 'confirm' && styles.inputError]}>
+            <TextInput
+              style={styles.pwInput}
+              placeholder={t('auth.confirmPassword')}
+              placeholderTextColor={colors.text.tertiary}
+              value={confirmPassword}
+              onChangeText={(v) => { setConfirmPassword(v); setFieldError(null); }}
+              secureTextEntry={!showConfirm}
+              autoCapitalize="none"
+            />
+            <Pressable
+              style={styles.pwEye}
+              onPress={() => setShowConfirm((v) => !v)}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessibilityRole="button"
+              accessibilityLabel={showConfirm ? t('auth.hideConfirm') : t('auth.showConfirm')}
+            >
+              <Ionicons name={showConfirm ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.text.tertiary} />
+            </Pressable>
+          </View>
+          {fieldError?.field === 'confirm' && <Text style={styles.inlineError}>{fieldError.msg}</Text>}
         </>
+      )}
+      {fieldError?.field === 'general' && (
+        <View style={styles.generalErrorBox}>
+          <Text style={styles.generalErrorText}>{fieldError.msg}</Text>
+        </View>
       )}
 
       {/* Remember me + Forgot password row */}
       {!isSignUp && (
         <View style={styles.optionsRow}>
-          <TouchableOpacity style={styles.rememberRow} onPress={() => setRememberMe((v) => !v)} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.rememberRow}
+            onPress={() => setRememberMe((v) => !v)}
+            activeOpacity={0.7}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: rememberMe }}
+            accessibilityLabel={t('auth.rememberMe')}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
             <View style={[styles.checkbox, rememberMe && styles.checkboxActive]}>
               {rememberMe && <Text style={styles.checkmark}>✓</Text>}
             </View>
-            <Text style={styles.rememberText}>Remember me</Text>
+            <Text style={styles.rememberText}>{t('auth.rememberMe')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={handleForgotPassword} disabled={resetLoading} activeOpacity={0.7}>
-            <Text style={styles.forgotText}>{resetLoading ? 'Sending...' : 'Forgot password?'}</Text>
+          <TouchableOpacity
+            onPress={handleForgotPassword}
+            disabled={resetLoading}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={t('auth.forgotPassword')}
+          >
+            <Text style={styles.forgotText}>{resetLoading ? t('auth.sending') : t('auth.forgotPassword')}</Text>
           </TouchableOpacity>
         </View>
       )}
 
       <View style={{ height: spacing.xl }} />
 
-      <TouchableOpacity style={styles.btn} onPress={handleSubmit} disabled={isLoading} activeOpacity={0.85}>
+      <TouchableOpacity
+        style={styles.btn}
+        onPress={handleSubmit}
+        disabled={isLoading}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: isLoading, busy: isLoading }}
+        accessibilityLabel={isSignUp ? t('auth.createAccount') : t('auth.signIn')}
+      >
         <Text style={styles.btnText}>
           {isLoading
-            ? (isSignUp ? 'Creating account...' : 'Signing in...')
-            : (isSignUp ? 'Create Account →' : 'Sign In →')}
+            ? (isSignUp ? t('auth.creatingAccount') : t('auth.signingIn'))
+            : (isSignUp ? t('auth.createAccountBtn') : t('auth.signInBtn'))}
         </Text>
       </TouchableOpacity>
 
       <View style={{ height: spacing.base }} />
 
-      <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(onboarding)/welcome')} activeOpacity={0.7}>
-        <Text style={styles.back}>&#8592; Back</Text>
+      <TouchableOpacity
+        onPress={() => router.canGoBack() ? router.back() : router.replace('/(onboarding)/welcome')}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={t('auth.goBack')}
+      >
+        <Text style={styles.back}>{t('auth.back')}</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -236,6 +307,10 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.base,
   },
 
+  pwWrap:    { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: colors.border.default, borderRadius: radius.lg },
+  pwInput:   { flex: 1, paddingHorizontal: spacing.base, paddingVertical: 14, color: colors.text.primary, fontFamily: typography.fonts.body, fontSize: typography.sizes.base },
+  pwEye:     { paddingHorizontal: spacing.sm, paddingVertical: 14, justifyContent: 'center', alignItems: 'center' },
+
   optionsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.sm },
   rememberRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: colors.border.default, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg.elevated },
@@ -247,4 +322,8 @@ const styles = StyleSheet.create({
   btn: { backgroundColor: colors.accent.primary, borderRadius: radius.full, paddingVertical: 16, alignItems: 'center' },
   btnText: { fontFamily: typography.fonts.display, fontSize: typography.sizes.base, color: colors.text.inverse },
   back: { fontFamily: typography.fonts.body, fontSize: typography.sizes.base, color: colors.text.tertiary, textAlign: 'center' },
+  inputError:      { borderColor: colors.status.danger + '80' },
+  inlineError:     { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.status.danger, marginTop: 4, marginLeft: 4 },
+  generalErrorBox: { backgroundColor: colors.status.danger + '10', borderWidth: 1, borderColor: colors.status.danger + '40', borderRadius: radius.lg, padding: spacing.sm, marginTop: spacing.sm },
+  generalErrorText:{ fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.status.danger, textAlign: 'center' },
 });

@@ -1,27 +1,105 @@
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
+import Purchases from 'react-native-purchases';
+import { isPurchasesConfigured, planFromCustomerInfo } from '../services/purchases';
+import { useSubscriptionStore } from '../stores/subscriptionStore';
 import { colors } from '../constants/colors';
 import { typography } from '../constants/typography';
 import { spacing, radius } from '../constants/spacing';
-
-const FEATURES = [
-  { icon: '🧠', title: 'One coach for everything', sub: 'Sleep, food, exercise, mood — all connected' },
-  { icon: '📸', title: 'Snap your food', sub: 'Photo → instant calories and macros. No typing.' },
-  { icon: '📊', title: 'Weekly AI report', sub: 'See patterns, spot what\'s working, fix what\'s not.' },
-  { icon: '⚡', title: 'Full Novra Score breakdown', sub: 'Per-pillar insights + trend charts' },
-];
+import { useT } from '../constants/i18n';
 
 export default function PaywallScreen() {
+  const [loading, setLoading] = useState(false);
+  const setPlan = useSubscriptionStore((s) => s.setPlan);
+  const t = useT();
+
+  const FEATURES = [
+    { icon: '🧠', title: t('paywall.featAiTitle'),     sub: t('paywall.featAiSub') },
+    { icon: '📸', title: t('paywall.featSnapTitle'),   sub: t('paywall.featSnapSub') },
+    { icon: '📊', title: t('paywall.featReportTitle'), sub: t('paywall.featReportSub') },
+    { icon: '📈', title: t('paywall.featTrendTitle'),  sub: t('paywall.featTrendSub') },
+  ];
+
+  const handlePurchase = async (productId: string) => {
+    if (!isPurchasesConfigured()) {
+      Alert.alert(t('paywall.unavailable'), t('paywall.noOfferings'));
+      return;
+    }
+    setLoading(true);
+    try {
+      const offerings = await Purchases.getOfferings();
+      const current = offerings.current;
+      if (!current) {
+        Alert.alert(t('paywall.unavailable'), t('paywall.noOfferings'));
+        return;
+      }
+
+      // Find the matching package by product identifier
+      const pkg = current.availablePackages.find(
+        (p) => p.product.identifier === productId
+      ) ?? current.availablePackages[0];
+
+      if (!pkg) {
+        Alert.alert(t('paywall.unavailable'), t('paywall.noPackage'));
+        return;
+      }
+
+      const { customerInfo } = await Purchases.purchasePackage(pkg);
+      const plan = planFromCustomerInfo(customerInfo);
+      if (plan !== 'free') {
+        setPlan(plan);
+        Alert.alert(t('paywall.welcomeProTitle'), t('paywall.welcomeProBody'));
+        router.back();
+      }
+    } catch (e: any) {
+      if (!e.userCancelled) {
+        Alert.alert(t('paywall.purchaseFailed'), e.message ?? t('paywall.somethingWrong'));
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRestore = async () => {
+    if (!isPurchasesConfigured()) {
+      Alert.alert(t('paywall.unavailable'), t('paywall.noOfferings'));
+      return;
+    }
+    setLoading(true);
+    try {
+      const customerInfo = await Purchases.restorePurchases();
+      const plan = planFromCustomerInfo(customerInfo);
+      if (plan !== 'free') {
+        setPlan(plan);
+        Alert.alert(t('paywall.restoredTitle'), t('paywall.restoredBody'));
+        router.back();
+      } else {
+        Alert.alert(t('paywall.nothingRestore'), t('paywall.noActiveSub'));
+      }
+    } catch (e: any) {
+      Alert.alert(t('paywall.restoreFailed'), e.message ?? t('paywall.tryAgain'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
+      <TouchableOpacity
+        style={styles.closeBtn}
+        onPress={() => router.back()}
+        accessibilityRole="button"
+        accessibilityLabel={t('paywall.close')}
+        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+      >
         <Text style={styles.closeBtnText}>✕</Text>
       </TouchableOpacity>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.crown}>👑</Text>
-        <Text style={styles.title}>Meet your real Novra</Text>
-        <Text style={styles.sub}>Everything you need. Nothing you don't.</Text>
+        <Text style={styles.title}>{t('paywall.title')}</Text>
+        <Text style={styles.sub}>{t('paywall.subtitle')}</Text>
 
         <View style={styles.features}>
           {FEATURES.map((f) => (
@@ -36,19 +114,49 @@ export default function PaywallScreen() {
         </View>
 
         <View style={styles.priceCard}>
-          <View style={styles.saveBadge}><Text style={styles.saveBadgeText}>SAVE 48%</Text></View>
-          <Text style={styles.price}>$49.99<Text style={styles.pricePer}> / year</Text></Text>
-          <Text style={styles.priceSub}>Just $4.16/month · Best value</Text>
+          <View style={styles.priceTopRow}>
+            <View style={styles.saveBadge}><Text style={styles.saveBadgeText}>{t('paywall.save48')}</Text></View>
+            <Text style={styles.priceRef}>{t('paywall.vsMonthly')}</Text>
+          </View>
+          <Text style={styles.price}>$49.99<Text style={styles.pricePer}>{t('paywall.perYear')}</Text></Text>
+          <Text style={styles.priceSub}>{t('paywall.bestValue')}</Text>
         </View>
 
-        <TouchableOpacity style={styles.ctaBtn} activeOpacity={0.85}>
-          <Text style={styles.ctaBtnText}>Start 3-Day Free Trial →</Text>
-          <Text style={styles.ctaSub}>Then $49.99/yr. Cancel anytime.</Text>
+        <TouchableOpacity
+          style={[styles.ctaBtn, loading && { opacity: 0.6 }]}
+          activeOpacity={0.85}
+          disabled={loading}
+          onPress={() => handlePurchase('novra_pro_yearly')}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: loading, busy: loading }}
+          accessibilityLabel={t('paywall.trialA11y')}
+        >
+          {loading
+            ? <ActivityIndicator color={colors.text.inverse} />
+            : <>
+                <Text style={styles.ctaBtnText}>{t('paywall.startTrial')}</Text>
+                <Text style={styles.ctaSub}>{t('paywall.thenPrice')}</Text>
+              </>
+          }
         </TouchableOpacity>
 
-        <Text style={styles.monthly} onPress={() => {}}>Or $7.99/month →</Text>
+        <Text
+          style={styles.monthly}
+          onPress={() => !loading && handlePurchase('novra_pro_monthly')}
+          accessibilityRole="button"
+          accessibilityLabel={t('paywall.monthlyA11y')}
+        >
+          {t('paywall.orMonthly')}
+        </Text>
 
-        <Text style={styles.footer}>Restore Purchase · Privacy Policy · Terms</Text>
+        <Text
+          style={styles.footer}
+          onPress={handleRestore}
+          accessibilityRole="button"
+          accessibilityLabel={t('paywall.restoreA11y')}
+        >
+          {t('paywall.restoreFooter')}
+        </Text>
         <View style={{ height: 40 }} />
       </ScrollView>
     </View>
@@ -69,8 +177,10 @@ const styles = StyleSheet.create({
   featureTitle: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.primary },
   featureSub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, marginTop: 2 },
   priceCard: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.accent.primary + '40', borderRadius: radius.xl, padding: spacing.xl, width: '100%', alignItems: 'center', marginBottom: spacing.base },
-  saveBadge: { backgroundColor: colors.status.success, borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 4, marginBottom: spacing.sm },
+  priceTopRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: spacing.sm },
+  saveBadge:     { backgroundColor: colors.status.success, borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 4 },
   saveBadgeText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.text.inverse },
+  priceRef:      { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textDecorationLine: 'line-through' },
   price: { fontFamily: typography.fonts.display, fontSize: typography.sizes['3xl'], color: colors.text.primary },
   pricePer: { fontFamily: typography.fonts.body, fontSize: typography.sizes.lg, color: colors.text.secondary },
   priceSub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, marginTop: spacing.xs },

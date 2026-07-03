@@ -21,6 +21,12 @@ export interface UserProfile {
   main_obstacle?: string;
   gender?: 'male' | 'female' | 'other';
   workout_environment?: 'gym' | 'home';
+  avatar?: string;  // local URI from image picker
+  units?: 'metric' | 'imperial';
+  notif_workout?: boolean;
+  notif_calorie?: boolean;
+  notif_streak?: boolean;
+  notif_sleep?: boolean;
 }
 
 interface UserStore {
@@ -51,7 +57,7 @@ export const useUserStore = create<UserStore>()(
       clearProfile: () => set({ profile: null, isOnboarded: false }),
     }),
     {
-      name: 'novra-user-storage',
+      name: 'zenova-user-storage',
       storage: createJSONStorage(() => secureStorage),
     }
   )

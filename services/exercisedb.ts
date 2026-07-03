@@ -1,3 +1,5 @@
+import { fetchWithTimeout } from './http';
+
 /** wger.de — free exercise API, no key required */
 const WGER_BASE = 'https://wger.de/api/v2';
 const WGER_HOST = 'https://wger.de';
@@ -10,6 +12,58 @@ export interface ExerciseDemo {
   equipment:    string;
 }
 
+// ── wger API response shapes ─────────────────────────────────────────────────
+
+interface WgerSearchSuggestionData {
+  base_id: number;
+  image?: string | null;
+  category?: string;
+}
+
+interface WgerSearchSuggestion {
+  data: WgerSearchSuggestionData;
+}
+
+interface WgerSearchResponse {
+  suggestions?: WgerSearchSuggestion[];
+}
+
+interface WgerTranslation {
+  language: number;
+  name?: string;
+  description?: string;
+}
+
+interface WgerMuscle {
+  name_en?: string;
+}
+
+interface WgerEquipment {
+  name?: string;
+}
+
+interface WgerImage {
+  image?: string;
+}
+
+interface WgerExerciseInfo {
+  images?: WgerImage[];
+  translations?: WgerTranslation[];
+  muscles?: WgerMuscle[];
+  equipment?: WgerEquipment[];
+}
+
+interface WgerExerciseResult {
+  id: number;
+  translations?: WgerTranslation[];
+  muscles?: WgerMuscle[];
+  equipment?: WgerEquipment[];
+}
+
+interface WgerListResponse {
+  results?: WgerExerciseResult[];
+}
+
 /**
  * Fetch exercise image + description from wger (free, no key).
  * Returns null on any error so callers can show a fallback gracefully.
@@ -17,13 +71,12 @@ export interface ExerciseDemo {
 export async function fetchExerciseDemo(name: string): Promise<ExerciseDemo | null> {
   try {
     // Step 1: search by name → get base_id + thumbnail
-    const searchRes = await fetch(
+    const searchRes = await fetchWithTimeout(
       `${WGER_BASE}/exercise/search/?term=${encodeURIComponent(name)}&language=english&format=json`
     );
     if (!searchRes.ok) return null;
-    const searchData = await searchRes.json();
-
-    const suggestions: any[] = searchData.suggestions ?? [];
+    const searchData: WgerSearchResponse = await searchRes.json();
+    const suggestions = searchData.suggestions ?? [];
     if (suggestions.length === 0) return null;
 
     const first      = suggestions[0].data;
@@ -31,7 +84,7 @@ export async function fetchExerciseDemo(name: string): Promise<ExerciseDemo | nu
     const imageRel: string | null = first.image ?? null;
 
     // Step 2: fetch full exercise info for images + description
-    const infoRes = await fetch(`${WGER_BASE}/exerciseinfo/${baseId}/?format=json`);
+    const infoRes = await fetchWithTimeout(`${WGER_BASE}/exerciseinfo/${baseId}/?format=json`);
     if (!infoRes.ok) {
       // Partial: use search thumbnail only
       return {
@@ -43,7 +96,7 @@ export async function fetchExerciseDemo(name: string): Promise<ExerciseDemo | nu
       };
     }
 
-    const info = await infoRes.json();
+    const info: WgerExerciseInfo = await infoRes.json();
 
     // Pick first available image
     const imageUrl: string =
@@ -51,18 +104,18 @@ export async function fetchExerciseDemo(name: string): Promise<ExerciseDemo | nu
       (imageRel ? `${WGER_HOST}${imageRel}` : '');
 
     // English description (language id = 2)
-    const engTrans = (info.translations ?? []).find((t: any) => t.language === 2);
+    const engTrans = (info.translations ?? []).find((t) => t.language === 2);
     const rawDesc: string = engTrans?.description ?? '';
     // Strip HTML tags and split into sentences for step display
     const cleanDesc = rawDesc.replace(/<[^>]+>/g, '').trim();
     const sentences = cleanDesc
       .split(/(?<=[.!?])\s+/)
-      .map((s: string) => s.trim())
-      .filter((s: string) => s.length > 15)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 15)
       .slice(0, 6);
 
-    const muscles   = (info.muscles   ?? []).map((m: any) => m.name_en ?? '').filter(Boolean);
-    const equipment = (info.equipment ?? []).map((e: any) => e.name    ?? '').filter(Boolean);
+    const muscles   = (info.muscles   ?? []).map((m) => m.name_en ?? '').filter(Boolean);
+    const equipment = (info.equipment ?? []).map((e) => e.name    ?? '').filter(Boolean);
 
     return {
       gifUrl:       imageUrl,
@@ -99,25 +152,25 @@ export async function fetchByBodyPart(bodyPart: string, limit = 8): Promise<Exer
   const categoryId = CATEGORY_IDS[bodyPart];
   if (!categoryId) throw new Error(`Unknown bodyPart: ${bodyPart}`);
 
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `${WGER_BASE}/exerciseinfo/?format=json&language=2&category=${categoryId}&limit=${limit}&offset=0`
   );
   if (!res.ok) throw new Error(`wger ${res.status}`);
-  const data = await res.json();
+  const data: WgerListResponse = await res.json();
 
   return (data.results ?? [])
-    .map((r: any) => {
-      const name = (r.translations ?? []).find((t: any) => t.language === 2)?.name ?? '';
-      const muscles: string[] = (r.muscles ?? []).map((m: any) => m.name_en ?? '').filter(Boolean);
+    .map((r) => {
+      const name = (r.translations ?? []).find((t) => t.language === 2)?.name ?? '';
+      const muscles: string[] = (r.muscles ?? []).map((m) => m.name_en ?? '').filter(Boolean);
       return {
         id:        String(r.id),
         name,
         bodyPart,
         target:    muscles[0] ?? bodyPart,
-        equipment: (r.equipment ?? []).map((e: any) => e.name).join(', ') || 'none',
+        equipment: (r.equipment ?? []).map((e) => e.name ?? '').join(', ') || 'none',
       };
     })
-    .filter((e: ExerciseDBItem) => e.name.trim().length > 0);
+    .filter((e) => e.name.trim().length > 0);
 }
 
 /** user primary_goal → bodyPart key */

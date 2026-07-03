@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { secureStorage } from '../services/secureStorage';
+import { todayStr } from '../services/dateUtils';
 
 export interface ExerciseWeightEntry {
   date: string;       // YYYY-MM-DD
@@ -38,7 +39,7 @@ export const useExerciseWeightStore = create<ExerciseWeightStore>()(
       },
 
       logWeight: (exerciseName, weightKg) => {
-        const date = new Date().toISOString().slice(0, 10);
+        const date = todayStr();
         set((state) => {
           const prev = state.logs[exerciseName] ?? [];
           // Replace today's entry if it exists, otherwise prepend
@@ -51,7 +52,7 @@ export const useExerciseWeightStore = create<ExerciseWeightStore>()(
       clearLogs: () => set({ logs: {} }),
     }),
     {
-      name: 'novra-exercise-weight-storage',
+      name: 'zenova-exercise-weight-storage',
       storage: createJSONStorage(() => secureStorage),
     }
   )

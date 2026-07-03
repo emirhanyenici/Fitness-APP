@@ -10,6 +10,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PostHogProvider } from 'posthog-react-native';
 import { supabase } from '../services/supabase';
+import { startSync, stopSync } from '../services/sync';
+import { initPurchases, logInPurchases, logOutPurchases } from '../services/purchases';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { useAuthStore } from '../stores/authStore';
 import { useSubscriptionStore } from '../stores/subscriptionStore';
 import { colors } from '../constants/colors';
@@ -20,12 +23,17 @@ const POSTHOG_HOST = process.env.EXPO_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posth
 const POSTHOG_ENABLED = POSTHOG_KEY.startsWith('phc_');
 
 // Only process deep links that originate from our own app scheme.
-const APP_SCHEME = 'novra-health://';
+const APP_SCHEME = 'zenova-lifescore://';
 
 /**
  * Minimal structural check: a valid Supabase JWT has exactly 3 dot-separated
  * base64url parts. Rejects obviously forged or garbage tokens before
  * passing them to the Supabase SDK.
+ *
+ * NOT an auth boundary — this performs NO signature/expiry verification. It is
+ * only a cheap sanity filter on deep-link tokens; the real cryptographic
+ * validation happens server-side when Supabase (`setSession`/`getUser`)
+ * processes the token. Never treat a "shaped" token as authenticated.
  */
 function isJWTShaped(token: string): boolean {
   const parts = token.split('.');
@@ -47,14 +55,32 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
+    // RevenueCat: configure the SDK and hydrate the plan from customer info.
+    // Without this, every Purchases.* call throws and the plan resets to
+    // 'free' on each cold start.
+    void initPurchases();
+
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
 
-      // Subscription status defaults to free.
+      // Cloud sync: start when a user becomes present (login or restored
+      // session), stop on sign-out. Skip TOKEN_REFRESHED so we don't re-pull
+      // (and overwrite unsynced local edits) mid-session.
+      if (session?.user && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
+        void startSync(session.user.id);
+        // Tie RevenueCat identity to the Supabase account so entitlements
+        // follow the user across devices/reinstalls.
+        void logInPurchases(session.user.id);
+      }
+
+      // Reset plan to free only on sign-out (not on token refresh or other events).
       // Real plan is enforced server-side via RevenueCat → Supabase webhook.
-      // Never derive plan from email or any other client-controllable value.
-      useSubscriptionStore.getState().setPlan('free');
+      if (event === 'SIGNED_OUT') {
+        stopSync();
+        void logOutPurchases();
+        useSubscriptionStore.getState().setPlan('free');
+      }
 
       if (event === 'PASSWORD_RECOVERY') {
         setTimeout(() => router.replace('/(auth)/reset-password'), 300);
@@ -105,7 +131,7 @@ export default function RootLayout() {
   if (!appReady) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg.primary, alignItems: 'center', justifyContent: 'center' }}>
-        <StatusBar style="dark" />
+        <StatusBar style="light" />
         <ActivityIndicator size="large" color={colors.accent.primary} />
         <Text style={{ color: colors.text.secondary, marginTop: 16, fontSize: 14 }}>Loading...</Text>
       </View>
@@ -115,16 +141,22 @@ export default function RootLayout() {
   const inner = (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <QueryClientProvider client={queryClient}>
-        <StatusBar style="dark" />
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg.primary } }}>
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(onboarding)" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="paywall" options={{ presentation: 'modal' }} />
-          <Stack.Screen name="modals/add-food" options={{ presentation: 'modal' }} />
-          <Stack.Screen name="modals/log-workout" options={{ presentation: 'modal' }} />
-          <Stack.Screen name="modals/ai-coach" options={{ presentation: 'modal' }} />
-        </Stack>
+        <StatusBar style="light" />
+        <ErrorBoundary>
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg.primary } }}>
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(onboarding)" />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="paywall" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="modals/add-food" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="modals/log-workout" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="modals/ai-coach" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="modals/notifications" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="modals/weekly-report" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="modals/exercise-demo" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="modals/custom-program" options={{ presentation: 'modal' }} />
+          </Stack>
+        </ErrorBoundary>
       </QueryClientProvider>
     </GestureHandlerRootView>
   );

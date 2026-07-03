@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Zenova LifeScore — Android Adaptive Icon BACKGROUND  (1024 × 1024)
+  Solid navy — matches app bg.primary (#0D1526).
+  The foreground layer (android-icon-foreground.svg) sits on top.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+
+  <!-- Solid navy base -->
+  <rect width="1024" height="1024" fill="#0D1526"/>
+
+  <!-- Subtle radial bloom so background isn't completely flat -->
+  <radialGradient id="bgBloom" cx="50%" cy="40%" r="60%" gradientUnits="objectBoundingBox">
+    <stop offset="0%"   stop-color="#1E3050"/>
+    <stop offset="100%" stop-color="#0D1526"/>
+  </radialGradient>
+  <rect width="1024" height="1024" fill="url(#bgBloom)"/>
+
+</svg>

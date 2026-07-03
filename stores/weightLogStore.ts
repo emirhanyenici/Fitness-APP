@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { secureStorage } from '../services/secureStorage';
+import { todayStr } from '../services/dateUtils';
 
 export interface WeightEntry {
   date: string;       // YYYY-MM-DD
@@ -19,7 +20,7 @@ export const useWeightLogStore = create<WeightLogStore>()(
       entries: [],
 
       addEntry: (weight_kg) => {
-        const date = new Date().toISOString().slice(0, 10);
+        const date = todayStr();
         set((state) => ({
           entries: [
             ...state.entries.filter((e) => e.date !== date),
@@ -31,7 +32,7 @@ export const useWeightLogStore = create<WeightLogStore>()(
       clearEntries: () => set({ entries: [] }),
     }),
     {
-      name: 'novra-weight-log-storage',
+      name: 'zenova-weight-log-storage',
       storage: createJSONStorage(() => secureStorage),
     }
   )

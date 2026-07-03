@@ -1,33 +1,43 @@
-import { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { useState, useMemo } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, Platform, TextInput } from 'react-native';
+
+const HEALTH_APP = Platform.OS === 'ios' ? 'Apple Health' : 'Health Connect';
 import { useRecoveryStore } from '../../stores/recoveryStore';
 import { useUserStore } from '../../stores/userStore';
 import { computeTargets } from '../../services/recommendations';
+import { daysAgoStr } from '../../services/dateUtils';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { AICoachBanner } from '../../components/ui/AICoachBanner';
+import { useAnalytics } from '../../services/analytics';
+import { useT } from '../../constants/i18n';
 
 type RatingKey = 'mood' | 'energy' | 'stress';
 
-const METRICS: { key: RatingKey; label: string; low: string; high: string; color: string }[] = [
-  { key: 'mood',   label: 'Mood',   low: '😞', high: '😄', color: colors.status.warning },
-  { key: 'energy', label: 'Energy', low: '🪫', high: '⚡', color: colors.accent.primary },
-  { key: 'stress', label: 'Stress', low: '😌', high: '😤', color: colors.status.danger },
+const METRICS: { key: RatingKey; labelKey: string; low: string; high: string; color: string }[] = [
+  { key: 'mood',   labelKey: 'recovery.mood',   low: '😞', high: '😄', color: colors.status.warning },
+  { key: 'energy', labelKey: 'recovery.energy', low: '😴', high: '⚡', color: colors.accent.primary },
+  { key: 'stress', labelKey: 'recovery.stress', low: '😌', high: '😤', color: colors.status.danger },
 ];
 
 export default function RecoveryScreen() {
   const saveEntry       = useRecoveryStore((s) => s.saveEntry);
   const recoveryEntries = useRecoveryStore((s) => s.entries);
   const profile         = useUserStore((s) => s.profile);
-  const targets         = computeTargets(profile);
-  const todayStr        = new Date().toISOString().slice(0, 10);
+  const analytics       = useAnalytics();
+  const t               = useT();
+  const targets         = useMemo(() => computeTargets(profile), [profile]);
+  const todayStr        = daysAgoStr(0);
   const todayEntry      = recoveryEntries.find((e) => e.date === todayStr);
 
   const [ratings, setRatings] = useState<Record<RatingKey, number>>(
     todayEntry
       ? { mood: todayEntry.mood, energy: todayEntry.energy, stress: todayEntry.stress }
       : { mood: 0, energy: 0, stress: 0 },
+  );
+  const [sleepInput, setSleepInput] = useState(
+    todayEntry?.sleepHours ? String(todayEntry.sleepHours) : '',
   );
   const [saved, setSaved] = useState(!!todayEntry);
 
@@ -39,12 +49,15 @@ export default function RecoveryScreen() {
   const handleSave = () => {
     const allSet = Object.values(ratings).every((v) => v > 0);
     if (!allSet) {
-      Alert.alert('Complete Check-in', 'Please rate all three metrics before saving.');
+      Alert.alert(t('recovery.completeCheckin'), t('recovery.rateAllMetrics'));
       return;
     }
-    saveEntry(ratings);
+    const sleepHours = sleepInput ? parseFloat(sleepInput) || undefined : undefined;
+    saveEntry({ ...ratings, sleepHours });
     setSaved(true);
-    Alert.alert('Saved!', 'Your daily check-in has been recorded.');
+    const avgScore = Math.round((ratings.mood + ratings.energy + (6 - ratings.stress)) / 3);
+    analytics.recoveryRated(avgScore);
+    Alert.alert(t('recovery.savedTitle'), t('recovery.savedBody'));
   };
 
   return (
@@ -52,8 +65,8 @@ export default function RecoveryScreen() {
 
       {/* ── Header ── */}
       <View style={styles.header}>
-        <Text style={styles.pageTitle}>Recovery</Text>
-        <Text style={styles.pageSub}>Rest & wellbeing</Text>
+        <Text style={styles.pageTitle}>{t('recovery.title')}</Text>
+        <Text style={styles.pageSub}>{t('recovery.subtitle')}</Text>
       </View>
 
       {/* ── Sleep Card (no sensor connected) ── */}
@@ -61,94 +74,167 @@ export default function RecoveryScreen() {
         <View style={styles.sleepNoDataRow}>
           <Text style={{ fontSize: 32 }}>💤</Text>
           <View style={{ flex: 1 }}>
-            <Text style={styles.sleepNoDataTitle}>Sleep Tracking</Text>
-            <Text style={styles.sleepNoDataSub}>Connect Apple Health to see your sleep stages, bedtime & wake time automatically.</Text>
+            <Text style={styles.sleepNoDataTitle}>{t('recovery.sleepTracking')}</Text>
+            <Text style={styles.sleepNoDataSub}>{t('recovery.connectHealthSub', { app: HEALTH_APP })}</Text>
           </View>
         </View>
         <View style={styles.sleepTargetRow}>
-          <Text style={styles.sleepTargetLabel}>Your sleep target</Text>
+          <Text style={styles.sleepTargetLabel}>{t('recovery.sleepTarget')}</Text>
           <View style={styles.sleepTargetBadge}>
-            <Text style={styles.sleepTargetVal}>{targets.sleepHours}h / night</Text>
+            <Text style={styles.sleepTargetVal}>{t('recovery.perNight', { hours: targets.sleepHours })}</Text>
           </View>
         </View>
         <TouchableOpacity
           style={styles.connectBtn}
-          onPress={() => Alert.alert('Apple Health', 'Apple Health integration coming soon.')}
+          onPress={() => Alert.alert(HEALTH_APP, t('profile.healthIntegration', { app: HEALTH_APP }))}
           activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={t('recovery.connectAppA11y', { app: HEALTH_APP })}
         >
-          <Text style={styles.connectBtnText}>Connect Apple Health →</Text>
+          <Text style={styles.connectBtnText}>{t('recovery.connectApp', { app: HEALTH_APP })}</Text>
         </TouchableOpacity>
       </View>
 
       {/* ── Sleep & Workout Insight ── */}
       <View style={styles.insightCard}>
         <Text style={styles.insightText}>
-          🌙  Your goal needs <Text style={styles.insightBold}>{targets.sleepHours}h of sleep</Text> per night — aim to be in bed by{' '}
-          {targets.sleepHours >= 9 ? '9:30 PM' : targets.sleepHours >= 8.5 ? '10:00 PM' : '10:30 PM'}.
+          {t('recovery.insightSleep', { hours: targets.sleepHours, time: targets.sleepHours >= 9 ? '9:30 PM' : targets.sleepHours >= 8.5 ? '10:00 PM' : '10:30 PM' })}
         </Text>
         <Text style={styles.insightText}>
-          🏋  Target <Text style={styles.insightBold}>{targets.workoutMinutes} min</Text> of exercise,{' '}
-          <Text style={styles.insightBold}>{targets.workoutDaysPerWeek}×/week</Text>.
+          {t('recovery.insightWorkout', { minutes: targets.workoutMinutes, days: targets.workoutDaysPerWeek })}
         </Text>
       </View>
 
       {/* ── Daily Check-in ── */}
       <View style={styles.checkinCard}>
-        <Text style={styles.checkinTitle}>How are you feeling today?</Text>
-        <Text style={styles.checkinSub}>Tap to rate each metric 1–5</Text>
+        <Text style={styles.checkinTitle}>{t('recovery.howFeeling')}</Text>
+        <Text style={styles.checkinSub}>{t('recovery.tapToRate')}</Text>
 
         <View style={styles.metricsWrap}>
           {METRICS.map((m) => (
             <View key={m.key} style={styles.metricRow}>
               <View style={styles.metricMeta}>
                 <Text style={styles.metricLow}>{m.low}</Text>
-                <Text style={styles.metricLabel}>{m.label}</Text>
+                <Text style={styles.metricLabel}>{t(m.labelKey)}</Text>
                 <Text style={styles.metricHigh}>{m.high}</Text>
               </View>
-              <View style={styles.ratingDots}>
-                {[1, 2, 3, 4, 5].map((n) => {
-                  const active = ratings[m.key] >= n;
-                  return (
-                    <TouchableOpacity
-                      key={n}
-                      style={[
-                        styles.ratingDot,
-                        active
-                          ? { backgroundColor: m.color, borderColor: m.color }
-                          : { backgroundColor: 'transparent', borderColor: colors.border.default },
-                      ]}
-                      onPress={() => setRating(m.key, n)}
-                      activeOpacity={0.7}
-                    />
-                  );
-                })}
+              <View style={styles.ratingRow}>
+                <Text style={styles.ratingScaleNum}>1</Text>
+                <View style={styles.ratingDots}>
+                  {[1, 2, 3, 4, 5].map((n) => {
+                    const active = ratings[m.key] >= n;
+                    return (
+                      <TouchableOpacity
+                        key={n}
+                        style={[
+                          styles.ratingDot,
+                          active
+                            ? { backgroundColor: m.color, borderColor: m.color }
+                            : { backgroundColor: 'transparent', borderColor: colors.border.default },
+                        ]}
+                        onPress={() => setRating(m.key, n)}
+                        activeOpacity={0.7}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: ratings[m.key] === n }}
+                        accessibilityLabel={t('recovery.ratingA11y', { label: t(m.labelKey), n })}
+                        hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                      />
+                    );
+                  })}
+                </View>
+                <Text style={styles.ratingScaleNum}>5</Text>
               </View>
             </View>
           ))}
+        </View>
+
+        {/* Sleep duration input */}
+        <View style={styles.sleepInputWrap}>
+          <View style={styles.sleepInputRow}>
+            <Text style={styles.sleepInputIcon}>🌙</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sleepInputLabel}>{t('recovery.lastNightSleep')}</Text>
+              <Text style={styles.sleepInputSub}>{t('recovery.sleepOptional')}</Text>
+            </View>
+            <View style={styles.sleepInputField}>
+              <TextInput
+                style={styles.sleepInputText}
+                value={sleepInput}
+                onChangeText={(txt) => {
+                  // Allow only valid sleep hours (0-24)
+                  const parsed = parseFloat(txt);
+                  if (txt !== '' && (isNaN(parsed) || parsed < 0 || parsed > 24)) return;
+                  setSleepInput(txt);
+                  setSaved(false);
+                }}
+                placeholder="0"
+                placeholderTextColor={colors.text.tertiary}
+                keyboardType="decimal-pad"
+                returnKeyType="done"
+                maxLength={4}
+              />
+              <Text style={styles.sleepInputUnit}>hrs</Text>
+            </View>
+          </View>
+          {sleepInput ? (
+            <View style={styles.sleepBar}>
+              <View style={[
+                styles.sleepBarFill,
+                {
+                  width: `${Math.min((parseFloat(sleepInput) / targets.sleepHours) * 100, 100)}%` as any,
+                  backgroundColor: parseFloat(sleepInput) >= targets.sleepHours
+                    ? colors.status.success
+                    : parseFloat(sleepInput) >= targets.sleepHours * 0.8
+                    ? colors.status.warning
+                    : colors.status.danger,
+                },
+              ]} />
+            </View>
+          ) : null}
+          {sleepInput ? (
+            <Text style={styles.sleepBarLabel}>
+              {parseFloat(sleepInput) >= targets.sleepHours
+                ? t('recovery.sleepMet', { hours: targets.sleepHours })
+                : t('recovery.sleepShort', { diff: (targets.sleepHours - parseFloat(sleepInput)).toFixed(1), hours: targets.sleepHours })}
+            </Text>
+          ) : null}
         </View>
 
         <TouchableOpacity
           style={[styles.saveBtn, saved && styles.saveBtnDone]}
           onPress={handleSave}
           activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={saved ? t('recovery.checkinSaved') : t('recovery.saveCheckin')}
         >
-          <Text style={styles.saveBtnText}>{saved ? '✓ Saved' : 'Save Check-in'}</Text>
+          <Text style={styles.saveBtnText}>{saved ? t('recovery.saved') : t('recovery.saveCheckin')}</Text>
         </TouchableOpacity>
       </View>
 
       {/* ── Recovery Score (derived from today's ratings) ── */}
       {todayEntry && (() => {
-        // mood + energy contribute positively, stress negatively
-        const rawScore = (todayEntry.mood * 2 + todayEntry.energy * 2 + (6 - todayEntry.stress) * 2);
-        const recoveryScore = Math.round((rawScore / 30) * 100); // max raw = 30
+        // mood + energy contribute positively, stress negatively (max 30)
+        const ratingRaw = todayEntry.mood * 2 + todayEntry.energy * 2 + (6 - todayEntry.stress) * 2;
+        const ratingScore = Math.round((ratingRaw / 30) * 100);
+
+        // Sleep component: if logged, blends 80% ratings + 20% sleep quality
+        const sleepH  = todayEntry.sleepHours;
+        const sleepPct = sleepH ? Math.min(sleepH / targets.sleepHours, 1) * 100 : null;
+        const recoveryScore = sleepPct !== null
+          ? Math.round(ratingScore * 0.8 + sleepPct * 0.2)
+          : ratingScore;
+
         const recColor = recoveryScore >= 70 ? colors.status.success : recoveryScore >= 45 ? colors.status.warning : colors.status.danger;
+        const subLabel = sleepH
+          ? t('recovery.recoverySubWithSleep', { hours: sleepH })
+          : t('recovery.recoverySubNoSleep');
         return (
           <View style={styles.recoveryCard}>
             <View style={styles.recoveryLeft}>
               <Text style={{ fontSize: 28 }}>🧘</Text>
               <View>
-                <Text style={styles.recoveryTitle}>Recovery Score</Text>
-                <Text style={styles.recoverySub}>Based on mood, energy & stress</Text>
+                <Text style={styles.recoveryTitle}>{t('recovery.recoveryScore')}</Text>
+                <Text style={styles.recoverySub}>{subLabel}</Text>
               </View>
             </View>
             <View style={styles.recoveryScore}>
@@ -160,7 +246,7 @@ export default function RecoveryScreen() {
       })()}
 
       {/* ── AI Coach Banner ── */}
-      <AICoachBanner subtitle="Tips for better sleep & recovery" style={{ marginTop: spacing.base }} />
+      <AICoachBanner subtitle={t('recovery.aiCoachSubtitle')} style={{ marginTop: spacing.base }} />
 
       <View style={{ height: 110 }} />
     </ScrollView>
@@ -200,8 +286,22 @@ const styles = StyleSheet.create({
   metricLow:   { fontSize: 16 },
   metricLabel: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.secondary },
   metricHigh:  { fontSize: 16 },
-  ratingDots:  { flexDirection: 'row', gap: spacing.sm },
-  ratingDot:   { flex: 1, height: 10, borderRadius: 5, borderWidth: 1.5 },
+  ratingRow:       { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  ratingScaleNum:  { fontFamily: typography.fonts.mono, fontSize: typography.sizes.xs, color: colors.text.tertiary, width: 14, textAlign: 'center' },
+  ratingDots:      { flex: 1, flexDirection: 'row', gap: spacing.sm },
+  ratingDot:       { flex: 1, height: 12, borderRadius: 6, borderWidth: 1.5 },
+
+  sleepInputWrap:  { marginTop: spacing.xl, backgroundColor: colors.bg.tertiary, borderRadius: radius.lg, padding: spacing.base },
+  sleepInputRow:   { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  sleepInputIcon:  { fontSize: 22 },
+  sleepInputLabel: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.primary },
+  sleepInputSub:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 2 },
+  sleepInputField: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: colors.accent.primary + '40', borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: 6, gap: 4 },
+  sleepInputText:  { fontFamily: typography.fonts.display, fontSize: typography.sizes.lg, color: colors.text.primary, minWidth: 36, textAlign: 'center' },
+  sleepInputUnit:  { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary },
+  sleepBar:        { height: 6, backgroundColor: colors.bg.elevated, borderRadius: 3, marginTop: spacing.sm, overflow: 'hidden' },
+  sleepBarFill:    { height: 6, borderRadius: 3 },
+  sleepBarLabel:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 4 },
 
   saveBtn:     { backgroundColor: colors.accent.primary, borderRadius: radius.full, paddingVertical: 14, alignItems: 'center', marginTop: spacing.xl },
   saveBtnDone: { backgroundColor: colors.status.success },

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { secureStorage } from '../services/secureStorage';
+import { todayStr } from '../services/dateUtils';
 
 export type SuggestionType = 'nutrition' | 'workout';
 
@@ -29,7 +30,7 @@ export const useAISuggestionsStore = create<AISuggestionsStore>()(
         const entry: AISuggestion = {
           type,
           text,
-          date:    new Date().toISOString().slice(0, 10),
+          date:    todayStr(),
           savedAt: new Date().toISOString(),
         };
         set(type === 'nutrition' ? { nutrition: entry } : { workout: entry });
@@ -41,7 +42,7 @@ export const useAISuggestionsStore = create<AISuggestionsStore>()(
       clearAll: () => set({ nutrition: null, workout: null }),
     }),
     {
-      name: 'novra-ai-suggestions-storage',
+      name: 'zenova-ai-suggestions-storage',
       storage: createJSONStorage(() => secureStorage),
     }
   )

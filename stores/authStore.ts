@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../services/supabase';
+import { stopSync } from '../services/sync';
 
 interface AuthStore {
   session: Session | null;
@@ -9,6 +10,7 @@ interface AuthStore {
   setSession: (session: Session | null) => void;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
+  /** Signs out and clears all user data from every persisted store. */
   signOut: () => Promise<void>;
 }
 
@@ -34,7 +36,35 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 
   signOut: async () => {
+    // Stop cloud sync BEFORE clearing stores — otherwise the clears below would
+    // be pushed up and wipe the user's cloud backup.
+    stopSync();
+
     await supabase.auth.signOut();
     set({ session: null, user: null });
+
+    // Clear every persisted store so no data leaks between users on the same device.
+    // Lazy imports avoid circular dependency issues at module load time.
+    const { useUserStore }           = await import('./userStore');
+    const { useNutritionStore }      = await import('./nutritionStore');
+    const { useWorkoutStore }        = await import('./workoutStore');
+    const { useRecoveryStore }       = await import('./recoveryStore');
+    const { useAISuggestionsStore }  = await import('./aiSuggestionsStore');
+    const { useExerciseWeightStore } = await import('./exerciseWeightStore');
+    const { useCustomProgramStore }  = await import('./customProgramStore');
+    const { useWeightLogStore }      = await import('./weightLogStore');
+    const { useAIChatStore }         = await import('./aiChatStore');
+    const { useSubscriptionStore }   = await import('./subscriptionStore');
+
+    useUserStore.getState().clearProfile();
+    useNutritionStore.getState().clearEntries();
+    useWorkoutStore.getState().clearHistory();
+    useRecoveryStore.getState().clearEntries();
+    useAISuggestionsStore.getState().clearAll();
+    useExerciseWeightStore.getState().clearLogs();
+    useCustomProgramStore.getState().clearAll();
+    useWeightLogStore.getState().clearEntries();
+    useAIChatStore.getState().clearAll();
+    useSubscriptionStore.getState().setPlan('free');
   },
 }));

@@ -2,6 +2,7 @@ import { Tabs } from 'expo-router';
 import { View, Text, Platform } from 'react-native';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
+import { useT } from '../../constants/i18n';
 
 function TabIcon({ emoji, label, focused }: { emoji: string; label: string; focused: boolean }) {
   return (
@@ -26,6 +27,7 @@ function TabIcon({ emoji, label, focused }: { emoji: string; label: string; focu
 }
 
 export default function TabsLayout() {
+  const t = useT();
   return (
     <Tabs
       screenOptions={{
@@ -45,11 +47,11 @@ export default function TabsLayout() {
         },
       }}
     >
-      <Tabs.Screen name="index" options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" label="Home" focused={focused} /> }} />
-      <Tabs.Screen name="nutrition" options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="🥗" label="Nutrition" focused={focused} /> }} />
-      <Tabs.Screen name="workout" options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="💪" label="Workout" focused={focused} /> }} />
-      <Tabs.Screen name="recovery" options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="😴" label="Recovery" focused={focused} /> }} />
-      <Tabs.Screen name="profile" options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="👤" label="Profile" focused={focused} /> }} />
+      <Tabs.Screen name="index" options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" label={t('tabs.home')} focused={focused} /> }} />
+      <Tabs.Screen name="nutrition" options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="🥗" label={t('tabs.nutrition')} focused={focused} /> }} />
+      <Tabs.Screen name="workout" options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="💪" label={t('tabs.workout')} focused={focused} /> }} />
+      <Tabs.Screen name="recovery" options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="😴" label={t('tabs.recovery')} focused={focused} /> }} />
+      <Tabs.Screen name="profile" options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="👤" label={t('tabs.profile')} focused={focused} /> }} />
     </Tabs>
   );
 }

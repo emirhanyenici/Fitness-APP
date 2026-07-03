@@ -2,10 +2,15 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { secureStorage } from '../services/secureStorage';
 import { ProgramType } from '../services/workoutPrograms';
+import { todayStr } from '../services/dateUtils';
 
 export interface CompletedWorkout {
   id: string;
   name: string;
+  /** Program name, stored separately so summaries don't string-parse `name` */
+  programName?: string;
+  /** Day label within the program (e.g. "Push", "Day 1") */
+  dayLabel?: string;
   icon: string;
   bodyPart: string;
   duration: string;
@@ -49,7 +54,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
             {
               ...workout,
               id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-              date: new Date().toISOString().slice(0, 10),
+              date: todayStr(),
               timestamp: Date.now(),
             },
             ...state.history,
@@ -58,7 +63,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
       clearHistory: () => set({ history: [], selectedType: null, selectedProgram: null }),
     }),
     {
-      name: 'novra-workout-storage',
+      name: 'zenova-workout-storage',
       storage: createJSONStorage(() => secureStorage),
     }
   )

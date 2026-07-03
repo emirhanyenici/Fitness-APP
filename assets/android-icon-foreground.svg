@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Zenova LifeScore — Android Adaptive Icon FOREGROUND  (1024 × 1024, transparent bg)
+  Design scaled to 75 % so the full artwork fits within the Android safe zone
+  (inner 72 dp of the 108 dp foreground layer).
+  Arc: r=263, centre=(512,512)  Start=(327,698) 135°  End=(698,698) 45°
+  Z: proportionally scaled from the main icon.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+
+    <linearGradient id="arcGradFg" gradientUnits="userSpaceOnUse"
+                    x1="327" y1="698" x2="698" y2="698">
+      <stop offset="0%"   stop-color="#7C5CF6"/>
+      <stop offset="48%"  stop-color="#00D4F0"/>
+      <stop offset="100%" stop-color="#00E5A0"/>
+    </linearGradient>
+
+    <filter id="arcHaloFg" x="-30%" y="-30%" width="160%" height="160%"
+            color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="13" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="dotHaloFg" x="-140%" y="-140%" width="380%" height="380%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="zHaloFg" x="-35%" y="-35%" width="170%" height="170%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="16" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+  </defs>
+
+  <!-- Transparent background — the navy bg comes from android-icon-background.svg -->
+
+  <!-- ── Ring track ─────────────────────────────────────────────── -->
+  <circle cx="512" cy="512" r="263"
+          fill="none"
+          stroke="#FFFFFF"
+          stroke-width="15"
+          opacity="0.08"/>
+
+  <!-- ── Score arc — 270° ────────────────────────────────────────── -->
+  <path d="M 327,698 A 263,263 0 1,1 698,698"
+        fill="none"
+        stroke="url(#arcGradFg)"
+        stroke-width="54"
+        stroke-linecap="round"
+        opacity="0.40"
+        filter="url(#arcHaloFg)"/>
+
+  <path d="M 327,698 A 263,263 0 1,1 698,698"
+        fill="none"
+        stroke="url(#arcGradFg)"
+        stroke-width="27"
+        stroke-linecap="round"/>
+
+  <!-- ── Endpoint dots ────────────────────────────────────────────── -->
+  <circle cx="327" cy="698" r="26" fill="#7C5CF6" opacity="0.5"
+          filter="url(#dotHaloFg)"/>
+  <circle cx="327" cy="698" r="15" fill="#7C5CF6"/>
+  <circle cx="327" cy="698" r="7"  fill="#FFFFFF" opacity="0.9"/>
+
+  <circle cx="698" cy="698" r="26" fill="#00E5A0" opacity="0.5"
+          filter="url(#dotHaloFg)"/>
+  <circle cx="698" cy="698" r="15" fill="#00E5A0"/>
+  <circle cx="698" cy="698" r="7"  fill="#FFFFFF" opacity="0.9"/>
+
+  <!-- ── Z lettermark (scaled 75 % from main icon) ─────────────── -->
+  <!--
+    Original Z at 100 %: top-left (352,340) bottom-right (672,680)
+    Scaled 75 % around centre (512,512):
+      x′ = (x − 512) × 0.75 + 512
+      y′ = (y − 512) × 0.75 + 512
+    Resulting key points:
+      (352,340)→(392,383)  (672,340)→(632,383)  (672,408)→(632,434)
+      (452,612)→(467,587)  (672,612)→(632,587)  (672,680)→(632,638)
+      (352,680)→(392,638)  (352,612)→(392,587)  (572,408)→(557,434)
+      (352,408)→(392,434)
+  -->
+  <path d="M 392,383 L 632,383 L 632,434
+           L 467,587 L 632,587 L 632,638
+           L 392,638 L 392,587 L 557,434
+           L 392,434 Z"
+        fill="#00D4F0"
+        opacity="0.35"
+        filter="url(#zHaloFg)"/>
+
+  <path d="M 392,383 L 632,383 L 632,434
+           L 467,587 L 632,587 L 632,638
+           L 392,638 L 392,587 L 557,434
+           L 392,434 Z"
+        fill="#FFFFFF"
+        opacity="0.96"/>
+
+  <!-- ── Gap dots ─────────────────────────────────────────────────── -->
+  <circle cx="450" cy="762" r="4" fill="#7C5CF6" opacity="0.55"/>
+  <circle cx="512" cy="772" r="5" fill="#00D4F0" opacity="0.70"/>
+  <circle cx="574" cy="762" r="4" fill="#00E5A0" opacity="0.55"/>
+
+</svg>

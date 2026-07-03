@@ -4,7 +4,7 @@ import { DailyTargets } from './recommendations';
 /**
  * Program types → how the week is split
  */
-export type ProgramType = 'full_body' | 'upper_lower' | 'push_pull_legs' | 'bro_split' | 'cardio_core' | 'flexibility';
+export type ProgramType = 'full_body' | 'upper_lower' | 'push_pull_legs' | 'bro_split' | 'cardio_core' | 'flexibility' | 'custom';
 
 export interface ProgramInfo {
     id: ProgramType;
@@ -23,6 +23,7 @@ export const PROGRAMS: ProgramInfo[] = [
     { id: 'bro_split',      icon: '⚡', name: 'Bro Split',       sub: 'One muscle group per day',                      minDays: 4, maxDays: 6 },
     { id: 'cardio_core',    icon: '🏃', name: 'Cardio & Core',   sub: 'HIIT, running, and core work',                  minDays: 2, maxDays: 5 },
     { id: 'flexibility',    icon: '🧘', name: 'Yoga & Mobility', sub: 'Flexibility, recovery, and stretching',         minDays: 1, maxDays: 7 },
+    { id: 'custom',         icon: '✏️', name: 'Custom Program',  sub: 'Your own exercise selection per day',            minDays: 1, maxDays: 7 },
 ];
 
 /** Get programs suitable for the user's workout frequency */
@@ -31,6 +32,12 @@ export function getAvailablePrograms(daysPerWeek: number): ProgramInfo[] {
 }
 
 // ─── Exercise pools per muscle/day type ───────────────────────
+//
+// NOTE: Some exercises (Bench Press, Pull Ups, Overhead Press, Dips…) appear in
+// several pools *on purpose* — their sets/reps/rest (and occasionally `muscle`
+// emphasis, e.g. Dips as "Chest/Triceps" vs "Lower Chest") are tuned per split.
+// They look like duplication but are intentionally distinct; do NOT collapse
+// them into one shared dictionary, which would flatten these per-program values.
 
 const PUSH_EXERCISES: WorkoutExercise[] = [
     { name: 'Bench Press',            sets: 4, reps: '8',  rest: '90s', muscle: 'Chest',         equipment: 'barbell'    },
@@ -210,6 +217,9 @@ export function getTodayPlan(
             break;
         case 'flexibility':
             rotation = [{ dayLabel: 'Mobility',      muscleGroup: 'Yoga & Mobility',  exercises: FLEX_EXERCISES,        intensity: 'Light',    duration: '40 min' }];
+            break;
+        case 'custom':
+            rotation = [{ dayLabel: 'Custom',        muscleGroup: 'Custom Plan',       exercises: [],                    intensity: '—',        duration: '—'      }];
             break;
         default:
             rotation = [{ dayLabel: 'Full Body',   muscleGroup: 'Full Body',          exercises: FULL_BODY_EXERCISES,   intensity: 'Moderate', duration: '50 min' }];

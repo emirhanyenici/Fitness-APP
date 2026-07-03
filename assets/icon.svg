@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Zenova LifeScore — App Icon  (1024 × 1024)
+  Design: Dark navy bg · 270° score ring (violet → cyan → teal) · Bold Z lettermark
+  Arc: r=350, center=(512,512), gap at bottom-center
+  Coordinates: start=(265,760) 135° · end=(760,760) 45°
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+
+    <!-- ── Background gradient ─────────────────────────────────── -->
+    <radialGradient id="bg" cx="45%" cy="35%" r="70%" gradientUnits="objectBoundingBox">
+      <stop offset="0%"   stop-color="#1E3050"/>
+      <stop offset="100%" stop-color="#0D1526"/>
+    </radialGradient>
+
+    <!-- ── Arc colour (violet → cyan → teal) ──────────────────── -->
+    <linearGradient id="arcGrad" gradientUnits="userSpaceOnUse"
+                    x1="265" y1="760" x2="760" y2="760">
+      <stop offset="0%"   stop-color="#7C5CF6"/>
+      <stop offset="48%"  stop-color="#00D4F0"/>
+      <stop offset="100%" stop-color="#00E5A0"/>
+    </linearGradient>
+
+    <!-- ── Arc bright highlight (centre top of arc) ───────────── -->
+    <radialGradient id="arcHighlight" cx="50%" cy="10%" r="60%" gradientUnits="objectBoundingBox">
+      <stop offset="0%"   stop-color="#FFFFFF" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- ── Glow filters ───────────────────────────────────────── -->
+    <!-- Wide halo behind the arc -->
+    <filter id="arcHalo" x="-25%" y="-25%" width="150%" height="150%"
+            color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="18" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Dot glow -->
+    <filter id="dotHalo" x="-120%" y="-120%" width="340%" height="340%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Cyan glow behind the Z lettermark -->
+    <filter id="zHalo" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="22" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Ambient inner glow -->
+    <filter id="ambientGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="40" result="blur"/>
+    </filter>
+
+  </defs>
+
+  <!-- ── 1. Background ──────────────────────────────────────────── -->
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+
+  <!-- Subtle ambient cyan bloom (behind everything) -->
+  <ellipse cx="512" cy="430" rx="320" ry="250"
+           fill="#00D4F0" opacity="0.07"
+           filter="url(#ambientGlow)"/>
+
+  <!-- ── 2. Ring track (faint guide circle) ─────────────────────── -->
+  <circle cx="512" cy="512" r="350"
+          fill="none"
+          stroke="#FFFFFF"
+          stroke-width="20"
+          opacity="0.06"/>
+
+  <!-- ── 3. Score arc — 270° from bottom-left to bottom-right ───── -->
+  <!--
+    Path explanation:
+      M 265,760  → start at 135° on the circle (lower-left, 7:30 o'clock)
+      A 350,350   → arc with radius 350
+      0           → no x-rotation
+      1,1         → large-arc=yes, sweep=clockwise
+      760,760     → end at 45° (lower-right, 4:30 o'clock)
+    The 270° arc sweeps UP through LEFT → TOP → RIGHT before arriving at end.
+    The 90° gap sits at the bottom-centre of the ring.
+  -->
+
+  <!-- Outer halo pass (wide, blurred) -->
+  <path d="M 265,760 A 350,350 0 1,1 760,760"
+        fill="none"
+        stroke="url(#arcGrad)"
+        stroke-width="72"
+        stroke-linecap="round"
+        opacity="0.38"
+        filter="url(#arcHalo)"/>
+
+  <!-- Main arc (crisp, sharp edges) -->
+  <path d="M 265,760 A 350,350 0 1,1 760,760"
+        fill="none"
+        stroke="url(#arcGrad)"
+        stroke-width="36"
+        stroke-linecap="round"/>
+
+  <!-- Highlight shimmer along the top of the arc -->
+  <path d="M 265,760 A 350,350 0 1,1 760,760"
+        fill="none"
+        stroke="url(#arcHighlight)"
+        stroke-width="36"
+        stroke-linecap="round"/>
+
+  <!-- ── 4. Arc endpoint dots ────────────────────────────────────── -->
+
+  <!-- Start dot — violet (bottom-left, 7:30) -->
+  <circle cx="265" cy="760" r="34" fill="#7C5CF6" opacity="0.5"
+          filter="url(#dotHalo)"/>
+  <circle cx="265" cy="760" r="20" fill="#7C5CF6"/>
+  <circle cx="265" cy="760" r="9"  fill="#FFFFFF" opacity="0.9"/>
+
+  <!-- End dot — teal (bottom-right, 4:30) -->
+  <circle cx="760" cy="760" r="34" fill="#00E5A0" opacity="0.5"
+          filter="url(#dotHalo)"/>
+  <circle cx="760" cy="760" r="20" fill="#00E5A0"/>
+  <circle cx="760" cy="760" r="9"  fill="#FFFFFF" opacity="0.9"/>
+
+  <!-- ── 5. Z lettermark ────────────────────────────────────────── -->
+  <!--
+    Z polygon (bold, angular):
+      Top bar:    (352,340) → (672,340) → (672,408) → (352,408)
+      Diagonal:   (672,408) → (452,612)  [outer]
+                  (572,408) → (352,612)  [inner — parallel, 75px stroke width]
+      Bottom bar: (452,612) → (672,612) → (672,680) → (352,680) → (352,612)
+    All bars 68px tall; diagonal perpendicular width ≈ 68px.
+  -->
+
+  <!-- Cyan glow shadow (blurred layer behind the white Z) -->
+  <path d="M 352,340 L 672,340 L 672,408
+           L 452,612 L 672,612 L 672,680
+           L 352,680 L 352,612 L 572,408
+           L 352,408 Z"
+        fill="#00D4F0"
+        opacity="0.35"
+        filter="url(#zHalo)"/>
+
+  <!-- Solid white Z -->
+  <path d="M 352,340 L 672,340 L 672,408
+           L 452,612 L 672,612 L 672,680
+           L 352,680 L 352,612 L 572,408
+           L 352,408 Z"
+        fill="#FFFFFF"
+        opacity="0.96"/>
+
+  <!-- Top-left soft corner highlight on Z (gives slight 3-D feel) -->
+  <path d="M 352,340 L 672,340 L 672,350 L 352,350 Z"
+        fill="#FFFFFF"
+        opacity="0.12"/>
+
+  <!-- ── 6. Bottom gap accent — three score-pillar dots ─────────── -->
+  <circle cx="450" cy="836" r="5" fill="#7C5CF6" opacity="0.55"/>
+  <circle cx="512" cy="848" r="6" fill="#00D4F0" opacity="0.70"/>
+  <circle cx="574" cy="836" r="5" fill="#00E5A0" opacity="0.55"/>
+
+</svg>

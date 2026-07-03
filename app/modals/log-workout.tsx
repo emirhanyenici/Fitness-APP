@@ -4,21 +4,25 @@ import { useWorkoutStore } from '../../stores/workoutStore';
 import { useUserStore } from '../../stores/userStore';
 import { computeTargets } from '../../services/recommendations';
 import { getAvailablePrograms, recommendProgram, PROGRAMS, ProgramType } from '../../services/workoutPrograms';
+import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
+import { useT } from '../../constants/i18n';
 
 export default function LogWorkoutModal() {
+  const t = useT();
   const setSelectedProgram = useWorkoutStore((s) => s.setSelectedProgram);
   const setSelectedType = useWorkoutStore((s) => s.setSelectedType);
   const currentProgram = useWorkoutStore((s) => s.selectedProgram);
   const profile = useUserStore((s) => s.profile);
+  const isPro   = useSubscriptionStore((s) => s.isPro);
   const targets = computeTargets(profile);
   const goal = profile?.primary_goal ?? 'general_health';
   const daysPerWeek = targets.workoutDaysPerWeek;
 
   const recommended = recommendProgram(goal, daysPerWeek);
-  const available = getAvailablePrograms(daysPerWeek);
+  const available = getAvailablePrograms(daysPerWeek).filter(p => p.id !== 'custom');
 
   // Put recommended first, then rest, then rest day at bottom
   const sorted = [
@@ -35,9 +39,9 @@ export default function LogWorkoutModal() {
   return (
     <View style={styles.container}>
       <View style={styles.handle} />
-      <Text style={styles.title}>Choose Program</Text>
+      <Text style={styles.title}>{t('logWorkout.chooseProgram')}</Text>
       <Text style={styles.sub}>
-        Based on your goal ({daysPerWeek}× per week)
+        {t('logWorkout.basedOnGoal', { days: daysPerWeek })}
       </Text>
       <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
         {sorted.map((p) => {
@@ -53,6 +57,9 @@ export default function LogWorkoutModal() {
               ]}
               activeOpacity={0.75}
               onPress={() => handleSelect(p.id)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: isCurrent }}
+              accessibilityLabel={t('logWorkout.programA11y', { name: p.name, rec: isRecommended ? t('logWorkout.recSuffix') : '', cur: isCurrent ? t('logWorkout.curSuffix') : '', sub: p.sub, min: p.minDays, max: p.maxDays })}
             >
               <View style={[styles.rowIcon, isRecommended && styles.rowIconRecommended]}>
                 <Text style={{ fontSize: 26 }}>{p.icon}</Text>
@@ -62,41 +69,86 @@ export default function LogWorkoutModal() {
                   <Text style={styles.rowLabel}>{p.name}</Text>
                   {isRecommended && (
                     <View style={styles.recBadge}>
-                      <Text style={styles.recBadgeText}>Recommended</Text>
+                      <Text style={styles.recBadgeText}>{t('logWorkout.recommended')}</Text>
                     </View>
                   )}
                   {isCurrent && !isRecommended && (
                     <View style={styles.currentBadge}>
-                      <Text style={styles.currentBadgeText}>Current</Text>
+                      <Text style={styles.currentBadgeText}>{t('logWorkout.current')}</Text>
                     </View>
                   )}
                 </View>
                 <Text style={styles.rowSub}>{p.sub}</Text>
-                <Text style={styles.rowDays}>{p.minDays}–{p.maxDays} days/week</Text>
+                <Text style={styles.rowDays}>{t('logWorkout.daysPerWeek', { min: p.minDays, max: p.maxDays })}</Text>
               </View>
               <Text style={styles.rowArrow}>›</Text>
             </TouchableOpacity>
           );
         })}
 
+        {/* Custom Program — PRO only */}
+        <TouchableOpacity
+          style={[styles.row, !isPro && styles.rowLocked, currentProgram === 'custom' && styles.rowCurrent]}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityState={{ selected: currentProgram === ('custom' as any) }}
+          accessibilityLabel={t('logWorkout.customA11y', { pro: !isPro ? '. ' + t('common.proFeature') : '' })}
+          onPress={() => {
+            if (!isPro) { router.push('/paywall'); return; }
+            setSelectedProgram('custom' as any);
+            setSelectedType('custom');
+            router.back();
+          }}
+        >
+          <View style={styles.rowIcon}>
+            <Text style={{ fontSize: 26 }}>✏️</Text>
+          </View>
+          <View style={styles.rowInfo}>
+            <View style={styles.rowLabelRow}>
+              <Text style={styles.rowLabel}>{t('logWorkout.customProgram')}</Text>
+              {!isPro && (
+                <View style={styles.proBadge}><Text style={styles.proBadgeText}>{t('common.pro')}</Text></View>
+              )}
+              {isPro && currentProgram === ('custom' as any) && (
+                <View style={styles.currentBadge}><Text style={styles.currentBadgeText}>{t('logWorkout.active')}</Text></View>
+              )}
+            </View>
+            <Text style={styles.rowSub}>{t('logWorkout.customProgramSub')}</Text>
+          </View>
+          {isPro ? (
+            <TouchableOpacity
+              onPress={() => router.push('/modals/custom-program')}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel={t('logWorkout.editCustom')}
+            >
+              <Text style={styles.editCustomText}>{t('logWorkout.edit')}</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={styles.rowArrow}>›</Text>
+          )}
+        </TouchableOpacity>
+
         {/* Rest day option */}
         <TouchableOpacity
           style={styles.row}
           activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel={t('logWorkout.restDayA11y')}
           onPress={() => { setSelectedType('rest'); setSelectedProgram(null); router.back(); }}
         >
           <View style={styles.rowIcon}>
             <Text style={{ fontSize: 26 }}>😴</Text>
           </View>
           <View style={styles.rowInfo}>
-            <Text style={styles.rowLabel}>Rest Day</Text>
-            <Text style={styles.rowSub}>Active recovery & stretching</Text>
+            <Text style={styles.rowLabel}>{t('logWorkout.restDay')}</Text>
+            <Text style={styles.rowSub}>{t('logWorkout.restDaySub')}</Text>
           </View>
           <Text style={styles.rowArrow}>›</Text>
         </TouchableOpacity>
       </ScrollView>
-      <TouchableOpacity style={styles.cancelBtn} onPress={() => router.back()}>
-        <Text style={styles.cancelText}>Cancel</Text>
+      <TouchableOpacity style={styles.cancelBtn} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={t('logWorkout.cancelClose')}>
+        <Text style={styles.cancelText}>{t('common.cancel')}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -126,6 +178,11 @@ const styles = StyleSheet.create({
   recBadgeText: { fontFamily: typography.fonts.bodyMed, fontSize: 10, color: colors.accent.primary },
   currentBadge: { backgroundColor: colors.status.success + '20', borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 2 },
   currentBadgeText: { fontFamily: typography.fonts.bodyMed, fontSize: 10, color: colors.status.success },
+
+  editCustomText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.accent.primary },
+  rowLocked:    { opacity: 0.7 },
+  proBadge:     { backgroundColor: colors.accent.dim, borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 2 },
+  proBadgeText: { fontFamily: typography.fonts.bodyMed, fontSize: 10, color: colors.accent.primary },
 
   cancelBtn: { paddingVertical: spacing.base, alignItems: 'center' },
   cancelText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.base, color: colors.text.secondary },

@@ -8,9 +8,11 @@ import { fetchExerciseDemo, ExerciseDemo } from '../../services/exercisedb';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
+import { useT } from '../../constants/i18n';
 
 export default function ExerciseDemoModal() {
   const { name, muscle } = useLocalSearchParams<{ name: string; muscle?: string }>();
+  const t = useT();
 
   const [demo,    setDemo]    = useState<ExerciseDemo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,6 +45,8 @@ export default function ExerciseDemoModal() {
         <TouchableOpacity
           onPress={() => router.back()}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          accessibilityRole="button"
+          accessibilityLabel={t('exerciseDemo.close')}
         >
           <Text style={styles.closeBtn}>✕</Text>
         </TouchableOpacity>
@@ -58,7 +62,7 @@ export default function ExerciseDemoModal() {
           {loading ? (
             <View style={styles.gifPlaceholder}>
               <ActivityIndicator size="large" color={colors.accent.primary} />
-              <Text style={styles.loadingText}>Loading exercise...</Text>
+              <Text style={styles.loadingText}>{t('exerciseDemo.loading')}</Text>
             </View>
           ) : demo?.gifUrl && !imgErr ? (
             <Image
@@ -70,8 +74,8 @@ export default function ExerciseDemoModal() {
           ) : (
             <View style={styles.gifPlaceholder}>
               <Text style={{ fontSize: 48 }}>🏋️</Text>
-              <Text style={styles.noGifText}>No demo available</Text>
-              <Text style={styles.noGifSub}>Watch on YouTube instead</Text>
+              <Text style={styles.noGifText}>{t('exerciseDemo.noDemo')}</Text>
+              <Text style={styles.noGifSub}>{t('exerciseDemo.watchYoutubeInstead')}</Text>
             </View>
           )}
         </View>
@@ -100,7 +104,7 @@ export default function ExerciseDemoModal() {
         {/* ── Step-by-step instructions ── */}
         {demo?.instructions && demo.instructions.length > 0 ? (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>How To Do It</Text>
+            <Text style={styles.sectionTitle}>{t('exerciseDemo.howToDoIt')}</Text>
             <View style={styles.stepList}>
               {demo.instructions.map((step, i) => (
                 <View key={i} style={styles.stepRow}>
@@ -114,17 +118,16 @@ export default function ExerciseDemoModal() {
           </View>
         ) : !loading ? (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>How To Do It</Text>
+            <Text style={styles.sectionTitle}>{t('exerciseDemo.howToDoIt')}</Text>
             <Text style={styles.noInstructions}>
-              No step-by-step description available for this exercise.
-              Watch a detailed video on YouTube.
+              {t('exerciseDemo.noInstructions')}
             </Text>
           </View>
         ) : null}
 
         {/* ── YouTube button ── */}
-        <TouchableOpacity style={styles.youtubeBtn} onPress={openYouTube} activeOpacity={0.85}>
-          <Text style={styles.youtubeBtnText}>▶  Watch on YouTube</Text>
+        <TouchableOpacity style={styles.youtubeBtn} onPress={openYouTube} activeOpacity={0.85} accessibilityRole="link" accessibilityLabel={t('exerciseDemo.watchTutorialA11y', { name: name ?? '' })}>
+          <Text style={styles.youtubeBtnText}>{t('exerciseDemo.watchYoutube')}</Text>
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />

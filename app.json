@@ -1,32 +1,33 @@
 {
   "expo": {
-    "name": "Novra Health",
-    "slug": "novra-health",
+    "name": "Zenova LifeScore",
+    "slug": "zenova-lifescore",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "scheme": "novra-health",
+    "scheme": "zenova-lifescore",
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-secure-store"
     ],
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#F1F5F9"
+      "backgroundColor": "#0D1526"
     },
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundColor": "#0D1526",
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.novrahealth"
+      "package": "com.zenova.lifescore"
     },
     "web": {
       "favicon": "./assets/favicon.png"

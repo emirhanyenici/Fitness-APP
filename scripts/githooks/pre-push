@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Zenova LifeScore — pre-push hook
+# Hard gates: TypeScript must type-check and the Jest suite must pass.
+# Runs from the repo root (aura-health). Exit 1 = push blocked.
+
+ROOT=$(git rev-parse --show-toplevel)
+cd "$ROOT" || exit 1
+BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null)
+FAIL=0
+
+RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; NC='\033[0m'
+echo -e "${CYAN}━━━ Zenova pre-push (branch: $BRANCH) ━━━${NC}"
+
+if ! command -v npx >/dev/null 2>&1; then
+  echo "npx not found — cannot run checks; skipping (install Node to enable)."
+  exit 0
+fi
+
+echo "▶ TypeScript (tsc --noEmit)…"
+if npx tsc --noEmit; then
+  echo -e "  ${GREEN}✓ types OK${NC}"
+else
+  echo -e "  ${RED}✗ type errors — fix before pushing${NC}"; FAIL=1
+fi
+
+echo "▶ Tests (jest)…"
+if npx jest --silent; then
+  echo -e "  ${GREEN}✓ tests OK${NC}"
+else
+  echo -e "  ${RED}✗ tests failed — fix before pushing${NC}"; FAIL=1
+fi
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+if [ $FAIL -ne 0 ]; then
+  echo -e "${RED}PUSH BLOCKED${NC}"
+  exit 1
+fi
+echo -e "${GREEN}All checks passed — pushing.${NC}"
+exit 0

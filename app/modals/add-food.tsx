@@ -1,24 +1,28 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
-  StyleSheet, ActivityIndicator, Alert, ScrollView,
+  StyleSheet, ActivityIndicator, Alert, ScrollView, Image,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
+import * as ImagePicker from 'expo-image-picker';
 import { useNutritionStore, MealType } from '../../stores/nutritionStore';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
-import { searchFoods, lookupBarcode, FoodItem } from '../../services/usda';
+import { searchFoods, searchFoodsOFF, lookupBarcode, scaleFood, FoodItem } from '../../services/usda';
+import { analyzeFood, SnapResult } from '../../services/foodSnap';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
+import { useT } from '../../constants/i18n';
 
-type Screen = 'home' | 'search' | 'manual' | 'barcode';
+type Screen = 'home' | 'search' | 'manual' | 'barcode' | 'snap';
 
 export default function AddFoodModal() {
   const { mealType = 'snack' } = useLocalSearchParams<{ mealType: string }>();
   const [screen, setScreen] = useState<Screen>('home');
   const addEntry = useNutritionStore((s) => s.addEntry);
   const isPro = useSubscriptionStore((s) => s.isPro);
+  const t = useT();
 
   const handleAdd = useCallback((item: FoodItem) => {
     addEntry({
@@ -35,26 +39,30 @@ export default function AddFoodModal() {
   if (screen === 'search')  return <SearchScreen  onAdd={handleAdd} onBack={() => setScreen('home')} />;
   if (screen === 'manual')  return <ManualScreen  onAdd={handleAdd} onBack={() => setScreen('home')} />;
   if (screen === 'barcode') return <BarcodeScreen onAdd={handleAdd} onBack={() => setScreen('home')} />;
+  if (screen === 'snap')    return <SnapScreen    onAdd={handleAdd} onBack={() => setScreen('home')} />;
 
-  const mealLabel = (mealType as string).charAt(0).toUpperCase() + (mealType as string).slice(1);
+  const mealKey = (mealType as string) === 'snack' ? 'nutrition.snacks' : `nutrition.${mealType}`;
+  const mealLabel = t(mealKey);
 
   return (
     <View style={styles.container}>
       <View style={styles.handle} />
-      <Text style={styles.title}>Add Food</Text>
-      <Text style={styles.sub}>Adding to {mealLabel}</Text>
+      <Text style={styles.title}>{t('addFood.title')}</Text>
+      <Text style={styles.sub}>{t('addFood.addingTo', { meal: mealLabel })}</Text>
 
       <View style={styles.grid}>
         {[
-          { icon: '📷', label: 'Snap Photo',      sub: 'AI detects calories',  pro: true,  sc: null as Screen | null },
-          { icon: '🔍', label: 'Search Database', sub: '3M+ foods (USDA)',     pro: false, sc: 'search'  as Screen },
-          { icon: '📦', label: 'Scan Barcode',    sub: 'Scan packaging',        pro: false, sc: 'barcode' as Screen },
-          { icon: '✏️', label: 'Enter Manually',  sub: 'Custom entry',          pro: false, sc: 'manual'  as Screen },
+          { icon: '🔍', label: t('addFood.searchDatabase'), sub: t('addFood.searchDatabaseSub'), pro: false, sc: 'search'  as Screen },
+          { icon: '📦', label: t('addFood.scanBarcode'),    sub: t('addFood.scanBarcodeSub'),    pro: false, sc: 'barcode' as Screen },
+          { icon: '✏️', label: t('addFood.enterManually'),  sub: t('addFood.enterManuallySub'),  pro: false, sc: 'manual'  as Screen },
+          { icon: '📷', label: t('addFood.snapPhoto'),      sub: t('addFood.snapPhotoSub'),      pro: true,  sc: 'snap'    as Screen },
         ].map((opt) => (
           <TouchableOpacity
             key={opt.label}
             style={styles.card}
             activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel={`${opt.label}. ${opt.sub}${opt.pro ? '. ' + t('common.proFeature') : ''}`}
             onPress={() => {
               if (opt.pro && !isPro) { router.push('/paywall'); return; }
               if (opt.sc) setScreen(opt.sc);
@@ -64,14 +72,19 @@ export default function AddFoodModal() {
             <Text style={styles.cardLabel}>{opt.label}</Text>
             <Text style={styles.cardSub}>{opt.sub}</Text>
             {opt.pro && (
-              <View style={styles.proBadge}><Text style={styles.proBadgeText}>PRO</Text></View>
+              <View style={styles.proBadge}><Text style={styles.proBadgeText}>{t('common.pro')}</Text></View>
             )}
           </TouchableOpacity>
         ))}
       </View>
 
-      <TouchableOpacity style={styles.cancelBtn} onPress={() => router.back()}>
-        <Text style={styles.cancelText}>Cancel</Text>
+      <TouchableOpacity
+        style={styles.cancelBtn}
+        onPress={() => router.back()}
+        accessibilityRole="button"
+        accessibilityLabel={t('addFood.cancelClose')}
+      >
+        <Text style={styles.cancelText}>{t('common.cancel')}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -84,14 +97,26 @@ function SearchScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBa
   const [results, setResults] = useState<FoodItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [selected, setSelected] = useState<FoodItem | null>(null);
+  const t = useT();
 
   const handleSearch = async () => {
     if (!query.trim()) return;
     setLoading(true);
     setSearched(true);
     try {
-      const foods = await searchFoods(query.trim());
-      setResults(foods);
+      const [usda, off] = await Promise.allSettled([
+        searchFoods(query.trim()),
+        searchFoodsOFF(query.trim()),
+      ]);
+      const combined = [
+        ...(usda.status === 'fulfilled' ? usda.value : []),
+        ...(off.status  === 'fulfilled' ? off.value  : []),
+      ];
+      if (combined.length === 0 && usda.status === 'rejected') {
+        Alert.alert(t('common.error'), t('addFood.couldNotSearch'));
+      }
+      setResults(combined);
     } catch {
       Alert.alert('Error', 'Could not search foods. Check your connection.');
     } finally {
@@ -99,16 +124,27 @@ function SearchScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBa
     }
   };
 
+  // Portion step — choose quantity/unit for the tapped result before logging.
+  if (selected) {
+    return (
+      <PortionStep
+        item={selected}
+        onAdd={onAdd}
+        onBack={() => setSelected(null)}
+      />
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.handle} />
-      <TouchableOpacity onPress={onBack}><Text style={styles.backLink}>← Back</Text></TouchableOpacity>
-      <Text style={[styles.title, { marginTop: spacing.sm }]}>Search Food</Text>
+      <TouchableOpacity onPress={onBack} accessibilityRole="button" accessibilityLabel={t('addFood.goBack')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}><Text style={styles.backLink}>← {t('common.back')}</Text></TouchableOpacity>
+      <Text style={[styles.title, { marginTop: spacing.sm }]}>{t('addFood.searchFood')}</Text>
 
       <View style={styles.searchRow}>
         <TextInput
           style={styles.searchInput}
-          placeholder="e.g. chicken breast, apple..."
+          placeholder={t('addFood.searchPlaceholder')}
           placeholderTextColor={colors.text.tertiary}
           value={query}
           onChangeText={setQuery}
@@ -116,8 +152,8 @@ function SearchScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBa
           returnKeyType="search"
           autoFocus
         />
-        <TouchableOpacity style={styles.searchBtn} onPress={handleSearch}>
-          <Text style={styles.searchBtnText}>Search</Text>
+        <TouchableOpacity style={styles.searchBtn} onPress={handleSearch} accessibilityRole="button" accessibilityLabel={t('addFood.searchDbA11y')}>
+          <Text style={styles.searchBtnText}>{t('addFood.search')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -126,11 +162,17 @@ function SearchScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBa
       ) : (
         <FlatList
           data={results}
-          keyExtractor={(item) => String(item.fdcId)}
+          keyExtractor={(item, index) => `${item.fdcId}_${index}`}
           style={{ marginTop: spacing.xs }}
           keyboardShouldPersistTaps="handled"
           renderItem={({ item }) => (
-            <TouchableOpacity style={styles.resultRow} onPress={() => onAdd(item)} activeOpacity={0.75}>
+            <TouchableOpacity
+              style={styles.resultRow}
+              onPress={() => setSelected(item)}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel={t('addFood.addResultA11y', { name: item.description, calories: item.calories })}
+            >
               <View style={{ flex: 1 }}>
                 <Text style={styles.resultName} numberOfLines={2}>{item.description}</Text>
                 <Text style={styles.resultMacros}>
@@ -145,12 +187,108 @@ function SearchScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBa
           )}
           ListEmptyComponent={
             searched && !loading ? (
-              <Text style={styles.emptyText}>No results. Try a different term.</Text>
+              <Text style={styles.emptyText}>{t('addFood.noResults')}</Text>
             ) : null
           }
         />
       )}
     </View>
+  );
+}
+
+// ─── Portion Step (for a chosen search result) ────────────────────────────────
+
+type PortionUnit = 'g' | 'serving';
+
+function PortionStep({ item, onAdd, onBack }: { item: FoodItem; onAdd: (item: FoodItem) => void; onBack: () => void }) {
+  const [unit, setUnit] = useState<PortionUnit>('g');
+  const [qty,  setQty]  = useState('100');
+  const t = useT();
+
+  const amount = parseFloat(qty) || 0;
+  const factor = unit === 'g' ? amount / 100 : amount;
+  const scaled = scaleFood(item, factor);
+
+  const switchUnit = (next: PortionUnit) => {
+    if (next === unit) return;
+    setUnit(next);
+    setQty(next === 'g' ? '100' : '1');
+  };
+
+  const handleAdd = () => {
+    if (amount <= 0) { Alert.alert(t('addFood.invalidAmount'), t('addFood.enterQtyPositive')); return; }
+    const suffix = unit === 'g'
+      ? t('addFood.gramSuffix', { n: amount })
+      : t(amount === 1 ? 'addFood.servingSuffix' : 'addFood.servingSuffixPlural', { n: amount });
+    onAdd({ ...scaled, description: `${item.description} (${suffix})` });
+  };
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+      <View style={styles.handle} />
+      <TouchableOpacity onPress={onBack} accessibilityRole="button" accessibilityLabel={t('addFood.backToResults')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <Text style={styles.backLink}>← {t('addFood.backToResults')}</Text>
+      </TouchableOpacity>
+      <Text style={[styles.title, { marginTop: spacing.sm }]}>{t('addFood.choosePortion')}</Text>
+
+      <View style={[styles.foundCard, { width: '100%' }]}>
+        <Text style={styles.foundName}>{item.description}</Text>
+
+        {/* Unit toggle */}
+        <View style={styles.unitToggle}>
+          {(['g', 'serving'] as PortionUnit[]).map((u) => (
+            <TouchableOpacity
+              key={u}
+              style={[styles.unitPill, unit === u && styles.unitPillActive]}
+              onPress={() => switchUnit(u)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: unit === u }}
+              accessibilityLabel={u === 'g' ? t('addFood.measureGrams') : t('addFood.measureServings')}
+            >
+              <Text style={[styles.unitPillText, unit === u && styles.unitPillTextActive]}>
+                {u === 'g' ? t('addFood.grams') : t('addFood.servings')}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Quantity input */}
+        <View style={styles.gramRow}>
+          <Text style={styles.gramLabel}>{t('addFood.amount')}</Text>
+          <TextInput
+            style={styles.gramInput}
+            value={qty}
+            onChangeText={setQty}
+            keyboardType="decimal-pad"
+            selectTextOnFocus
+            maxLength={6}
+            accessibilityLabel={t('addFood.portionAmount')}
+          />
+          <Text style={styles.gramUnit}>{unit === 'g' ? 'g' : '×'}</Text>
+        </View>
+        <Text style={styles.gramHint}>
+          {unit === 'g' ? t('addFood.baseValues') : t('addFood.oneServing')}
+        </Text>
+
+        {/* Scaled macros */}
+        <View style={styles.foundMacros}>
+          <MacroChip label="Cal"     value={String(scaled.calories)} color={colors.accent.primary} />
+          <MacroChip label="Protein" value={`${scaled.protein}g`}    color={colors.status.info} />
+          <MacroChip label="Carbs"   value={`${scaled.carbs}g`}      color={colors.status.warning} />
+          <MacroChip label="Fat"     value={`${scaled.fat}g`}        color={colors.violet.primary} />
+        </View>
+      </View>
+
+      <TouchableOpacity
+        style={[styles.primaryBtn, { width: '100%' }]}
+        onPress={handleAdd}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel={t('addFood.addToLogA11y', { name: item.description, calories: scaled.calories })}
+      >
+        <Text style={styles.primaryBtnText}>{t('addFood.addToLog')}</Text>
+      </TouchableOpacity>
+    </ScrollView>
   );
 }
 
@@ -162,47 +300,66 @@ function ManualScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBa
   const [protein,  setProtein]  = useState('');
   const [carbs,    setCarbs]    = useState('');
   const [fat,      setFat]      = useState('');
+  const [qty,      setQty]      = useState('1');
+  const t = useT();
 
   const handleAdd = () => {
     if (!name.trim() || !calories.trim()) {
-      Alert.alert('Required', 'Please enter at least food name and calories.');
+      Alert.alert(t('common.required'), t('addFood.requiredNameCal'));
       return;
     }
+    const kcal = parseInt(calories) || 0;
+    if (kcal < 0 || kcal > 9999) {
+      Alert.alert(t('addFood.invalidCalories'), t('addFood.caloriesRange'));
+      return;
+    }
+    const count = Math.max(1, parseInt(qty) || 1);
+    const prot  = Math.max(0, parseInt(protein) || 0);
+    const carb  = Math.max(0, parseInt(carbs)   || 0);
+    const fatG  = Math.max(0, parseInt(fat)     || 0);
+    const totalKcal = Math.min(9999, kcal * count);
     onAdd({
       fdcId: 0,
-      description: name.trim(),
-      calories: parseInt(calories) || 0,
-      protein:  parseInt(protein)  || 0,
-      carbs:    parseInt(carbs)    || 0,
-      fat:      parseInt(fat)      || 0,
+      description: count > 1 ? `${name.trim()} (×${count})` : name.trim(),
+      calories: totalKcal,
+      protein:  prot * count,
+      carbs:    carb * count,
+      fat:      fatG * count,
     });
   };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
       <View style={styles.handle} />
-      <TouchableOpacity onPress={onBack}><Text style={styles.backLink}>← Back</Text></TouchableOpacity>
-      <Text style={[styles.title, { marginTop: spacing.sm, marginBottom: spacing.xl }]}>Manual Entry</Text>
+      <TouchableOpacity onPress={onBack} accessibilityRole="button" accessibilityLabel={t('addFood.goBack')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}><Text style={styles.backLink}>← {t('common.back')}</Text></TouchableOpacity>
+      <Text style={[styles.title, { marginTop: spacing.sm, marginBottom: spacing.xl }]}>{t('addFood.manualEntry')}</Text>
 
-      <TextInput style={styles.input} placeholder="Food name *" placeholderTextColor={colors.text.tertiary}
+      <TextInput style={styles.input} placeholder={t('addFood.foodNameReq')} placeholderTextColor={colors.text.tertiary}
         value={name} onChangeText={setName} />
       <View style={{ height: spacing.sm }} />
-      <TextInput style={styles.input} placeholder="Calories (kcal) *" placeholderTextColor={colors.text.tertiary}
+      <TextInput style={styles.input} placeholder={t('addFood.caloriesReq')} placeholderTextColor={colors.text.tertiary}
         value={calories} onChangeText={setCalories} keyboardType="numeric" />
       <View style={{ height: spacing.sm }} />
+      <View style={styles.qtyRow}>
+        <Text style={styles.qtyLabel}>{t('addFood.servingsX')}</Text>
+        <TextInput style={styles.qtyInput} value={qty} onChangeText={setQty}
+          keyboardType="numeric" selectTextOnFocus maxLength={3}
+          accessibilityLabel={t('addFood.numberOfServings')} />
+      </View>
+      <View style={{ height: spacing.sm }} />
       <View style={styles.macroRow}>
-        <TextInput style={[styles.input, { flex: 1 }]} placeholder="Protein (g)"
+        <TextInput style={[styles.input, { flex: 1 }]} placeholder={t('addFood.proteinG')}
           placeholderTextColor={colors.text.tertiary} value={protein} onChangeText={setProtein} keyboardType="numeric" />
         <View style={{ width: spacing.sm }} />
-        <TextInput style={[styles.input, { flex: 1 }]} placeholder="Carbs (g)"
+        <TextInput style={[styles.input, { flex: 1 }]} placeholder={t('addFood.carbsG')}
           placeholderTextColor={colors.text.tertiary} value={carbs} onChangeText={setCarbs} keyboardType="numeric" />
         <View style={{ width: spacing.sm }} />
-        <TextInput style={[styles.input, { flex: 1 }]} placeholder="Fat (g)"
+        <TextInput style={[styles.input, { flex: 1 }]} placeholder={t('addFood.fatG')}
           placeholderTextColor={colors.text.tertiary} value={fat} onChangeText={setFat} keyboardType="numeric" />
       </View>
       <View style={{ height: spacing.xl }} />
-      <TouchableOpacity style={styles.primaryBtn} onPress={handleAdd} activeOpacity={0.85}>
-        <Text style={styles.primaryBtnText}>Add to Log</Text>
+      <TouchableOpacity style={styles.primaryBtn} onPress={handleAdd} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel={t('addFood.addToLog')}>
+        <Text style={styles.primaryBtnText}>{t('addFood.addToLog')}</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -215,6 +372,8 @@ function BarcodeScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onB
   const [scanned,  setScanned]  = useState(false);
   const [scanning, setScanning] = useState(false);
   const [found,    setFound]    = useState<FoodItem | null>(null);
+  const [grams,    setGrams]    = useState('100');
+  const t = useT();
 
   const handleBarcode = useCallback(async (result: BarcodeScanningResult) => {
     if (scanned) return;
@@ -226,21 +385,21 @@ function BarcodeScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onB
         setFound(food);
       } else {
         Alert.alert(
-          'Not found',
-          'Product not found in database. Try searching manually.',
+          t('addFood.notFound'),
+          t('addFood.productNotFound'),
           [
-            { text: 'Search manually', onPress: onBack },
-            { text: 'Scan again',      onPress: () => setScanned(false) },
+            { text: t('addFood.searchManually'), onPress: onBack },
+            { text: t('addFood.scanAgain'),      onPress: () => setScanned(false) },
           ]
         );
       }
     } catch {
-      Alert.alert('Error', 'Could not look up product.');
+      Alert.alert(t('common.error'), t('addFood.couldNotLookup'));
       setScanned(false);
     } finally {
       setScanning(false);
     }
-  }, [scanned, onBack]);
+  }, [scanned, onBack, t]);
 
   if (!permission) {
     return (
@@ -254,39 +413,71 @@ function BarcodeScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onB
     return (
       <View style={[styles.container, styles.centered]}>
         <View style={styles.handle} />
-        <Text style={[styles.title, { marginBottom: spacing.sm }]}>Camera Access</Text>
-        <Text style={styles.permText}>Camera permission is required to scan barcodes.</Text>
-        <TouchableOpacity style={styles.primaryBtn} onPress={requestPermission}>
-          <Text style={styles.primaryBtnText}>Allow Camera</Text>
+        <Text style={[styles.title, { marginBottom: spacing.sm }]}>{t('addFood.cameraAccess')}</Text>
+        <Text style={styles.permText}>{t('addFood.cameraPermMsg')}</Text>
+        <TouchableOpacity style={styles.primaryBtn} onPress={requestPermission} accessibilityRole="button" accessibilityLabel={t('addFood.allowCameraA11y')}>
+          <Text style={styles.primaryBtnText}>{t('addFood.allowCamera')}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={{ marginTop: spacing.base }} onPress={onBack}>
-          <Text style={styles.backLink}>← Back</Text>
+        <TouchableOpacity style={{ marginTop: spacing.base }} onPress={onBack} accessibilityRole="button" accessibilityLabel={t('addFood.goBack')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <Text style={styles.backLink}>← {t('common.back')}</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
   if (found) {
+    const g      = parseFloat(grams) || 0;
+    const scale  = g / 100;
+    const scaled = {
+      calories: Math.round(found.calories * scale),
+      protein:  Math.round(found.protein  * scale * 10) / 10,
+      carbs:    Math.round(found.carbs    * scale * 10) / 10,
+      fat:      Math.round(found.fat      * scale * 10) / 10,
+    };
     return (
-      <View style={[styles.container, styles.centered]}>
+      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40, alignItems: 'center' }} keyboardShouldPersistTaps="handled">
         <View style={styles.handle} />
-        <Text style={styles.title}>Product Found ✓</Text>
-        <View style={styles.foundCard}>
+        <Text style={styles.title}>{t('addFood.productFound')}</Text>
+        <View style={[styles.foundCard, { width: '100%' }]}>
           <Text style={styles.foundName}>{found.description}</Text>
+
+          {/* Gram input */}
+          <View style={styles.gramRow}>
+            <Text style={styles.gramLabel}>{t('addFood.portion')}</Text>
+            <TextInput
+              style={styles.gramInput}
+              value={grams}
+              onChangeText={setGrams}
+              keyboardType="decimal-pad"
+              selectTextOnFocus
+              maxLength={6}
+            />
+            <Text style={styles.gramUnit}>g</Text>
+          </View>
+          <Text style={styles.gramHint}>{t('addFood.baseValues')}</Text>
+
+          {/* Scaled macros */}
           <View style={styles.foundMacros}>
-            <MacroChip label="Cal"     value={String(found.calories)} color={colors.accent.primary} />
-            <MacroChip label="Protein" value={`${found.protein}g`}    color={colors.status.info} />
-            <MacroChip label="Carbs"   value={`${found.carbs}g`}      color={colors.status.warning} />
-            <MacroChip label="Fat"     value={`${found.fat}g`}        color={colors.violet.primary} />
+            <MacroChip label="Cal"     value={String(scaled.calories)}    color={colors.accent.primary} />
+            <MacroChip label="Protein" value={`${scaled.protein}g`}       color={colors.status.info} />
+            <MacroChip label="Carbs"   value={`${scaled.carbs}g`}         color={colors.status.warning} />
+            <MacroChip label="Fat"     value={`${scaled.fat}g`}           color={colors.violet.primary} />
           </View>
         </View>
-        <TouchableOpacity style={styles.primaryBtn} onPress={() => onAdd(found)} activeOpacity={0.85}>
-          <Text style={styles.primaryBtnText}>Add to Log</Text>
+
+        <TouchableOpacity
+          style={[styles.primaryBtn, { width: '100%' }]}
+          onPress={() => onAdd({ ...found, calories: scaled.calories, protein: scaled.protein, carbs: scaled.carbs, fat: scaled.fat })}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={t('addFood.addToLogA11y', { name: found.description, calories: scaled.calories })}
+        >
+          <Text style={styles.primaryBtnText}>{t('addFood.addToLog')}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={{ marginTop: spacing.base }} onPress={() => { setFound(null); setScanned(false); }}>
-          <Text style={styles.backLink}>Scan again</Text>
+        <TouchableOpacity style={{ marginTop: spacing.base }} onPress={() => { setFound(null); setScanned(false); setGrams('100'); }} accessibilityRole="button" accessibilityLabel={t('addFood.scanAgain')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <Text style={styles.backLink}>{t('addFood.scanAgain')}</Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     );
   }
 
@@ -301,19 +492,176 @@ function BarcodeScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onB
       {scanning && (
         <View style={styles.scanOverlay}>
           <ActivityIndicator size="large" color="#fff" />
-          <Text style={styles.scanLoadText}>Looking up product...</Text>
+          <Text style={styles.scanLoadText}>{t('addFood.lookingUp')}</Text>
         </View>
       )}
       <View style={styles.scanFrame} pointerEvents="none">
         <View style={styles.scanFrameBox} />
       </View>
       <View style={styles.scanBar}>
-        <TouchableOpacity onPress={onBack}>
-          <Text style={styles.scanBarBack}>← Back</Text>
+        <TouchableOpacity onPress={onBack} accessibilityRole="button" accessibilityLabel={t('addFood.goBack')} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <Text style={styles.scanBarBack}>← {t('common.back')}</Text>
         </TouchableOpacity>
-        <Text style={styles.scanBarHint}>Point at barcode</Text>
+        <Text style={styles.scanBarHint}>{t('addFood.pointAtBarcode')}</Text>
       </View>
     </View>
+  );
+}
+
+// ─── Snap Screen ──────────────────────────────────────────────────────────────
+
+function SnapScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBack: () => void }) {
+  const [imageUri, setImageUri]     = useState<string | null>(null);
+  const [imageB64, setImageB64]     = useState<string | null>(null);
+  const [analyzing, setAnalyzing]   = useState(false);
+  const [result, setResult]         = useState<SnapResult | null>(null);
+
+  // Editable result fields
+  const [editName,     setEditName]     = useState('');
+  const [editCalories, setEditCalories] = useState('');
+  const [editProtein,  setEditProtein]  = useState('');
+  const [editCarbs,    setEditCarbs]    = useState('');
+  const [editFat,      setEditFat]      = useState('');
+  const [editQty,      setEditQty]      = useState('1');
+  const t = useT();
+
+  const applyResult = (r: SnapResult) => {
+    setResult(r);
+    setEditName(r.name);
+    setEditCalories(String(r.calories));
+    setEditProtein(String(r.protein));
+    setEditCarbs(String(r.carbs));
+    setEditFat(String(r.fat));
+    setEditQty('1');
+  };
+
+  const pickImage = async (useCamera: boolean) => {
+    const perm = useCamera
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (perm.status !== 'granted') {
+      Alert.alert(t('common.permissionNeeded'), useCamera ? t('addFood.allowCameraMsg') : t('addFood.allowLibraryMsg'));
+      return;
+    }
+    const res = useCamera
+      ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.6, allowsEditing: true, aspect: [4, 3] })
+      : await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.6, allowsEditing: true, aspect: [4, 3], mediaTypes: ['images'] });
+
+    if (!res.canceled && res.assets[0]) {
+      setImageUri(res.assets[0].uri);
+      setImageB64(res.assets[0].base64 ?? null);
+      setResult(null);
+    }
+  };
+
+  const analyze = async () => {
+    if (!imageB64) return;
+    setAnalyzing(true);
+    try {
+      const r = await analyzeFood(imageB64);
+      applyResult(r);
+    } catch (e: any) {
+      Alert.alert(t('addFood.analysisFailed'), e.message ?? t('addFood.couldNotIdentify'));
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const handleAdd = () => {
+    if (!editName.trim() || !editCalories.trim()) return;
+    const count = Math.max(1, parseInt(editQty) || 1);
+    onAdd({
+      fdcId: 0,
+      description: count > 1 ? `${editName.trim()} (×${count})` : editName.trim(),
+      calories: (parseInt(editCalories) || 0) * count,
+      protein:  (parseInt(editProtein)  || 0) * count,
+      carbs:    (parseInt(editCarbs)    || 0) * count,
+      fat:      (parseInt(editFat)      || 0) * count,
+    });
+  };
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+      <View style={styles.handle} />
+      <TouchableOpacity onPress={onBack} accessibilityRole="button" accessibilityLabel={t('addFood.goBack')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}><Text style={styles.backLink}>← {t('common.back')}</Text></TouchableOpacity>
+      <Text style={[styles.title, { marginTop: spacing.sm, marginBottom: spacing.xs }]}>{t('addFood.snapPhoto')}</Text>
+      <Text style={[styles.sub, { marginBottom: spacing.base }]}>{t('addFood.snapSubtitle')}</Text>
+
+      {/* Pick buttons */}
+      {!imageUri && (
+        <View style={styles.snapPickRow}>
+          <TouchableOpacity style={styles.snapPickBtn} onPress={() => pickImage(true)} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t('addFood.takePhotoA11y')}>
+            <Text style={{ fontSize: 28 }}>📷</Text>
+            <Text style={styles.snapPickLabel}>{t('addFood.takePhoto')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.snapPickBtn} onPress={() => pickImage(false)} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t('addFood.fromLibraryA11y')}>
+            <Text style={{ fontSize: 28 }}>🖼️</Text>
+            <Text style={styles.snapPickLabel}>{t('addFood.fromLibrary')}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Preview */}
+      {imageUri && (
+        <View style={{ alignItems: 'center', marginBottom: spacing.base }}>
+          <Image source={{ uri: imageUri }} style={styles.snapPreview} />
+          <TouchableOpacity onPress={() => { setImageUri(null); setImageB64(null); setResult(null); }} style={{ marginTop: spacing.sm }} accessibilityRole="button" accessibilityLabel={t('addFood.chooseDifferentA11y')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Text style={[styles.backLink, { fontSize: typography.sizes.sm }]}>{t('addFood.chooseDifferent')}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Analyze button */}
+      {imageUri && !result && (
+        <TouchableOpacity style={styles.primaryBtn} onPress={analyze} activeOpacity={0.85} disabled={analyzing} accessibilityRole="button" accessibilityLabel={t('addFood.analyzeFoodA11y')} accessibilityState={{ disabled: analyzing, busy: analyzing }}>
+          {analyzing
+            ? <ActivityIndicator color={colors.text.inverse} />
+            : <Text style={styles.primaryBtnText}>{t('addFood.analyzeFood')}</Text>}
+        </TouchableOpacity>
+      )}
+
+      {/* Result */}
+      {result && (
+        <View style={{ marginTop: spacing.base }}>
+          <Text style={[styles.sub, { marginBottom: spacing.sm, color: colors.status.success }]}>{t('addFood.foodIdentified')}</Text>
+
+          <TextInput style={[styles.input, { marginBottom: spacing.sm }]}
+            value={editName} onChangeText={setEditName}
+            placeholder={t('addFood.foodName')} placeholderTextColor={colors.text.tertiary} />
+
+          <TextInput style={[styles.input, { marginBottom: spacing.sm }]}
+            value={editCalories} onChangeText={setEditCalories}
+            placeholder={t('addFood.calories')} placeholderTextColor={colors.text.tertiary} keyboardType="numeric" />
+
+          <View style={styles.macroRow}>
+            <TextInput style={[styles.input, { flex: 1 }]} value={editProtein} onChangeText={setEditProtein}
+              placeholder={t('addFood.proteinG')} placeholderTextColor={colors.text.tertiary} keyboardType="numeric" />
+            <View style={{ width: spacing.sm }} />
+            <TextInput style={[styles.input, { flex: 1 }]} value={editCarbs} onChangeText={setEditCarbs}
+              placeholder={t('addFood.carbsG')} placeholderTextColor={colors.text.tertiary} keyboardType="numeric" />
+            <View style={{ width: spacing.sm }} />
+            <TextInput style={[styles.input, { flex: 1 }]} value={editFat} onChangeText={setEditFat}
+              placeholder={t('addFood.fatG')} placeholderTextColor={colors.text.tertiary} keyboardType="numeric" />
+          </View>
+
+          <View style={{ height: spacing.sm }} />
+          <View style={styles.qtyRow}>
+            <Text style={styles.qtyLabel}>{t('addFood.servingsX')}</Text>
+            <TextInput style={styles.qtyInput} value={editQty} onChangeText={setEditQty}
+              keyboardType="numeric" selectTextOnFocus maxLength={3}
+              accessibilityLabel={t('addFood.numberOfServings')} />
+          </View>
+
+          <View style={{ height: spacing.xl }} />
+          <TouchableOpacity style={styles.primaryBtn} onPress={handleAdd} activeOpacity={0.85}>
+            <Text style={styles.primaryBtnText}>{t('addFood.addToLog')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={{ alignItems: 'center', marginTop: spacing.base }} onPress={analyze} accessibilityRole="button" accessibilityLabel={t('addFood.reAnalyzeA11y')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Text style={styles.backLink}>{t('addFood.reAnalyze')}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </ScrollView>
   );
 }
 
@@ -373,9 +721,30 @@ const styles = StyleSheet.create({
   scanBarBack:  { color: '#fff', fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.base },
   scanBarHint:  { color: 'rgba(255,255,255,0.65)', fontFamily: typography.fonts.body, fontSize: typography.sizes.sm },
 
+  snapPickRow:    { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.xl },
+  snapPickBtn:    { flex: 1, backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, paddingVertical: spacing.xl, alignItems: 'center', gap: spacing.sm },
+  snapPickLabel:  { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.primary },
+  snapPreview:    { width: 220, height: 165, borderRadius: radius.xl, backgroundColor: colors.bg.elevated },
+
   foundCard:      { backgroundColor: colors.bg.secondary, borderRadius: radius.xl, padding: spacing.xl, width: '100%', marginVertical: spacing.xl, borderWidth: 1, borderColor: colors.border.subtle },
   foundName:      { fontFamily: typography.fonts.heading, fontSize: typography.sizes.md, color: colors.text.primary, marginBottom: spacing.base, textAlign: 'center' },
   foundMacros:    { flexDirection: 'row', justifyContent: 'space-around' },
+
+  gramRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, marginBottom: 4 },
+  gramLabel: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.base, color: colors.text.secondary },
+  gramInput: { backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: colors.accent.primary + '60', borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 8, color: colors.text.primary, fontFamily: typography.fonts.display, fontSize: typography.sizes.xl, textAlign: 'center', minWidth: 80 },
+  gramUnit:  { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.base, color: colors.text.secondary },
+  gramHint:  { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textAlign: 'center', marginBottom: spacing.base },
+
+  unitToggle:      { flexDirection: 'row', alignSelf: 'center', backgroundColor: colors.bg.elevated, borderRadius: radius.full, padding: 3, marginBottom: spacing.base, borderWidth: 1, borderColor: colors.border.subtle },
+  unitPill:        { paddingHorizontal: spacing.xl, paddingVertical: 8, borderRadius: radius.full },
+  unitPillActive:  { backgroundColor: colors.accent.primary },
+  unitPillText:    { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.secondary },
+  unitPillTextActive: { color: colors.text.inverse },
+
+  qtyRow:    { flexDirection: 'row', alignItems: 'center', gap: spacing.base },
+  qtyLabel:  { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.base, color: colors.text.secondary },
+  qtyInput:  { backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: colors.border.default, borderRadius: radius.lg, paddingHorizontal: spacing.base, paddingVertical: 12, color: colors.text.primary, fontFamily: typography.fonts.display, fontSize: typography.sizes.base, textAlign: 'center', minWidth: 70 },
   macroChip:      { alignItems: 'center', borderWidth: 1, borderRadius: radius.lg, paddingHorizontal: 10, paddingVertical: 8 },
   macroChipVal:   { fontFamily: typography.fonts.display, fontSize: typography.sizes.base },
   macroChipLabel: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 2 },

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
   StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator,
@@ -10,12 +10,15 @@ import { useRecoveryStore } from '../../stores/recoveryStore';
 import { useAISuggestionsStore, SuggestionType } from '../../stores/aiSuggestionsStore';
 import { useAIChatStore, ChatMessage, WELCOME_MESSAGE } from '../../stores/aiChatStore';
 import { useAuthStore } from '../../stores/authStore';
+import { useSubscriptionStore } from '../../stores/subscriptionStore';
+import { getTodayMsgCount } from '../../stores/aiChatStore';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
+import { supabase } from '../../services/supabase';
+import { useT } from '../../constants/i18n';
 
 const EDGE_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/ai-coach`;
-const ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
 type Role = 'user' | 'assistant';
 type Message = ChatMessage;
@@ -26,7 +29,7 @@ function sanitizeInput(text: string): string {
 }
 
 /** Only non-PII goal/preference fields — never email, name, weight, height. */
-const SAFE_PROFILE_KEYS = ['primary_goal', 'workout_frequency', 'diet_type', 'fitness_level', 'activity_level', 'gender', 'workout_environment'] as const;
+const SAFE_PROFILE_KEYS = ['primary_goal', 'workout_frequency', 'activity_level', 'gender', 'workout_environment'] as const;
 
 const NUTRITION_KW = ['meal', 'food', 'eat', 'diet', 'protein', 'calorie', 'nutrition', 'breakfast', 'lunch', 'dinner', 'snack', 'recipe', 'carb', 'fat', 'macro', 'vegetarian', 'keto', 'portion'];
 const WORKOUT_KW   = ['workout', 'exercise', 'gym', 'train', 'muscle', 'strength', 'cardio', 'rep', 'set', 'pushup', 'squat', 'deadlift', 'bench', 'run', 'lifting', 'hiit'];
@@ -48,15 +51,17 @@ function detectType(userMsg: string, aiMsg: string): SuggestionType | null {
 }
 
 const QUICK_PROMPTS = [
-  { label: '📋 Weekly Plan',   prompt: 'Generate a weekly workout plan for me based on my goals.' },
-  { label: '🥗 Meal Ideas',    prompt: 'Give me healthy meal ideas for today based on my diet preferences.' },
-  { label: '😴 Sleep Tips',    prompt: 'Give me 3 tips to improve my sleep and recovery tonight.' },
-  { label: '🔥 Motivation',    prompt: 'I need motivation to keep going. Give me a short pep talk.' },
+  { labelKey: 'aiCoach.qpPlan',       prompt: 'Generate a weekly workout plan for me based on my goals.' },
+  { labelKey: 'aiCoach.qpMeals',      prompt: 'Give me healthy meal ideas for today based on my diet preferences.' },
+  { labelKey: 'aiCoach.qpSleep',      prompt: 'Give me 3 tips to improve my sleep and recovery tonight.' },
+  { labelKey: 'aiCoach.qpMotivation', prompt: 'I need motivation to keep going. Give me a short pep talk.' },
 ];
 
 export default function AICoachModal() {
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const userId          = useAuthStore((s) => s.user?.id ?? 'anonymous');
+  const isPro           = useSubscriptionStore((s) => s.isPro);
+  const chats           = useAIChatStore((s) => s.chats);
   const profile         = useUserStore((s) => s.profile);
   const recoveryEntries = useRecoveryStore((s) => s.entries);
   const saveSuggestion  = useAISuggestionsStore((s) => s.save);
@@ -64,14 +69,26 @@ export default function AICoachModal() {
   const messages        = rawMessages ?? [WELCOME_MESSAGE];
   const addMessage      = useAIChatStore((s) => s.addMessage);
   const clearHistory    = useAIChatStore((s) => s.clearHistory);
+  const t = useT();
 
   const [input,   setInput]   = useState('');
   const [loading, setLoading] = useState(false);
-  const listRef = useRef<FlatList>(null);
+  const listRef    = useRef<FlatList>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  const FREE_LIMIT = 10;
+  const todayCount = getTodayMsgCount(chats, userId);
+  const limitReached = !isPro && todayCount >= FREE_LIMIT;
 
   const send = useCallback(async (text: string) => {
     const clean = sanitizeInput(text);
     if (!clean || loading) return;
+    if (!isPro && getTodayMsgCount(chats, userId) >= FREE_LIMIT) return;
 
     const userMsg: Message = { id: Date.now().toString(), role: 'user', text: clean };
     const history = [...messages, userMsg].slice(-10).map((m) => ({ role: m.role, content: m.text }));
@@ -90,9 +107,14 @@ export default function AICoachModal() {
     setLoading(true);
 
     try {
+      // Send the user's session JWT so the edge function can authenticate the
+      // caller and apply per-user rate limiting (anon key has no user identity).
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error(t('aiCoach.signInError'));
+
       const res = await fetch(EDGE_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
         body: JSON.stringify({
           messages: history,
           userProfile: safeProfile,
@@ -100,10 +122,13 @@ export default function AICoachModal() {
           recoveryTrend: recoveryEntries.slice(-7),
         }),
       });
-      if (!res.ok) throw new Error(`Error ${res.status}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? `Error ${res.status}`);
+      }
       const data = await res.json();
 
-      const replyText = data?.content ?? 'Sorry, I could not generate a response.';
+      const replyText = data?.content ?? t('aiCoach.noResponse');
       const sType = detectType(text, replyText);
       if (sType) saveSuggestion(sType, replyText);
 
@@ -115,19 +140,21 @@ export default function AICoachModal() {
       };
       addMessage(userId, reply);
     } catch (e: any) {
-      Alert.alert('Error', e.message ?? 'Something went wrong');
+      Alert.alert(t('common.error'), e.message ?? 'Something went wrong');
     } finally {
       setLoading(false);
-      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+      setTimeout(() => {
+        if (mountedRef.current) listRef.current?.scrollToEnd({ animated: true });
+      }, 100);
     }
-  }, [messages, loading, profile, recoveryEntries, mode, saveSuggestion, userId]);
+  }, [messages, loading, profile, recoveryEntries, mode, saveSuggestion, userId, t]);
 
-  const renderMessage = ({ item }: { item: Message }) => {
+  const renderMessage = useCallback(({ item }: { item: Message }) => {
     const isUser = item.role === 'user';
     const navTarget = item.suggestionType === 'nutrition'
-      ? { label: '📊 View in Nutrition →', route: '/(tabs)/nutrition' }
+      ? { label: t('aiCoach.viewInNutrition'), route: '/(tabs)/nutrition' }
       : item.suggestionType === 'workout'
-      ? { label: '💪 View in Workout →',   route: '/(tabs)/workout' }
+      ? { label: t('aiCoach.viewInWorkout'),   route: '/(tabs)/workout' }
       : null;
 
     return (
@@ -149,6 +176,8 @@ export default function AICoachModal() {
                 setTimeout(() => router.push(navTarget.route as any), 300);
               }}
               activeOpacity={0.8}
+              accessibilityRole="link"
+              accessibilityLabel={navTarget.label.replace(/[^\w\s]/g, '').trim()}
             >
               <Text style={styles.viewTabText}>{navTarget.label}</Text>
             </TouchableOpacity>
@@ -156,7 +185,7 @@ export default function AICoachModal() {
         </View>
       </View>
     );
-  };
+  }, [t]);
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -165,21 +194,13 @@ export default function AICoachModal() {
         <View style={styles.headerLeft}>
           <View style={styles.aiBadge}><Text style={styles.aiBadgeText}>✦</Text></View>
           <View>
-            <Text style={styles.title}>AI Coach</Text>
-            <Text style={styles.sub}>Powered by Claude</Text>
+            <Text style={styles.title}>{t('aiCoach.title')}</Text>
+            <Text style={styles.sub}>{t('aiCoach.poweredBy')}</Text>
           </View>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-          <TouchableOpacity onPress={() => Alert.alert('Clear Chat', 'Delete all chat history?', [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Clear', style: 'destructive', onPress: () => clearHistory(userId) },
-          ])} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-            <Text style={styles.clearBtn}>Clear</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-            <Text style={styles.closeBtn}>✕</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} accessibilityRole="button" accessibilityLabel={t('aiCoach.closeA11y')}>
+          <Text style={styles.closeBtn}>✕</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Messages */}
@@ -203,35 +224,65 @@ export default function AICoachModal() {
         </View>
       )}
 
+      {/* Clear history — only shown when chat has content, away from close button */}
+      {messages.length > 1 && !loading && (
+        <TouchableOpacity
+          style={styles.clearRow}
+          onPress={() => Alert.alert(t('aiCoach.clearChat'), t('aiCoach.clearChatConfirm'), [
+            { text: t('common.cancel'), style: 'cancel' },
+            { text: t('aiCoach.clear'), style: 'destructive', onPress: () => clearHistory(userId) },
+          ])}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel={t('aiCoach.clearConversationA11y')}
+        >
+          <Text style={styles.clearRowText}>{t('aiCoach.clearConversation')}</Text>
+        </TouchableOpacity>
+      )}
+
       {/* Quick prompts */}
       {messages.length <= 1 && !loading && (
         <View style={styles.quickRow}>
           {QUICK_PROMPTS.map((q) => (
-            <TouchableOpacity key={q.label} style={styles.quickChip} onPress={() => send(q.prompt)} activeOpacity={0.75}>
-              <Text style={styles.quickText}>{q.label}</Text>
+            <TouchableOpacity key={q.labelKey} style={styles.quickChip} onPress={() => send(q.prompt)} activeOpacity={0.75} accessibilityRole="button" accessibilityLabel={t(q.labelKey).replace(/[^\w\s]/g, '').trim()}>
+              <Text style={styles.quickText}>{t(q.labelKey)}</Text>
             </TouchableOpacity>
           ))}
         </View>
       )}
 
+      {/* Daily limit banner for free users */}
+      {limitReached && (
+        <View style={styles.limitBanner}>
+          <Text style={styles.limitText}>{t('aiCoach.limitReached')}</Text>
+          <TouchableOpacity onPress={() => router.push('/paywall')} style={styles.limitBtn} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t('aiCoach.upgradeA11y')}>
+            <Text style={styles.limitBtnText}>{t('aiCoach.upgrade')}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Input */}
-      <View style={styles.inputRow}>
+      <View style={[styles.inputRow, limitReached && { opacity: 0.4 }]}>
         <TextInput
           style={styles.input}
           value={input}
           onChangeText={setInput}
-          placeholder="Ask your AI coach..."
+          placeholder={t('aiCoach.placeholder')}
           placeholderTextColor={colors.text.tertiary}
           multiline
           maxLength={500}
           returnKeyType="send"
           onSubmitEditing={() => send(input)}
+          accessibilityLabel={t('aiCoach.inputA11y')}
         />
         <TouchableOpacity
           style={[styles.sendBtn, (!input.trim() || loading) && styles.sendBtnDisabled]}
           onPress={() => send(input)}
           disabled={!input.trim() || loading}
           activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={t('aiCoach.sendA11y')}
+          accessibilityState={{ disabled: !input.trim() || loading }}
         >
           <Text style={styles.sendIcon}>↑</Text>
         </TouchableOpacity>
@@ -279,4 +330,12 @@ const styles = StyleSheet.create({
 
   viewTabBtn:  { marginTop: 6, backgroundColor: colors.accent.dim, borderWidth: 1, borderColor: colors.accent.primary + '50', borderRadius: radius.full, paddingHorizontal: 14, paddingVertical: 7, alignSelf: 'flex-start' },
   viewTabText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.accent.primary },
+
+  clearRow:     { alignItems: 'center', paddingVertical: 6, paddingHorizontal: spacing.base },
+  clearRowText: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary },
+
+  limitBanner: { backgroundColor: colors.bg.secondary, borderTopWidth: 1, borderTopColor: colors.accent.primary + '40', paddingVertical: spacing.base, paddingHorizontal: spacing.base, alignItems: 'center', gap: spacing.sm },
+  limitText:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, textAlign: 'center' },
+  limitBtn:    { backgroundColor: colors.accent.primary, borderRadius: radius.full, paddingHorizontal: 24, paddingVertical: 9 },
+  limitBtnText:{ fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.inverse },
 });

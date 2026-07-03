@@ -41,9 +41,11 @@ const DEFAULTS: DailyTargets = {
 export function computeTargets(profile: UserProfile | null): DailyTargets {
   if (!profile?.weight_kg || !profile?.height_cm) return DEFAULTS;
 
+  // Guarded above, so both are defined here; the `!` keeps the destructured
+  // bindings narrowed to `number` (the guard's narrowing doesn't carry over).
   const {
-    weight_kg,
-    height_cm,
+    weight_kg = profile.weight_kg!,
+    height_cm = profile.height_cm!,
     primary_goal = 'general_health',
     workout_frequency = '3',
   } = profile as UserProfile & { workout_frequency?: string };
@@ -109,8 +111,26 @@ export function computeTargets(profile: UserProfile | null): DailyTargets {
   const protein      = Math.round(weight_kg * proteinPerKg);
   const proteinCals  = protein * 4;
   const remaining    = Math.max(calories - proteinCals, 0);
-  const carbs        = Math.max(Math.round((remaining * 0.55) / 4), 50);
-  const fat          = Math.max(Math.round((remaining * 0.45) / 9), 30); // 55% carbs + 45% fat = 100% of remaining
+  let   carbs        = Math.max(Math.round((remaining * 0.55) / 4), 50);
+  let   fat          = Math.max(Math.round((remaining * 0.45) / 9), 30); // 55% carbs + 45% fat = 100% of remaining
+
+  // The carbs/fat floors (50g / 30g) can push the macro total above the
+  // calorie target on aggressive cuts (small frame + 1200 kcal floor).
+  // Protein is fixed (priority macro); trim the flex macros so the sum
+  // never exceeds `calories`. Carbs are trimmed first (down to their
+  // floor), then fat — both stay ≥ 0. If even protein + both floors
+  // exceed `calories`, the floors win (a documented, rare edge case the
+  // 1200 kcal floor already guards against in practice).
+  let overBudget = proteinCals + carbs * 4 + fat * 9 - calories;
+  if (overBudget > 0) {
+    const carbTrim = Math.min(Math.ceil(overBudget / 4), carbs);
+    carbs     -= carbTrim;
+    overBudget -= carbTrim * 4;
+  }
+  if (overBudget > 0) {
+    const fatTrim = Math.min(Math.ceil(overBudget / 9), fat);
+    fat -= fatTrim;
+  }
 
   return { calories, protein, carbs, fat, sleepHours, workoutDaysPerWeek, workoutMinutes, waterGlasses: 8 };
 }

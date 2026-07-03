@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { secureStorage } from '../services/secureStorage';
+import { todayStr } from '../services/dateUtils';
 
 export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
@@ -17,9 +18,11 @@ export interface FoodEntry {
 
 interface NutritionStore {
   entries: FoodEntry[];
-  waterGlasses: number;
+  /** Water glass count keyed by YYYY-MM-DD — prevents yesterday's count bleeding into today */
+  waterByDate: Record<string, number>;
   addEntry: (entry: Omit<FoodEntry, 'id' | 'date'>) => void;
   removeEntry: (id: string) => void;
+  /** Set water glass count for today */
   setWater: (count: number) => void;
   clearEntries: () => void;
 }
@@ -32,13 +35,13 @@ export const useNutritionStore = create<NutritionStore>()(
   persist(
     (set) => ({
       entries: [],
-      waterGlasses: 0,
+      waterByDate: {},
 
       addEntry: (entry) => {
         const newEntry: FoodEntry = {
           ...entry,
           id: generateId(),
-          date: new Date().toISOString().slice(0, 10),
+          date: todayStr(),
         };
         set((state) => ({ entries: [...state.entries, newEntry] }));
       },
@@ -46,12 +49,15 @@ export const useNutritionStore = create<NutritionStore>()(
       removeEntry: (id) =>
         set((state) => ({ entries: state.entries.filter((e) => e.id !== id) })),
 
-      setWater: (count) => set({ waterGlasses: count }),
+      setWater: (count) => {
+        const today = todayStr();
+        set((state) => ({ waterByDate: { ...state.waterByDate, [today]: count } }));
+      },
 
-      clearEntries: () => set({ entries: [], waterGlasses: 0 }),
+      clearEntries: () => set({ entries: [], waterByDate: {} }),
     }),
     {
-      name: 'novra-nutrition-storage',
+      name: 'zenova-nutrition-storage',
       storage: createJSONStorage(() => secureStorage),
     }
   )

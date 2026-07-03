@@ -9,11 +9,12 @@ const ALLOWED_ORIGINS: string[] = RAW_ORIGINS
   : [];
 
 function corsHeaders(origin: string | null): Record<string, string> {
-  // CORS is browser-only; native mobile apps send no Origin header.
-  // Only allow-list known web origins; reject everything else.
-  const allow = origin && ALLOWED_ORIGINS.length > 0
-    ? (ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0])
-    : origin ?? '';
+  // CORS is browser-only; native mobile apps send no Origin header (unaffected).
+  // Fail CLOSED: only reflect an explicitly allow-listed origin. An unknown
+  // origin — or a missing/empty ALLOWED_ORIGINS config — gets no
+  // Access-Control-Allow-Origin, so the browser blocks the response. Never
+  // reflect an arbitrary caller's Origin.
+  const allow = origin && ALLOWED_ORIGINS.includes(origin) ? origin : '';
   return {
     'Access-Control-Allow-Origin': allow,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -25,7 +26,7 @@ const ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? '';
 const SUPABASE_URL  = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_ANON = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 
-const SYSTEM_PROMPT = `You are Novra AI, a personal health and fitness coach inside the Novra Health app.
+const SYSTEM_PROMPT = `You are Zenova AI, a personal health and fitness coach inside the Zenova LifeScore app.
 You help users with personalized workout plans, nutrition advice, recovery optimization, and motivation.
 Keep responses concise (2-4 sentences max unless generating a plan), friendly, and actionable.
 For workout plans, format as a numbered list with sets/reps.
@@ -77,6 +78,15 @@ function sanitizeMessages(raw: unknown): Array<{ role: string; content: string }
 Deno.serve(async (req) => {
   const origin = req.headers.get('origin');
 
+  // Fail closed: reject browser requests from a non-allow-listed origin.
+  // Native apps send no Origin header, so they are unaffected.
+  if (origin && !ALLOWED_ORIGINS.includes(origin)) {
+    return new Response(JSON.stringify({ error: 'Forbidden origin' }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders(origin) });
   }
@@ -100,6 +110,27 @@ Deno.serve(async (req) => {
       status: 401,
       headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' },
     });
+  }
+
+  // Per-user daily rate limit — protects against unbounded Anthropic spend
+  // from a leaked JWT or abusive client. See the ai_usage migration; make
+  // AI_DAILY_LIMIT tier-aware once the plan is persisted server-side.
+  const AI_DAILY_LIMIT = Number(Deno.env.get('AI_COACH_DAILY_LIMIT') ?? '30');
+  const { data: allowed, error: limitError } = await supabase.rpc(
+    'check_and_increment_ai_usage', { p_limit: AI_DAILY_LIMIT },
+  );
+  if (limitError) {
+    console.error('rate-limit check failed:', limitError);
+    return new Response(JSON.stringify({ error: 'Something went wrong. Please try again.' }), {
+      status: 500,
+      headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' },
+    });
+  }
+  if (!allowed) {
+    return new Response(
+      JSON.stringify({ error: "You've reached today's AI limit. Try again tomorrow." }),
+      { status: 429, headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' } },
+    );
   }
 
   try {

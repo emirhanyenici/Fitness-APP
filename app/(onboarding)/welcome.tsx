@@ -3,23 +3,26 @@ import { router } from 'expo-router';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
+import { DISCLAIMER_SHORT } from '../../constants/legal';
+import { useT } from '../../constants/i18n';
 
 export default function WelcomeScreen() {
+  const t = useT();
   return (
     <View style={styles.container}>
       <View style={styles.glow} />
       <View style={styles.center}>
-        <Text style={styles.logo}>NOVRA</Text>
+        <Text style={styles.logo}>ZENOVA</Text>
         <View style={styles.underline} />
-        <Text style={styles.tagline}>Your AI health coach.{'\n'}Finally, one that thinks.</Text>
+        <Text style={styles.tagline}>{t('onboarding.tagline')}</Text>
         <View style={{ height: spacing['2xl'] }} />
-        <TouchableOpacity style={styles.primaryBtn} onPress={() => router.replace('/(onboarding)/chat')}>
-          <Text style={styles.primaryBtnText}>Get Started →</Text>
+        <TouchableOpacity style={styles.primaryBtn} onPress={() => router.replace('/(onboarding)/chat')} accessibilityRole="button" accessibilityLabel={t('onboarding.getStartedA11y')}>
+          <Text style={styles.primaryBtnText}>{t('onboarding.getStartedArrow')}</Text>
         </TouchableOpacity>
-        <View style={{ height: spacing.base }} />
-        <TouchableOpacity onPress={() => router.replace('/(auth)/login')}>
-          <Text style={styles.ghostLink}>← Back to Login</Text>
-        </TouchableOpacity>
+
+        <Text style={styles.disclaimer}>
+          {t('onboarding.disclaimerPrefix', { disclaimer: DISCLAIMER_SHORT })}
+        </Text>
       </View>
       <Text style={styles.version}>v1.0.0</Text>
     </View>
@@ -80,10 +83,14 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.base,
     color: colors.text.inverse,
   },
-  ghostLink: {
+  disclaimer: {
     fontFamily: typography.fonts.body,
-    fontSize: 14,
+    fontSize: typography.sizes.xs,
     color: colors.text.tertiary,
+    textAlign: 'center',
+    lineHeight: typography.sizes.xs * typography.lineHeights.loose,
+    marginTop: spacing.base,
+    paddingHorizontal: spacing.sm,
   },
   version: {
     position: 'absolute',

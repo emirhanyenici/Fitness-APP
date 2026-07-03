@@ -3,24 +3,59 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, Pressable,
 import { router } from 'expo-router';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { useUserStore } from '../../stores/userStore';
-import { useWorkoutStore } from '../../stores/workoutStore';
+import { useWorkoutStore, CompletedWorkout } from '../../stores/workoutStore';
 import { useAISuggestionsStore } from '../../stores/aiSuggestionsStore';
 import { useExerciseWeightStore, suggestWeight } from '../../stores/exerciseWeightStore';
 import { WorkoutExercise } from '../../services/exercisedb';
 import { computeTargets, GOAL_LABELS } from '../../services/recommendations';
-import { getTodayPlan, recommendProgram, PROGRAMS } from '../../services/workoutPrograms';
+import { getTodayPlan, recommendProgram, PROGRAMS, ProgramType } from '../../services/workoutPrograms';
+import { todayStr, daysAgoStr } from '../../services/dateUtils';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { useAnalytics } from '../../services/analytics';
 import { AICoachBanner } from '../../components/ui/AICoachBanner';
+import { useCustomProgramStore } from '../../stores/customProgramStore';
+import { useT } from '../../constants/i18n';
 
 function formatWorkoutDate(dateStr: string): string {
-  const today = new Date().toISOString().slice(0, 10);
-  const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  const today = todayStr();
+  const yesterday = daysAgoStr(1);
   if (dateStr === today) return 'Today';
   if (dateStr === yesterday) return 'Yesterday';
   return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' });
+}
+
+/** Merge multiple workouts from the same day into one summary entry */
+function groupByDate(history: CompletedWorkout[]): CompletedWorkout[] {
+  const map = new Map<string, CompletedWorkout>();
+  for (const w of history) {
+    const existing = map.get(w.date);
+    if (!existing) {
+      map.set(w.date, { ...w, exerciseWeights: { ...w.exerciseWeights } });
+    } else {
+      const isSamePlan = existing.name === w.name;
+      existing.calories += w.calories;
+      const merged = { ...existing.exerciseWeights };
+      for (const [name, kg] of Object.entries(w.exerciseWeights ?? {})) {
+        if (kg > 0) merged[name] = kg;
+      }
+      existing.exerciseWeights = merged;
+
+      if (isSamePlan) {
+        // Same plan repeated — cap done at plan size, keep total fixed
+        existing.exercisesDone  = Math.min(existing.exercisesDone + w.exercisesDone, existing.exercisesTotal);
+      } else {
+        // Different plan — accumulate both counts
+        existing.exercisesDone  += w.exercisesDone;
+        existing.exercisesTotal += w.exercisesTotal;
+        // Use the stored dayLabel; fall back to legacy string-parse for old records.
+        const dayPart = w.dayLabel ?? w.name.split('—')[1]?.trim() ?? w.name;
+        existing.name = existing.name + ' + ' + dayPart;
+      }
+    }
+  }
+  return Array.from(map.values());
 }
 
 export default function WorkoutScreen() {
@@ -34,10 +69,12 @@ export default function WorkoutScreen() {
   const aiWorkout  = useAISuggestionsStore((s) => s.workout);
   const clearAI    = useAISuggestionsStore((s) => s.clear);
   const analytics = useAnalytics();
+  const t = useT();
 
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  // Compute today fresh each render — prevents stale date after midnight
+  const today = todayStr();
   const todayAISuggestion = aiWorkout?.date === today ? aiWorkout : null;
-  const targets = computeTargets(profile);
+  const targets = useMemo(() => computeTargets(profile), [profile]);
 
   const [started, setStarted] = useState(false);
   const [checked, setChecked] = useState<Set<string>>(new Set());
@@ -51,6 +88,12 @@ export default function WorkoutScreen() {
   const gender        = (profile?.gender ?? 'male') as 'male' | 'female' | 'other';
   const freqStr       = profile?.workout_frequency ?? '3';
   const frequency     = parseInt(freqStr) || 3;
+  const isImperial    = profile?.units === 'imperial';
+  const weightUnit    = isImperial ? 'lbs' : 'kg';
+  // Convert stored kg → display unit
+  const toDisplay = (kg: number) => isImperial ? Math.round(kg * 2.20462 * 10) / 10 : kg;
+  // Convert display unit → stored kg
+  const fromDisplay = (val: number) => isImperial ? Math.round((val / 2.20462) * 100) / 100 : val;
 
   const getAISuggest = (ex: WorkoutExercise): number => {
     const last = getLastWeight(ex.name);
@@ -67,13 +110,37 @@ export default function WorkoutScreen() {
   const programType = selectedProgram ?? recommendProgram(primaryGoal, targets.workoutDaysPerWeek);
   const programInfo = PROGRAMS.find(p => p.id === programType) ?? PROGRAMS[0];
 
+  // Custom program store
+  const customDays = useCustomProgramStore((s) => s.days);
+
   // Get today's plan based on program, day of week, and user's equipment environment
   const dayOfWeek = new Date().getDay();
   const env = (profile?.workout_environment ?? 'gym') as 'gym' | 'home';
-  const todayPlan = useMemo(
-    () => getTodayPlan(programType, dayOfWeek, 6, env),
-    [programType, dayOfWeek, env]
-  );
+
+  const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  const todayPlan = useMemo(() => {
+    if (programType === 'custom') {
+      // Try today first
+      const todayCustom = customDays[dayOfWeek];
+      if (todayCustom && todayCustom.exercises.length > 0) {
+        const exs = todayCustom.exercises;
+        return { dayLabel: DAY_SHORT[dayOfWeek], muscleGroup: 'Custom Plan', exercises: exs, intensity: 'Custom', duration: `~${exs.length * 5} min` };
+      }
+      // Today not configured — find next scheduled day (circular)
+      const configuredDays = Object.entries(customDays)
+        .filter(([, d]) => d.exercises.length > 0)
+        .map(([k]) => parseInt(k))
+        .sort((a, b) => a - b);
+      if (configuredDays.length > 0) {
+        const next = configuredDays.find(d => d > dayOfWeek) ?? configuredDays[0];
+        const exs  = customDays[next].exercises;
+        return { dayLabel: DAY_SHORT[next], muscleGroup: 'Custom Plan', exercises: exs, intensity: 'Custom', duration: `~${exs.length * 5} min` };
+      }
+      return { dayLabel: DAY_SHORT[dayOfWeek], muscleGroup: 'Custom Plan', exercises: [], intensity: 'Custom', duration: '—' };
+    }
+    return getTodayPlan(programType, dayOfWeek, 6, env);
+  }, [programType, dayOfWeek, env, customDays]);
 
   const exercises: WorkoutExercise[] = todayPlan.exercises;
 
@@ -88,32 +155,37 @@ export default function WorkoutScreen() {
   const handleStart = () => {
     setStarted(true);
     analytics.workoutStarted(todayPlan.muscleGroup, programType);
-    Alert.alert('Workout Started!', 'Check off exercises as you complete them.');
+    Alert.alert(t('workout.startedTitle'), t('workout.startedBody'));
   };
 
   const handleFinish = () => {
     analytics.workoutFinished(checked.size, exercises.length);
 
     // MET-based estimate: calories = MET × weight_kg × (duration_min / 60) × completion_ratio
-    const MET_BY_GROUP: Record<string, number> = {
-      cardio: 8, chest: 5, back: 5, legs: 6, shoulders: 4, arms: 4, core: 5,
+    // Keyed on the stable ProgramType, not the free-text muscleGroup label
+    // (which never matched the old lowercase keys and always fell back to 5).
+    const MET_BY_PROGRAM: Record<ProgramType, number> = {
+      full_body: 6, upper_lower: 5, push_pull_legs: 5, bro_split: 5,
+      cardio_core: 8, flexibility: 3, custom: 5,
     };
     const weight      = profile?.weight_kg ?? 70;
     const durationMin = parseInt(todayPlan.duration) || 45;
-    const met         = MET_BY_GROUP[todayPlan.muscleGroup?.toLowerCase() ?? ''] ?? 5;
+    const met         = MET_BY_PROGRAM[programType] ?? 5;
     const ratio       = exercises.length > 0 ? checked.size / exercises.length : 0;
     const estCals     = Math.round(met * weight * (durationMin / 60) * ratio);
-    // Persist exercise weights
+    // Persist exercise weights (always stored as kg)
     const exerciseWeights: Record<string, number> = {};
     exercises.forEach((ex) => {
       const raw = parseFloat(weights[ex.name] ?? '');
-      const kg  = isNaN(raw) ? 0 : raw;
-      exerciseWeights[ex.name] = kg;
+      const kg  = isNaN(raw) ? 0 : fromDisplay(raw);
+      if (kg > 0) exerciseWeights[ex.name] = kg;
       if (kg > 0) logWeight(ex.name, kg);
     });
 
     addWorkout({
       name: `${programInfo.name} — ${todayPlan.dayLabel}`,
+      programName: programInfo.name,
+      dayLabel: todayPlan.dayLabel,
       icon: programInfo.icon,
       bodyPart: todayPlan.muscleGroup,
       duration: todayPlan.duration,
@@ -126,24 +198,29 @@ export default function WorkoutScreen() {
     setStarted(false);
     setChecked(new Set());
     setWeights({});
-    Alert.alert('Workout Complete! 🎉', `Great job! You completed ${checked.size} of ${exercises.length} exercises.`);
+    Alert.alert(t('workout.completeTitle'), t('workout.completeBody', { done: checked.size, total: exercises.length }));
   };
 
+  const showStickyBtn = !isRestDay && !(programType === 'custom' && exercises.length === 0);
+
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <View style={styles.screen}>
+    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
       {/* ── Header ── */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.pageTitle}>Workout</Text>
-          <Text style={styles.pageSub}>{GOAL_LABELS[primaryGoal] ?? 'Healthy Lifestyle'} · {targets.workoutDaysPerWeek}×/week</Text>
+          <Text style={styles.pageTitle}>{t('workout.title')}</Text>
+          <Text style={styles.pageSub}>{t('workout.subtitle', { goal: GOAL_LABELS[primaryGoal] ?? t('home.healthyLifestyle'), days: targets.workoutDaysPerWeek })}</Text>
         </View>
         <TouchableOpacity
           style={styles.logBtn}
           onPress={() => router.push('/modals/log-workout')}
           activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={t('workout.changeProgram')}
         >
-          <Text style={styles.logBtnText}>Change</Text>
+          <Text style={styles.logBtnText}>{t('workout.change')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -151,36 +228,41 @@ export default function WorkoutScreen() {
       <View style={styles.insightStrip}>
         <View style={styles.insightChip}>
           <Text style={styles.insightVal}>{targets.workoutDaysPerWeek}×</Text>
-          <Text style={styles.insightLbl}>per week</Text>
+          <Text style={styles.insightLbl}>{t('workout.perWeek')}</Text>
         </View>
         <View style={styles.insightDiv} />
         <View style={styles.insightChip}>
           <Text style={styles.insightVal}>{todayPlan.duration}</Text>
-          <Text style={styles.insightLbl}>duration</Text>
+          <Text style={styles.insightLbl}>{t('workout.duration')}</Text>
         </View>
         <View style={styles.insightDiv} />
         <View style={styles.insightChip}>
           <Text style={styles.insightVal}>{todayPlan.intensity}</Text>
-          <Text style={styles.insightLbl}>intensity</Text>
+          <Text style={styles.insightLbl}>{t('workout.intensity')}</Text>
         </View>
         <View style={styles.insightDiv} />
         <View style={styles.insightChip}>
           <Text style={[styles.insightVal, { fontSize: typography.sizes.xs }]}>{programInfo.name}</Text>
-          <Text style={styles.insightLbl}>program</Text>
+          <Text style={styles.insightLbl}>{t('workout.program')}</Text>
         </View>
       </View>
 
       {/* ── AI Coach Banner ── */}
-      <AICoachBanner subtitle="Get a personalized workout plan" />
+      <AICoachBanner subtitle={t('workout.aiCoachSubtitle')} />
 
       {/* ── AI Workout Suggestion ── */}
       {todayAISuggestion && (
         <View style={styles.aiSuggestCard}>
           <View style={styles.aiSuggestHeader}>
             <View style={styles.aiBadge}>
-              <Text style={styles.aiBadgeText}>✦ AI Workout Plan</Text>
+              <Text style={styles.aiBadgeText}>{t('workout.aiWorkoutPlan')}</Text>
             </View>
-            <TouchableOpacity onPress={() => clearAI('workout')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity
+              onPress={() => clearAI('workout')}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel={t('workout.dismissAiPlan')}
+            >
               <Text style={styles.aiClose}>✕</Text>
             </TouchableOpacity>
           </View>
@@ -188,17 +270,41 @@ export default function WorkoutScreen() {
         </View>
       )}
 
+      {/* ── Custom Program Empty State ── */}
+      {programType === 'custom' && exercises.length === 0 && !isRestDay && (
+        <View style={styles.restCard}>
+          <Text style={{ fontSize: 48 }}>✏️</Text>
+          <Text style={styles.restTitle}>{t('workout.customProgram')}</Text>
+          <Text style={styles.restSub}>{t('workout.customEmpty', { day: DAY_SHORT[dayOfWeek] })}</Text>
+          <TouchableOpacity
+            style={styles.startBtn}
+            onPress={() => router.push('/modals/custom-program')}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={t('workout.setUpToday')}
+          >
+            <Text style={styles.startBtnText}>{t('workout.setUpTodayBtn')}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* ── Rest Day ── */}
       {isRestDay ? (
         <View style={styles.restCard}>
           <Text style={{ fontSize: 48 }}>😴</Text>
-          <Text style={styles.restTitle}>Rest Day</Text>
-          <Text style={styles.restSub}>Recovery is part of progress. Stay hydrated and get good sleep tonight.</Text>
-          <TouchableOpacity style={styles.startBtn} onPress={() => router.push('/modals/log-workout')} activeOpacity={0.85}>
-            <Text style={styles.startBtnText}>Choose a Workout Instead</Text>
+          <Text style={styles.restTitle}>{t('workout.restDay')}</Text>
+          <Text style={styles.restSub}>{t('workout.restDaySub')}</Text>
+          <TouchableOpacity
+            style={styles.startBtn}
+            onPress={() => router.push('/modals/log-workout')}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={t('workout.chooseWorkoutInstead')}
+          >
+            <Text style={styles.startBtnText}>{t('workout.chooseWorkoutInsteadBtn')}</Text>
           </TouchableOpacity>
         </View>
-      ) : (
+      ) : programType === 'custom' && exercises.length === 0 ? null : (
         /* ── Today's Plan ── */
         <View style={styles.aiCard}>
           <View style={styles.aiCardTop}>
@@ -213,7 +319,7 @@ export default function WorkoutScreen() {
           <View style={styles.metaRow}>
             <View style={styles.metaChip}><Text style={styles.metaText}>⏱ {todayPlan.duration}</Text></View>
             <View style={styles.metaChip}><Text style={styles.metaText}>🔥 {todayPlan.intensity}</Text></View>
-            <View style={styles.metaChip}><Text style={styles.metaText}>💪 {exercises.length} exercises</Text></View>
+            <View style={styles.metaChip}><Text style={styles.metaText}>💪 {t('workout.exercisesCount', { n: exercises.length })}</Text></View>
           </View>
 
           <View style={styles.exerciseList}>
@@ -231,10 +337,14 @@ export default function WorkoutScreen() {
                   <TouchableOpacity
                     onPress={() => {
                       if (started) toggleCheck(ex.name);
-                      else Alert.alert('Workout not started', "Tap 'Start Workout →' to begin tracking your exercises.");
+                      else Alert.alert(t('workout.workoutNotStarted'), t('workout.tapStartToTrack'));
                     }}
                     activeOpacity={0.7}
                     style={styles.exCheckWrap}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: done, disabled: !started }}
+                    accessibilityLabel={t('workout.exerciseState', { name: ex.name, state: done ? t('workout.completed') : t('workout.notCompleted') })}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
                     <View style={[styles.exCheck, done && styles.exCheckDone]}>
                       {done && <Text style={{ fontSize: 10, color: colors.text.inverse }}>✓</Text>}
@@ -246,25 +356,26 @@ export default function WorkoutScreen() {
                     <View style={styles.exTopRow}>
                       <View style={styles.exInfo}>
                         <Text style={[styles.exName, done && styles.exNameDone]}>{ex.name}</Text>
-                        <View style={styles.exMuscleRow}>
-                          <Text style={styles.exMuscle}>{ex.muscle}</Text>
-                          <Pressable
-                            style={styles.demoBtn}
-                            onPress={() => router.push({
-                              pathname: '/modals/exercise-demo',
-                              params: { name: ex.name, muscle: ex.muscle },
-                            })}
-                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                          >
-                            <Text style={styles.demoBtnText}>▶ Demo</Text>
-                          </Pressable>
-                        </View>
+                        <Text style={styles.exMuscle}>{ex.muscle}</Text>
                       </View>
                       <View style={styles.exMeta}>
                         <Text style={styles.exSets}>{ex.sets} × {ex.reps}</Text>
-                        <Text style={styles.exRest}>rest {ex.rest}</Text>
+                        <Text style={styles.exRest}>{t('workout.restLabel', { rest: ex.rest })}</Text>
                       </View>
                     </View>
+                    {/* Demo button on its own row */}
+                    <Pressable
+                      style={styles.demoBtn}
+                      onPress={() => router.push({
+                        pathname: '/modals/exercise-demo',
+                        params: { name: ex.name, muscle: ex.muscle },
+                      })}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('workout.watchDemoA11y', { name: ex.name })}
+                    >
+                      <Text style={styles.demoBtnText}>{t('workout.watchDemo')}</Text>
+                    </Pressable>
 
                     {/* Weight row — only when workout is started and not bodyweight */}
                     {started && !isBodywt && (
@@ -274,30 +385,32 @@ export default function WorkoutScreen() {
                           style={styles.weightInput}
                           value={weights[ex.name] ?? ''}
                           onChangeText={(v) => setWeight(ex.name, v)}
-                          placeholder={lastW !== null ? `${lastW} kg` : `~${suggested} kg`}
+                          placeholder={lastW !== null ? `${toDisplay(lastW)} ${weightUnit}` : `~${toDisplay(suggested)} ${weightUnit}`}
                           placeholderTextColor={colors.text.tertiary}
                           keyboardType="decimal-pad"
                           returnKeyType="done"
                           maxLength={6}
                         />
-                        <Text style={styles.weightUnit}>kg</Text>
+                        <Text style={styles.weightUnit}>{weightUnit}</Text>
                         <TouchableOpacity
                           style={styles.aiWeightBtn}
-                          onPress={() => setWeight(ex.name, String(suggested))}
-                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                          onPress={() => setWeight(ex.name, String(toDisplay(suggested)))}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('workout.useAiWeight', { name: ex.name })}
                         >
                           <Text style={styles.aiWeightBtnText}>✦ AI</Text>
                         </TouchableOpacity>
                         {lastW !== null && (
                           <View style={styles.prBadge}>
-                            <Text style={styles.prBadgeText}>Last: {lastW}kg</Text>
+                            <Text style={styles.prBadgeText}>{t('workout.last', { weight: toDisplay(lastW), unit: weightUnit })}</Text>
                           </View>
                         )}
                       </View>
                     )}
                     {started && isBodywt && (
                       <View style={styles.weightRow}>
-                        <Text style={styles.bodywt}>Bodyweight</Text>
+                        <Text style={styles.bodywt}>{t('workout.bodyweight')}</Text>
                       </View>
                     )}
                   </View>
@@ -306,31 +419,26 @@ export default function WorkoutScreen() {
             })}
           </View>
 
-          {!started ? (
-            <TouchableOpacity style={styles.startBtn} onPress={handleStart} activeOpacity={0.85}>
-              <Text style={styles.startBtnText}>Start Workout →</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={styles.finishBtn} onPress={handleFinish} activeOpacity={0.85}>
-              <Text style={styles.finishBtnText}>
-                Finish  ({checked.size}/{exercises.length} done)
-              </Text>
-            </TouchableOpacity>
-          )}
         </View>
       )}
 
       {/* ── Change workout ── */}
-      <TouchableOpacity style={styles.logDiffRow} onPress={() => router.push('/modals/log-workout')} activeOpacity={0.75}>
-        <Text style={styles.logDiffText}>Switch program or take a rest day</Text>
+      <TouchableOpacity
+        style={styles.logDiffRow}
+        onPress={() => router.push('/modals/log-workout')}
+        activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityLabel={t('workout.switchProgram')}
+      >
+        <Text style={styles.logDiffText}>{t('workout.switchProgram')}</Text>
         <Text style={styles.logDiffArrow}>›</Text>
       </TouchableOpacity>
 
       {/* ── Recent Workouts ── */}
-      <Text style={styles.sectionTitle}>Recent Workouts</Text>
+      <Text style={styles.sectionTitle}>{t('workout.recentWorkouts')}</Text>
       <View style={styles.recentList}>
         {history.length > 0 ? (
-          history.slice(0, 10).map((w) => {
+          groupByDate(history).slice(0, 10).map((w) => {
             const weightEntries = Object.entries(w.exerciseWeights ?? {}).filter(([, kg]) => kg > 0);
             return (
               <View key={w.id} style={styles.recentRow}>
@@ -342,7 +450,7 @@ export default function WorkoutScreen() {
                     <View style={styles.recentWeights}>
                       {weightEntries.slice(0, 3).map(([name, kg]) => (
                         <View key={name} style={styles.recentWeightChip}>
-                          <Text style={styles.recentWeightText}>{name.split(' ')[0]} {kg}kg</Text>
+                          <Text style={styles.recentWeightText}>{name.split(' ')[0]} {toDisplay(kg)}{weightUnit}</Text>
                         </View>
                       ))}
                       {weightEntries.length > 3 && (
@@ -358,20 +466,51 @@ export default function WorkoutScreen() {
         ) : (
           <View style={styles.emptyState}>
             <Text style={{ fontSize: 36 }}>🏋️</Text>
-            <Text style={styles.emptyTitle}>No workouts yet</Text>
-            <Text style={styles.emptySub}>Complete your first workout and it'll show up here!</Text>
+            <Text style={styles.emptyTitle}>{t('workout.noWorkouts')}</Text>
+            <Text style={styles.emptySub}>{t('workout.noWorkoutsSub')}</Text>
           </View>
         )}
       </View>
 
-      <View style={{ height: 110 }} />
+      <View style={{ height: showStickyBtn ? 130 : 110 }} />
     </ScrollView>
+
+    {/* ── Sticky Start / Finish ── */}
+    {showStickyBtn && (
+      <View style={styles.stickyFooter}>
+        {!started ? (
+          <TouchableOpacity
+            style={styles.startBtn}
+            onPress={handleStart}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={t('workout.startWorkout')}
+          >
+            <Text style={styles.startBtnText}>{t('workout.startWorkoutBtn')}</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={styles.finishBtn}
+            onPress={handleFinish}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={t('workout.finishWorkoutA11y', { done: checked.size, total: exercises.length })}
+          >
+            <Text style={styles.finishBtnText}>
+              {t('workout.finishBtn', { done: checked.size, total: exercises.length })}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg.primary },
   content: { padding: spacing.base },
+  stickyFooter: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: colors.bg.primary, paddingHorizontal: spacing.base, paddingTop: spacing.sm, paddingBottom: 26, borderTopWidth: 1, borderTopColor: colors.border.subtle },
 
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: 52, marginBottom: spacing.xl },
   pageTitle: { fontFamily: typography.fonts.display, fontSize: typography.sizes['2xl'], color: colors.text.primary },
@@ -410,10 +549,9 @@ const styles = StyleSheet.create({
   exInfo: { flex: 1 },
   exName: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.base, color: colors.text.primary },
   exNameDone: { color: colors.text.tertiary, textDecorationLine: 'line-through' },
-  exMuscleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: 2 },
-  exMuscle:    { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary },
-  demoBtn:     { backgroundColor: colors.accent.dim, borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 2 },
-  demoBtnText: { fontFamily: typography.fonts.bodyMed, fontSize: 10, color: colors.accent.primary },
+  exMuscle:    { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 2 },
+  demoBtn:     { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.accent.dim, borderRadius: radius.md, paddingHorizontal: spacing.sm, paddingVertical: 5, alignSelf: 'flex-start', marginTop: 4 },
+  demoBtnText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.accent.primary },
   exMeta: { alignItems: 'flex-end' },
   exSets: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.primary },
   exRest: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 2 },
@@ -469,8 +607,6 @@ const styles = StyleSheet.create({
 
   aiSuggestCard:   { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.accent.primary + '30', borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base },
   aiSuggestHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
-  aiBadge:         { backgroundColor: colors.accent.dim, borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 5 },
-  aiBadgeText:     { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.accent.primary },
   aiClose:         { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.tertiary },
   aiSuggestText:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.primary, lineHeight: 20 },
 });

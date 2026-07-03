@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
-import { router } from 'expo-router';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { router, type Href } from 'expo-router';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
@@ -11,29 +11,35 @@ import { useWorkoutStore } from '../../stores/workoutStore';
 import { useRecoveryStore } from '../../stores/recoveryStore';
 import { GOAL_TO_BODY_PART, TYPE_TO_BODY_PART, BODY_PART_LABEL } from '../../services/exercisedb';
 import { computeTargets, GOAL_LABELS } from '../../services/recommendations';
-import { useNovraScore } from '../../hooks/useNovraScore';
+import { dateStr, daysAgoStr } from '../../services/dateUtils';
+import { useZenovaScore } from '../../hooks/useNovraScore';
 import { AICoachBanner } from '../../components/ui/AICoachBanner';
+import { SparklineChart } from '../../components/ui/SparklineChart';
+import { useT } from '../../constants/i18n';
 
-function getGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning,';
-  if (hour < 17) return 'Good afternoon,';
-  return 'Good evening,';
+function greetingKey(): string {
+  const h = new Date().getHours();
+  if (h < 12) return 'home.goodMorning';
+  if (h < 18) return 'home.goodAfternoon';
+  return 'home.goodEvening';
 }
 
 export default function HomeScreen() {
-  const isPro           = useSubscriptionStore((s) => s.isPro);
-  const profile         = useUserStore((s) => s.profile);
-  const entries         = useNutritionStore((s) => s.entries);
-  const selectedType    = useWorkoutStore((s) => s.selectedType);
-  const recoveryEntries = useRecoveryStore((s) => s.entries);
+  const t                = useT();
+  const isPro            = useSubscriptionStore((s) => s.isPro);
+  const profile          = useUserStore((s) => s.profile);
+  const entries          = useNutritionStore((s) => s.entries);
+  const selectedType     = useWorkoutStore((s) => s.selectedType);
+  const workoutHistory   = useWorkoutStore((s) => s.history);
+  const recoveryEntries  = useRecoveryStore((s) => s.entries);
 
-  const todayDate = useMemo(() => new Date(), []);
-  const todayStr  = useMemo(() => todayDate.toISOString().slice(0, 10), [todayDate]);
+  // Recomputed on every render to avoid stale dates after midnight.
+  const todayDate = new Date();
+  const todayStr  = dateStr(todayDate);
   const today     = todayDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
   const targets    = useMemo(() => computeTargets(profile), [profile]);
-  const { score, scoreColor, pillars, deltaLabel, deltaColor, todayCalories, calPct } = useNovraScore();
+  const { score, scoreColor, pillars, deltaLabel, deltaColor, todayCalories, calPct } = useZenovaScore();
 
   const proteinLeft = useMemo(() => {
     const todayProtein = entries
@@ -51,8 +57,11 @@ export default function HomeScreen() {
   const streak = useMemo(() => {
     const startFrom = activeDates.has(todayStr) ? 0 : 1;
     let count = 0;
+    // Walks back day-by-day and breaks on the first gap, so it allocates only
+    // `streak + 1` date strings in practice — not 365. The 365 cap is just a
+    // safety bound for the (unreachable) case of a full year of unbroken logging.
     for (let i = startFrom; i <= 365; i++) {
-      const d = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10);
+      const d = daysAgoStr(i);
       if (activeDates.has(d)) { count++; } else { break; }
     }
     return count;
@@ -61,10 +70,15 @@ export default function HomeScreen() {
   // ── Current week Mon→Sun ──
   const weekDates = useMemo(() => {
     const mondayOffset = todayDate.getDay() === 0 ? -6 : 1 - todayDate.getDay();
+    const base = todayDate.getTime();
     return Array.from({ length: 7 }, (_, i) =>
-      new Date(todayDate.getTime() + (mondayOffset + i) * 86_400_000).toISOString().slice(0, 10)
+      dateStr(new Date(base + (mondayOffset + i) * 86_400_000))
     );
-  }, [todayDate]);
+  // Depend on `todayStr` (the day string), not `todayDate` (a fresh Date every
+  // render). The week only needs to recompute when the calendar day changes;
+  // keying on the Date object would recompute on every render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todayStr]);
 
   // ── Workout meta ──
   const primaryGoal = profile?.primary_goal ?? 'general_health';
@@ -74,11 +88,50 @@ export default function HomeScreen() {
   const isRestDay   = selectedType === 'rest';
   const workoutMeta = BODY_PART_LABEL[bodyPart] ?? { name: 'Custom Workout', duration: '30 min', intensity: 'Moderate' };
 
+  // Sleep: from today's recovery check-in
+  const todayRecovery   = useMemo(
+    () => recoveryEntries.find((e) => e.date === todayStr),
+    [recoveryEntries, todayStr],
+  );
+  const sleepH          = todayRecovery?.sleepHours ?? 0;
+  const sleepTarget     = targets.sleepHours;
+  const sleepPct        = sleepH > 0 ? Math.min(sleepH / sleepTarget, 1) : 0;
+
+  // Active minutes: from today's completed workouts (parse duration string)
+  const activeMins = useMemo(() => {
+    return workoutHistory
+      .filter((w) => w.date === todayStr)
+      .reduce((sum, w) => {
+        const m = parseInt(w.duration) || 0;
+        return sum + m;
+      }, 0);
+  }, [workoutHistory, todayStr]);
+  const workoutTarget = targets.workoutMinutes;
+
+  // ── 7-day LifeScore history (for trend chart) ──
+  const weekScores = useMemo(() => {
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = daysAgoStr(6 - i);
+      const cal  = entries.filter((e) => e.date === d).reduce((s, e) => s + e.calories, 0);
+      const rec  = recoveryEntries.find((e) => e.date === d);
+      const hasW = workoutHistory.some((w) => w.date === d);
+      const calScore   = cal > 0 ? Math.min((cal / targets.calories) * 25, 25) : 0;
+      const moveScore  = hasW ? 25 : 0;
+      const moodScore  = rec ? rec.mood * 5 : 0;
+      const sleepScore = rec?.sleepHours ? Math.min((rec.sleepHours / targets.sleepHours) * 25, 25) : 0;
+      return Math.round(calScore + moveScore + moodScore + sleepScore);
+    });
+  }, [entries, recoveryEntries, workoutHistory, targets]);
+
+  const weekLabels = weekDates.map((d) =>
+    new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'narrow' })
+  );
+
   const stats = [
-    { icon: '👟', value: '0',                                          label: 'Steps',   color: colors.accent.primary, pct: 0 },
-    { icon: '🔥', value: todayCalories > 0 ? `${todayCalories}` : '0', label: 'Calories', color: colors.status.warning, pct: calPct },
-    { icon: '💤', value: '0h',                                         label: 'Sleep',   color: colors.violet.primary, pct: 0 },
-    { icon: '⚡', value: '0m',                                         label: 'Active',  color: colors.status.success, pct: 0 },
+    { icon: '👟', value: '0',                                          label: t('home.steps'),    color: colors.accent.primary, pct: 0 },
+    { icon: '🔥', value: todayCalories > 0 ? `${todayCalories}` : '0', label: t('home.calories'), color: colors.status.warning, pct: calPct },
+    { icon: '💤', value: sleepH > 0 ? `${sleepH}h` : '0h',            label: t('home.sleepStat'), color: colors.violet.primary, pct: sleepPct },
+    { icon: '⚡', value: activeMins > 0 ? `${activeMins}m` : '0m',    label: t('home.active'),   color: colors.status.success, pct: workoutTarget > 0 ? Math.min(activeMins / workoutTarget, 1) : 0 },
   ];
 
   return (
@@ -87,10 +140,15 @@ export default function HomeScreen() {
       {/* ── Header ── */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>{getGreeting()}</Text>
-          <Text style={styles.name}>{profile?.name ?? 'Novra User'}</Text>
+          <Text style={styles.greeting}>{t(greetingKey())}</Text>
+          <Text style={styles.name}>{profile?.name ?? t('home.defaultUser')}</Text>
         </View>
-        <TouchableOpacity style={styles.dateChip} onPress={() => router.push('/(tabs)/profile')}>
+        <TouchableOpacity
+          style={styles.dateChip}
+          onPress={() => router.push('/(tabs)/profile')}
+          accessibilityRole="button"
+          accessibilityLabel={t('home.openProfile')}
+        >
           <Text style={styles.dateText}>{today}</Text>
         </TouchableOpacity>
       </View>
@@ -99,21 +157,20 @@ export default function HomeScreen() {
       <View style={styles.heroCard}>
         <View style={[styles.ring, { borderColor: scoreColor, shadowColor: scoreColor }]}>
           <Text style={[styles.scoreNum, { color: scoreColor }]}>{score}</Text>
-          <Text style={styles.scoreLabel}>NOVRA SCORE</Text>
+          <Text style={styles.scoreLabel}>LIFESCORE</Text>
         </View>
-        <Text style={[styles.delta, { color: deltaColor }]}>vs yesterday  {deltaLabel}</Text>
+        <Text style={[styles.delta, { color: deltaColor }]}>{t('home.vsYesterday', { delta: deltaLabel })}</Text>
 
         <View style={styles.pillsRow}>
           {pillars.map((p) => (
-            <Pressable
+            <View
               key={p.label}
-              style={({ pressed }) => [styles.pill, { borderColor: p.color + '50', opacity: pressed ? 0.7 : 1 }]}
-              onPress={() => !isPro && router.push('/paywall')}
+              style={[styles.pill, { borderColor: p.color + '50' }]}
             >
               <View style={[styles.pillDot, { backgroundColor: p.color }]} />
               <Text style={styles.pillLabel}>{p.label}</Text>
               <Text style={[styles.pillScore, { color: p.color }]}>{p.value}/25</Text>
-            </Pressable>
+            </View>
           ))}
         </View>
       </View>
@@ -121,27 +178,27 @@ export default function HomeScreen() {
       {/* ── Daily Targets ── */}
       <View style={styles.targetsCard}>
         <Text style={styles.targetsGoalLabel}>
-          🎯  {GOAL_LABELS[primaryGoal] ?? 'Healthy Lifestyle'}
+          🎯  {GOAL_LABELS[primaryGoal] ?? t('home.healthyLifestyle')}
         </Text>
         <View style={styles.targetsRow}>
           <View style={styles.targetChip}>
             <Text style={styles.targetVal}>{targets.calories.toLocaleString()}</Text>
-            <Text style={styles.targetLbl}>kcal</Text>
+            <Text style={styles.targetLbl}>{t('home.kcal')}</Text>
           </View>
           <View style={styles.targetDiv} />
           <View style={styles.targetChip}>
             <Text style={styles.targetVal}>{targets.protein}g</Text>
-            <Text style={styles.targetLbl}>protein</Text>
+            <Text style={styles.targetLbl}>{t('home.protein')}</Text>
           </View>
           <View style={styles.targetDiv} />
           <View style={styles.targetChip}>
             <Text style={styles.targetVal}>{targets.sleepHours}h</Text>
-            <Text style={styles.targetLbl}>sleep</Text>
+            <Text style={styles.targetLbl}>{t('home.sleep')}</Text>
           </View>
           <View style={styles.targetDiv} />
           <View style={styles.targetChip}>
             <Text style={styles.targetVal}>{targets.workoutMinutes}m</Text>
-            <Text style={styles.targetLbl}>workout</Text>
+            <Text style={styles.targetLbl}>{t('home.workout')}</Text>
           </View>
         </View>
       </View>
@@ -150,19 +207,25 @@ export default function HomeScreen() {
       <View style={styles.planCard}>
         <View style={styles.planHeader}>
           <View>
-            <Text style={styles.planTitle}>✦  Today's Plan</Text>
-            <Text style={styles.planTime}>Generated {new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</Text>
+            <Text style={styles.planTitle}>{t('home.todaysPlan')}</Text>
+            <Text style={styles.planTime}>{t('home.generated', { time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) })}</Text>
           </View>
           <View style={isPro ? styles.proBadge : styles.freeBadge}>
-            <Text style={isPro ? styles.proBadgeText : styles.freeBadgeText}>{isPro ? 'PRO' : 'FREE'}</Text>
+            <Text style={isPro ? styles.proBadgeText : styles.freeBadgeText}>{isPro ? t('common.pro') : t('common.free')}</Text>
           </View>
         </View>
 
         <View style={styles.planRows}>
-          <TouchableOpacity style={styles.planRow} onPress={() => router.push('/(tabs)/workout')} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.planRow}
+            onPress={() => router.push('/(tabs)/workout')}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={t('home.openWorkoutPlan')}
+          >
             <Text style={{ fontSize: 18 }}>🏋️</Text>
             <Text style={[styles.planRowText, { flex: 1 }]}>
-              {isRestDay ? 'Rest Day — Recovery & light stretching' : `${workoutMeta.name} — ${workoutMeta.duration} · ${workoutMeta.intensity}`}
+              {isRestDay ? t('home.restDay') : `${workoutMeta.name} — ${workoutMeta.duration} · ${workoutMeta.intensity}`}
             </Text>
             <Text style={{ color: colors.text.tertiary, fontSize: 18 }}>›</Text>
           </TouchableOpacity>
@@ -172,18 +235,18 @@ export default function HomeScreen() {
               <View style={styles.planRow}>
                 <Text style={{ fontSize: 18 }}>🥗</Text>
                 <Text style={styles.planRowText}>
-                  {proteinLeft > 0 ? `Protein: +${proteinLeft}g still needed today.` : 'Protein goal reached! Great work.'}
+                  {proteinLeft > 0 ? t('home.proteinNeeded', { grams: proteinLeft }) : t('home.proteinReached')}
                 </Text>
               </View>
               <View style={styles.planRow}>
                 <Text style={{ fontSize: 18 }}>🌙</Text>
                 <Text style={styles.planRowText}>
-                  Sleep {targets.sleepHours}h tonight — screens off by {targets.sleepHours >= 9 ? '9:30 PM' : targets.sleepHours >= 8.5 ? '10:00 PM' : '10:30 PM'}
+                  {t('home.sleepTip', { hours: targets.sleepHours, time: targets.sleepHours >= 9 ? '9:30 PM' : targets.sleepHours >= 8.5 ? '10:00 PM' : '10:30 PM' })}
                 </Text>
               </View>
               <View style={styles.planRow}>
                 <Text style={{ fontSize: 18 }}>💬</Text>
-                <Text style={styles.planRowText}>Stay consistent — small daily wins add up.</Text>
+                <Text style={styles.planRowText}>{t('home.motivation')}</Text>
               </View>
             </>
           ) : (
@@ -196,29 +259,56 @@ export default function HomeScreen() {
                 <Text style={{ fontSize: 18 }}>🌙</Text>
                 <View style={styles.blurBar} />
               </View>
-              <TouchableOpacity style={styles.unlockBtn} onPress={() => router.push('/paywall')} activeOpacity={0.85}>
-                <Text style={styles.unlockText}>Unlock Full Plan →</Text>
-                <Text style={styles.unlockSub}>See nutrition targets, sleep tips & daily motivation</Text>
+              <TouchableOpacity
+                style={styles.unlockBtn}
+                onPress={() => router.push('/paywall')}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={t('home.unlockWithPro')}
+              >
+                <Text style={styles.unlockText}>{t('home.unlockFullPlan')}</Text>
+                <Text style={styles.unlockSub}>{t('home.unlockSub')}</Text>
               </TouchableOpacity>
             </>
           )}
         </View>
       </View>
 
+      {/* ── First-use welcome banner ── */}
+      {streak === 0 && todayCalories === 0 && (
+        <View style={styles.welcomeBanner}>
+          <Text style={styles.welcomeTitle}>{t('home.welcomeTitle')}</Text>
+          <Text style={styles.welcomeSub}>{t('home.welcomeSub')}</Text>
+          <View style={styles.welcomeSteps}>
+            {[
+              { num: '1', text: t('home.welcomeStep1') },
+              { num: '2', text: t('home.welcomeStep2') },
+              { num: '3', text: t('home.welcomeStep3') },
+            ].map((s) => (
+              <View key={s.num} style={styles.welcomeStep}>
+                <View style={styles.welcomeStepNum}><Text style={styles.welcomeStepNumText}>{s.num}</Text></View>
+                <Text style={styles.welcomeStepText}>{s.text}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+
       {/* ── Quick Log ── */}
-      <Text style={styles.sectionTitle}>Quick Log</Text>
+      <Text style={styles.sectionTitle}>{t('home.quickLog')}</Text>
       <View style={styles.quickRow}>
         {[
-          { icon: '🍎', label: 'Food',    route: '/modals/add-food' },
-          { icon: '💪', label: 'Workout', route: '/modals/log-workout' },
-          { icon: '😴', label: 'Sleep',   route: '/(tabs)/recovery' },
-          { icon: '😊', label: 'Mood',    route: '/(tabs)/recovery' },
+          { icon: '🍎', label: t('home.food'),        route: '/modals/add-food' as Href },
+          { icon: '💪', label: t('home.workoutQuick'), route: '/modals/log-workout' as Href },
+          { icon: '📊', label: t('home.checkin'),     route: '/(tabs)/recovery' as Href },
         ].map((item) => (
           <TouchableOpacity
             key={item.label}
             style={styles.quickBtn}
-            onPress={() => router.push(item.route as any)}
+            onPress={() => router.push(item.route)}
             activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel={t('home.logItem', { item: item.label })}
           >
             <Text style={{ fontSize: 24 }}>{item.icon}</Text>
             <Text style={styles.quickLabel}>{item.label}</Text>
@@ -227,7 +317,7 @@ export default function HomeScreen() {
       </View>
 
       {/* ── Stats ── */}
-      <Text style={styles.sectionTitle}>Today's Stats</Text>
+      <Text style={styles.sectionTitle}>{t('home.todaysStats')}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.base }}>
         {stats.map((s) => (
           <View key={s.label} style={styles.statCard}>
@@ -241,8 +331,43 @@ export default function HomeScreen() {
         ))}
       </ScrollView>
 
+      {/* ── This Week Trend ── */}
+      <Text style={styles.sectionTitle}>{t('home.thisWeek')}</Text>
+      {isPro ? (
+        <View style={styles.trendCard}>
+          <View style={styles.trendHeader}>
+            <Text style={styles.trendTitle}>{t('home.lifeScoreTrend')}</Text>
+            <Text style={[styles.trendCurrent, { color: scoreColor }]}>{t('home.scoreToday', { score })}</Text>
+          </View>
+          <SparklineChart
+            data={weekScores}
+            color={colors.accent.primary}
+            labels={weekLabels}
+            width={320}
+            height={72}
+          />
+        </View>
+      ) : (
+        <TouchableOpacity
+          style={styles.trendLocked}
+          onPress={() => router.push('/paywall')}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={t('home.trendUnlockA11y')}
+        >
+          <View style={styles.trendLockedInner}>
+            <Text style={styles.trendLockedIcon}>📈</Text>
+            <View>
+              <Text style={styles.trendLockedTitle}>{t('home.trendCharts')}</Text>
+              <Text style={styles.trendLockedSub}>{t('home.trendUpgradeSub')}</Text>
+            </View>
+          </View>
+          <Text style={styles.trendLockedCta}>{t('home.upgrade')}</Text>
+        </TouchableOpacity>
+      )}
+
       {/* ── AI Coach Banner ── */}
-      <AICoachBanner subtitle="Ask about workouts, nutrition & recovery" />
+      <AICoachBanner subtitle={t('home.aiCoachSubtitle')} />
 
       {/* ── Streak ── */}
       <View style={styles.streakCard}>
@@ -250,7 +375,7 @@ export default function HomeScreen() {
           <Text style={{ fontSize: 30 }}>🔥</Text>
           <View>
             <Text style={styles.streakNum}>{streak}</Text>
-            <Text style={styles.streakLabel}>day streak</Text>
+            <Text style={styles.streakLabel}>{t('home.dayStreak')}</Text>
           </View>
         </View>
         <View style={styles.streakDots}>
@@ -300,12 +425,13 @@ const styles = StyleSheet.create({
   pillDot:    { width: 6, height: 6, borderRadius: 3 },
   pillLabel:  { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.secondary },
   pillScore:  { fontFamily: typography.fonts.mono, fontSize: typography.sizes.xs },
+  pillLock:   { fontSize: 9 },
 
   targetsCard:      { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base },
   targetsGoalLabel: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.text.secondary, marginBottom: spacing.sm },
   targetsRow:       { flexDirection: 'row', alignItems: 'center' },
   targetChip:       { flex: 1, alignItems: 'center', gap: 2 },
-  targetVal:        { fontFamily: typography.fonts.heading, fontSize: typography.sizes.md, color: colors.text.primary },
+  targetVal:        { fontFamily: typography.fonts.mono, fontSize: typography.sizes.md, color: colors.text.primary },
   targetLbl:        { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary },
   targetDiv:        { width: 1, height: 32, backgroundColor: colors.border.subtle },
 
@@ -331,10 +457,19 @@ const styles = StyleSheet.create({
   quickLabel:   { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.text.secondary },
 
   statCard:    { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, width: 108, marginRight: spacing.sm, alignItems: 'center', gap: 4 },
-  statVal:     { fontFamily: typography.fonts.heading, fontSize: typography.sizes.lg },
+  statVal:     { fontFamily: typography.fonts.mono, fontSize: typography.sizes.lg },
   statLabel:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.secondary },
   statBarBg:   { width: '100%', height: 3, backgroundColor: colors.bg.elevated, borderRadius: 2, marginTop: 2, overflow: 'hidden' },
   statBarFill: { height: '100%', borderRadius: 2 },
+
+  welcomeBanner:       { backgroundColor: colors.accent.dim, borderWidth: 1, borderColor: colors.accent.primary + '35', borderRadius: radius['2xl'], padding: spacing.base, marginBottom: spacing.base, gap: spacing.sm },
+  welcomeTitle:        { fontFamily: typography.fonts.heading, fontSize: typography.sizes.md, color: colors.text.primary },
+  welcomeSub:          { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, lineHeight: 20 },
+  welcomeSteps:        { gap: spacing.sm, marginTop: spacing.xs },
+  welcomeStep:         { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  welcomeStepNum:      { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.accent.primary, alignItems: 'center', justifyContent: 'center' },
+  welcomeStepNumText:  { fontFamily: typography.fonts.display, fontSize: typography.sizes.xs, color: colors.text.inverse },
+  welcomeStepText:     { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary },
 
   streakCard:  { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   streakLeft:  { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
@@ -347,4 +482,15 @@ const styles = StyleSheet.create({
   dotToday:    { borderWidth: 2, borderColor: colors.accent.primary, backgroundColor: 'transparent' },
   dotEmpty:    { backgroundColor: colors.bg.elevated },
   dotLabel:    { fontFamily: typography.fonts.body, fontSize: 9, color: colors.text.tertiary },
+
+  trendCard:        { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.accent.primary + '30', borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base },
+  trendHeader:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
+  trendTitle:       { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.secondary },
+  trendCurrent:     { fontFamily: typography.fonts.display, fontSize: typography.sizes.sm },
+  trendLocked:      { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  trendLockedInner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  trendLockedIcon:  { fontSize: 22 },
+  trendLockedTitle: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.primary },
+  trendLockedSub:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 2 },
+  trendLockedCta:   { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.accent.primary },
 });

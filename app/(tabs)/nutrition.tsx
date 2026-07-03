@@ -5,36 +5,41 @@ import { useNutritionStore, FoodEntry } from '../../stores/nutritionStore';
 import { useAISuggestionsStore } from '../../stores/aiSuggestionsStore';
 import { useUserStore } from '../../stores/userStore';
 import { computeTargets } from '../../services/recommendations';
+import { todayStr } from '../../services/dateUtils';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { useAnalytics } from '../../services/analytics';
 import { AICoachBanner } from '../../components/ui/AICoachBanner';
+import { useT } from '../../constants/i18n';
 
 const MEAL_META = [
-  { id: 'breakfast', label: 'Breakfast', icon: '🌅' },
-  { id: 'lunch',     label: 'Lunch',     icon: '☀️'  },
-  { id: 'dinner',    label: 'Dinner',    icon: '🌙'  },
-  { id: 'snack',     label: 'Snacks',    icon: '🍎'  },
+  { id: 'breakfast', labelKey: 'nutrition.breakfast', icon: '🌅' },
+  { id: 'lunch',     labelKey: 'nutrition.lunch',     icon: '☀️'  },
+  { id: 'dinner',    labelKey: 'nutrition.dinner',    icon: '🌙'  },
+  { id: 'snack',     labelKey: 'nutrition.snacks',    icon: '🍎'  },
 ];
 
 export default function NutritionScreen() {
   const [expanded, setExpanded] = useState<string | null>('breakfast');
 
-  const allEntries  = useNutritionStore((s) => s.entries);
-  const removeEntry = useNutritionStore((s) => s.removeEntry);
-  const water       = useNutritionStore((s) => s.waterGlasses);
-  const setWater    = useNutritionStore((s) => s.setWater);
-  const aiNutrition = useAISuggestionsStore((s) => s.nutrition);
-  const clearAI     = useAISuggestionsStore((s) => s.clear);
-  const profile     = useUserStore((s) => s.profile);
-  const analytics   = useAnalytics();
+  const allEntries   = useNutritionStore((s) => s.entries);
+  const removeEntry  = useNutritionStore((s) => s.removeEntry);
+  const waterByDate  = useNutritionStore((s) => s.waterByDate);
+  const setWater     = useNutritionStore((s) => s.setWater);
+  const aiNutrition  = useAISuggestionsStore((s) => s.nutrition);
+  const clearAI      = useAISuggestionsStore((s) => s.clear);
+  const profile      = useUserStore((s) => s.profile);
+  const analytics    = useAnalytics();
+  const t            = useT();
 
   const targets       = useMemo(() => computeTargets(profile), [profile]);
   const GOAL_CALS     = targets.calories;
   const MACRO_TARGETS = { protein: targets.protein, carbs: targets.carbs, fat: targets.fat };
 
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  // Compute today fresh each render — prevents stale date after midnight
+  const today = todayStr();
+  const water = waterByDate[today] ?? 0;
   const todayAISuggestion = aiNutrition?.date === today ? aiNutrition : null;
 
   const todayEntries = useMemo(
@@ -63,11 +68,11 @@ export default function NutritionScreen() {
 
   const handleDeleteFood = (item: FoodEntry) => {
     Alert.alert(
-      'Remove Food',
-      `Remove "${item.name}" from your log?`,
+      t('nutrition.removeFood'),
+      t('nutrition.removeFoodConfirm', { name: item.name }),
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Remove', style: 'destructive', onPress: () => removeEntry(item.id) },
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('nutrition.remove'), style: 'destructive', onPress: () => removeEntry(item.id) },
       ],
     );
   };
@@ -84,8 +89,8 @@ export default function NutritionScreen() {
       {/* ── Header ── */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.pageTitle}>Nutrition</Text>
-          <Text style={styles.pageSub}>Today's intake</Text>
+          <Text style={styles.pageTitle}>{t('nutrition.title')}</Text>
+          <Text style={styles.pageSub}>{t('nutrition.todaysIntake')}</Text>
         </View>
       </View>
 
@@ -99,8 +104,8 @@ export default function NutritionScreen() {
           </View>
           <Text style={styles.calsRemain}>
             {totalCals >= GOAL_CALS
-              ? `${totalCals - GOAL_CALS} kcal over goal`
-              : `${GOAL_CALS - totalCals} kcal remaining`}
+              ? t('nutrition.kcalOver', { n: totalCals - GOAL_CALS })
+              : t('nutrition.kcalRemaining', { n: GOAL_CALS - totalCals })}
           </Text>
         </View>
 
@@ -120,7 +125,7 @@ export default function NutritionScreen() {
       <View style={styles.waterCard}>
         <View style={styles.waterCardTop}>
           <View>
-            <Text style={styles.waterTitle}>💧 Water Intake</Text>
+            <Text style={styles.waterTitle}>{t('nutrition.waterIntake')}</Text>
             <Text style={styles.waterMl}>{water * 250} / {targets.waterGlasses * 250} ml</Text>
           </View>
           <View style={styles.waterControls}>
@@ -128,56 +133,84 @@ export default function NutritionScreen() {
               style={styles.waterCtrlBtn}
               onPress={() => { const n = Math.max(water - 1, 0); setWater(n); analytics.waterUpdated(n); }}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={t('nutrition.removeWaterGlass')}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
               <Text style={styles.waterCtrlText}>−</Text>
             </TouchableOpacity>
             <Text style={styles.waterCountText}>{water} / {targets.waterGlasses}</Text>
-            <TouchableOpacity style={styles.waterCtrlBtn} onPress={handleWaterTap} activeOpacity={0.7}>
+            <TouchableOpacity
+              style={styles.waterCtrlBtn}
+              onPress={handleWaterTap}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={t('nutrition.addWaterGlass')}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
               <Text style={styles.waterCtrlText}>+</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         <View style={styles.waterDropRow}>
-          {Array.from({ length: targets.waterGlasses }).map((_, i) => (
-            <TouchableOpacity
-              key={i}
-              onPress={() => { const n = i + 1; setWater(n); analytics.waterUpdated(n); }}
-              activeOpacity={0.6}
-            >
-              <Text style={{ fontSize: 24, opacity: i < water ? 1 : 0.2 }}>💧</Text>
-            </TouchableOpacity>
-          ))}
+          {Array.from({ length: targets.waterGlasses }).map((_, i) => {
+            const filled = i < water;
+            return (
+              <TouchableOpacity
+                key={i}
+                style={[styles.waterCircle, filled && styles.waterCircleFilled]}
+                onPress={() => {
+                  // tap filled = decrement to i, tap empty = fill to i+1
+                  const n = filled && i === water - 1 ? i : i + 1;
+                  setWater(n); analytics.waterUpdated(n);
+                }}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={t('nutrition.glassOf', { i: i + 1, total: targets.waterGlasses, state: filled ? t('nutrition.filled') : t('nutrition.empty') })}
+                hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+              >
+                {filled && <Text style={styles.waterCircleIcon}>💧</Text>}
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         <View style={styles.waterBarBg}>
           <View style={[styles.waterBarFill, { width: `${Math.min(water / targets.waterGlasses, 1) * 100}%` as any }]} />
         </View>
 
-        <Text style={styles.waterHint}>Each glass = 250 ml · Goal: {targets.waterGlasses} glasses ({targets.waterGlasses * 250 / 1000}L)</Text>
+        <Text style={styles.waterHint}>{t('nutrition.waterHint', { glasses: targets.waterGlasses, liters: targets.waterGlasses * 250 / 1000 })}</Text>
       </View>
 
       {/* ── AI Coach Banner ── */}
-      <AICoachBanner subtitle="Get meal ideas & nutrition advice" />
+      <AICoachBanner subtitle={t('nutrition.aiCoachSubtitle')} />
 
       {/* ── AI Meal Suggestion ── */}
       {todayAISuggestion && (
         <View style={styles.aiCard}>
           <View style={styles.aiCardHeader}>
             <View style={styles.aiBadge}>
-              <Text style={styles.aiBadgeText}>✦ Daily Meal Suggestions</Text>
+              <Text style={styles.aiBadgeText}>{t('nutrition.dailyMealSuggestions')}</Text>
             </View>
-            <TouchableOpacity onPress={() => clearAI('nutrition')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity
+              onPress={() => clearAI('nutrition')}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel={t('nutrition.dismissSuggestion')}
+            >
               <Text style={styles.aiClose}>✕</Text>
             </TouchableOpacity>
           </View>
           <Text style={styles.aiText}>{todayAISuggestion.text}</Text>
           <TouchableOpacity
             style={styles.aiCoachBtn}
-            onPress={() => router.push('/modals/ai-coach' as any)}
+            onPress={() => router.push('/modals/ai-coach')}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={t('nutrition.askAiMoreA11y')}
           >
-            <Text style={styles.aiCoachBtnText}>Ask AI Coach for more →</Text>
+            <Text style={styles.aiCoachBtnText}>{t('nutrition.askAiMore')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -187,6 +220,7 @@ export default function NutritionScreen() {
         const items  = mealEntries[meal.id] ?? [];
         const mCals  = items.reduce((s, e) => s + e.calories, 0);
         const isOpen = expanded === meal.id;
+        const mealLabel = t(meal.labelKey);
 
         return (
           <View key={meal.id} style={styles.mealCard}>
@@ -194,13 +228,16 @@ export default function NutritionScreen() {
               style={styles.mealHeader}
               onPress={() => setExpanded(isOpen ? null : meal.id)}
               activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: isOpen }}
+              accessibilityLabel={t('nutrition.mealSummary', { meal: mealLabel, info: mCals > 0 ? t('nutrition.kilocalories', { n: mCals }) : t('nutrition.nothingLogged') })}
             >
               <View style={styles.mealLeft}>
                 <Text style={{ fontSize: 20 }}>{meal.icon}</Text>
                 <View>
-                  <Text style={styles.mealTitle}>{meal.label}</Text>
+                  <Text style={styles.mealTitle}>{mealLabel}</Text>
                   <Text style={styles.mealCals}>
-                    {mCals > 0 ? `${mCals} kcal` : 'Nothing logged'}
+                    {mCals > 0 ? `${mCals} kcal` : t('nutrition.nothingLogged')}
                   </Text>
                 </View>
               </View>
@@ -209,8 +246,10 @@ export default function NutritionScreen() {
                   style={styles.addBtn}
                   onPress={() => router.push({ pathname: '/modals/add-food', params: { mealType: meal.id } })}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('nutrition.addFoodTo', { meal: mealLabel })}
                 >
-                  <Text style={styles.addBtnText}>+ Add</Text>
+                  <Text style={styles.addBtnText}>{t('nutrition.add')}</Text>
                 </TouchableOpacity>
                 <Text style={styles.chevron}>{isOpen ? '∧' : '∨'}</Text>
               </View>
@@ -225,6 +264,8 @@ export default function NutritionScreen() {
                       style={styles.foodRow}
                       onPress={() => handleDeleteFood(item)}
                       activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('nutrition.removeFoodA11y', { name: item.name, calories: item.calories })}
                     >
                       <Text style={styles.foodName} numberOfLines={1}>{item.name}</Text>
                       <View style={styles.foodRight}>
@@ -234,7 +275,7 @@ export default function NutritionScreen() {
                     </TouchableOpacity>
                   ))
                 ) : (
-                  <Text style={styles.emptyText}>Tap + Add to log food</Text>
+                  <Text style={styles.emptyText}>{t('nutrition.tapAddToLog')}</Text>
                 )}
               </View>
             )}
@@ -242,7 +283,7 @@ export default function NutritionScreen() {
         );
       })}
 
-      <Text style={styles.hint}>Tap a food item to remove it</Text>
+      <Text style={styles.hint}>{t('nutrition.tapToRemove')}</Text>
       <View style={{ height: 110 }} />
     </ScrollView>
   );
@@ -264,7 +305,10 @@ const styles = StyleSheet.create({
   waterCtrlBtn:  { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: colors.status.info + '40', alignItems: 'center', justifyContent: 'center' },
   waterCtrlText: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.status.info },
   waterCountText:{ fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.primary, minWidth: 36, textAlign: 'center' },
-  waterDropRow:  { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: spacing.xs },
+  waterDropRow:    { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: spacing.xs },
+  waterCircle:     { flex: 1, height: 32, borderRadius: radius.sm, borderWidth: 1.5, borderColor: colors.status.info + '40', backgroundColor: colors.bg.elevated, marginHorizontal: 2, alignItems: 'center', justifyContent: 'center' },
+  waterCircleFilled: { backgroundColor: colors.status.info + '20', borderColor: colors.status.info },
+  waterCircleIcon: { fontSize: 14 },
   waterBarBg:    { width: '100%', height: 4, backgroundColor: colors.bg.elevated, borderRadius: 2, overflow: 'hidden' },
   waterBarFill:  { height: '100%', backgroundColor: colors.status.info, borderRadius: 2 },
   waterHint:     { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textAlign: 'center' },

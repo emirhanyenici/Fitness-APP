@@ -1,12 +1,14 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { secureStorage } from '../services/secureStorage';
+import { todayStr } from '../services/dateUtils';
 
 export interface RecoveryEntry {
-  mood: number;    // 1-5
-  energy: number;  // 1-5
-  stress: number;  // 1-5
-  date: string;    // YYYY-MM-DD
+  mood: number;         // 1-5
+  energy: number;       // 1-5
+  stress: number;       // 1-5
+  sleepHours?: number;  // e.g. 7.5
+  date: string;         // YYYY-MM-DD
 }
 
 interface RecoveryStore {
@@ -21,7 +23,7 @@ export const useRecoveryStore = create<RecoveryStore>()(
       entries: [],
 
       saveEntry: (entry) => {
-        const date = new Date().toISOString().slice(0, 10);
+        const date = todayStr();
         set((state) => ({
           entries: [
             ...state.entries.filter((e) => e.date !== date),
@@ -33,7 +35,7 @@ export const useRecoveryStore = create<RecoveryStore>()(
       clearEntries: () => set({ entries: [] }),
     }),
     {
-      name: 'novra-recovery-storage',
+      name: 'zenova-recovery-storage',
       storage: createJSONStorage(() => secureStorage),
     }
   )
