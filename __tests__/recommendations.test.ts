@@ -3,7 +3,7 @@
  * Focus: calorie floor enforcement, macro budget never exceeding the
  * calorie target (P0.4 regression), and gender-aware divergence.
  */
-import { computeTargets } from '../services/recommendations';
+import { computeTargets, isValidHeightCm, isValidWeightKg } from '../services/recommendations';
 import type { UserProfile } from '../stores/userStore';
 
 const base = (over: Partial<UserProfile> = {}): UserProfile =>
@@ -72,5 +72,28 @@ describe('computeTargets — fallback', () => {
   it('returns defaults when profile lacks weight/height', () => {
     const t = computeTargets(null);
     expect(t.calories).toBe(2000);
+  });
+});
+
+describe('height/weight plausibility validators (F13)', () => {
+  it('accepts plausible values and the range bounds', () => {
+    expect(isValidHeightCm(175)).toBe(true);
+    expect(isValidHeightCm(100)).toBe(true);
+    expect(isValidHeightCm(250)).toBe(true);
+    expect(isValidWeightKg(70)).toBe(true);
+    expect(isValidWeightKg(30)).toBe(true);
+    expect(isValidWeightKg(300)).toBe(true);
+  });
+
+  it('rejects implausible, zero, negative and non-finite values', () => {
+    expect(isValidHeightCm(1)).toBe(false);      // the "1 cm" bug
+    expect(isValidHeightCm(99)).toBe(false);
+    expect(isValidHeightCm(251)).toBe(false);
+    expect(isValidHeightCm(0)).toBe(false);
+    expect(isValidHeightCm(NaN)).toBe(false);
+    expect(isValidWeightKg(9999)).toBe(false);   // the "9999 kg" bug
+    expect(isValidWeightKg(29)).toBe(false);
+    expect(isValidWeightKg(-70)).toBe(false);
+    expect(isValidWeightKg(Infinity)).toBe(false);
   });
 });

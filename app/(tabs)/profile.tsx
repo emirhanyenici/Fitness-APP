@@ -13,6 +13,7 @@ import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { MEDICAL_DISCLAIMER } from '../../constants/legal';
+import { isValidHeightCm, isValidWeightKg } from '../../services/recommendations';
 import { useT } from '../../constants/i18n';
 import { useLocaleStore } from '../../stores/localeStore';
 
@@ -76,6 +77,13 @@ export default function ProfileScreen() {
     const rawH = parseFloat(draftHeight) || undefined;
     const weight_kg = rawW ? (units === 'imperial' ? lbsToKg(rawW) : rawW) : undefined;
     const height_cm = rawH ? (units === 'imperial' ? inToCm(rawH)  : rawH) : undefined;
+    // Validate in metric after unit conversion — implausible values corrupt
+    // BMI/TDEE targets everywhere downstream (finding F13).
+    if ((weight_kg !== undefined && !isValidWeightKg(weight_kg)) ||
+        (height_cm !== undefined && !isValidHeightCm(height_cm))) {
+      Alert.alert(t('common.error'), t('profile.rangeError'));
+      return;
+    }
     const bmi = (weight_kg && height_cm)
       ? parseFloat((weight_kg / Math.pow(height_cm / 100, 2)).toFixed(1))
       : profile?.bmi;

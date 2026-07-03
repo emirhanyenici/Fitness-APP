@@ -4,14 +4,15 @@ import { router } from 'expo-router';
 import { useAuthStore } from '../../stores/authStore';
 import { useUserStore } from '../../stores/userStore';
 import { supabase } from '../../services/supabase';
+import { isValidHeightCm, isValidWeightKg } from '../../services/recommendations';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { useT } from '../../constants/i18n';
 
-/** Returns null when inputs are invalid (zero, negative, or missing). */
+/** Returns null when inputs are missing or outside plausible human ranges. */
 function calcBMI(weightKg: number, heightCm: number): number | null {
-  if (!weightKg || !heightCm || weightKg <= 0 || heightCm <= 0) return null;
+  if (!isValidWeightKg(weightKg) || !isValidHeightCm(heightCm)) return null;
   const h = heightCm / 100;
   return Math.round((weightKg / (h * h)) * 100) / 100; // 2 decimal places
 }
@@ -244,6 +245,11 @@ export default function OnboardingChat() {
                 />
               </View>
 
+              {/* Inline range error — both fields filled but implausible */}
+              {height !== '' && weight !== '' && liveBmi === null && (
+                <Text style={styles.rangeError}>{t('onboarding.rangeError')}</Text>
+              )}
+
               {/* Live BMI preview */}
               {liveBmi !== null && liveCat !== null && (
                 <View style={styles.bmiPreview}>
@@ -382,4 +388,5 @@ const styles = StyleSheet.create({
   bmiScaleLabel:   { fontFamily: typography.fonts.body, fontSize: 9, color: colors.text.tertiary, textAlign: 'center' },
   commentBox:      { backgroundColor: colors.accent.dim, borderRadius: radius.xl, padding: spacing.base, width: '100%', borderWidth: 1, borderColor: colors.accent.primary + '30' },
   commentText:     { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.accent.primary, lineHeight: 20 },
+  rangeError:      { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.status.danger, lineHeight: 20, marginTop: spacing.sm },
 });

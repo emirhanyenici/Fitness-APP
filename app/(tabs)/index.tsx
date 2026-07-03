@@ -46,7 +46,9 @@ export default function HomeScreen() {
     const todayProtein = entries
       .filter((e) => e.date === todayStr)
       .reduce((s, e) => s + e.protein, 0);
-    return Math.max(0, targets.protein - todayProtein);
+    // Ceil to whole grams for display — summed 0.1g-precision floats carry FP
+    // noise, and rounding up never understates what's still needed (F11).
+    return Math.max(0, Math.ceil(targets.protein - todayProtein));
   }, [entries, todayStr, targets.protein]);
 
   // ── Streak (starts from yesterday if today has no data yet) ──

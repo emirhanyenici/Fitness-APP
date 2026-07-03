@@ -29,6 +29,21 @@ export const GOAL_LABELS: Record<string, string> = {
   general_health: 'Healthy Lifestyle',
 };
 
+// Plausible human ranges — inputs outside these produce absurd BMI/TDEE values
+// that flow into every screen and the LifeScore denominator (finding F13).
+export const HEIGHT_CM_MIN = 100;
+export const HEIGHT_CM_MAX = 250;
+export const WEIGHT_KG_MIN = 30;
+export const WEIGHT_KG_MAX = 300;
+
+export function isValidHeightCm(h: number): boolean {
+  return Number.isFinite(h) && h >= HEIGHT_CM_MIN && h <= HEIGHT_CM_MAX;
+}
+
+export function isValidWeightKg(w: number): boolean {
+  return Number.isFinite(w) && w >= WEIGHT_KG_MIN && w <= WEIGHT_KG_MAX;
+}
+
 const DEFAULTS: DailyTargets = {
   calories: 2000, protein: 160, carbs: 200, fat: 65,
   sleepHours: 8, workoutDaysPerWeek: 3, workoutMinutes: 45, waterGlasses: 8,

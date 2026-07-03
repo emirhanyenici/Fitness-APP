@@ -115,7 +115,9 @@ export default function NutritionScreen() {
               <View style={styles.macroBarBg}>
                 <View style={[styles.macroBarFill, { width: `${Math.min(m.current / m.target, 1) * 100}%` as any, backgroundColor: m.color }]} />
               </View>
-              <Text style={[styles.macroLabel, { color: m.color }]}>{m.short}  {m.current}g</Text>
+              {/* Round to 1 decimal for display — summed 0.1g-precision floats
+                  accumulate FP noise like 10.799999999999999 (finding F11) */}
+              <Text style={[styles.macroLabel, { color: m.color }]}>{m.short}  {Math.round(m.current * 10) / 10}g</Text>
             </View>
           ))}
         </View>
