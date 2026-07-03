@@ -17,6 +17,7 @@ import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { supabase } from '../../services/supabase';
 import { useT } from '../../constants/i18n';
+import { Icon, Sparkles, X, ArrowUp } from '../../components/ui/Icon';
 
 const EDGE_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/ai-coach`;
 
@@ -161,7 +162,7 @@ export default function AICoachModal() {
       <View style={[styles.msgRow, isUser && styles.msgRowUser]}>
         {!isUser && (
           <View style={styles.avatar}>
-            <Text style={{ fontSize: 14 }}>✦</Text>
+            <Icon icon={Sparkles} size="sm" color={colors.accent.primary} />
           </View>
         )}
         <View style={{ maxWidth: '78%' }}>
@@ -192,14 +193,14 @@ export default function AICoachModal() {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <View style={styles.aiBadge}><Text style={styles.aiBadgeText}>✦</Text></View>
+          <View style={styles.aiBadge}><Icon icon={Sparkles} size="md" color={colors.accent.primary} /></View>
           <View>
             <Text style={styles.title}>{t('aiCoach.title')}</Text>
             <Text style={styles.sub}>{t('aiCoach.poweredBy')}</Text>
           </View>
         </View>
         <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} accessibilityRole="button" accessibilityLabel={t('aiCoach.closeA11y')}>
-          <Text style={styles.closeBtn}>✕</Text>
+          <Icon icon={X} size="md" color={colors.text.secondary} />
         </TouchableOpacity>
       </View>
 
@@ -217,7 +218,7 @@ export default function AICoachModal() {
       {/* Loading indicator */}
       {loading && (
         <View style={styles.typingRow}>
-          <View style={styles.avatar}><Text style={{ fontSize: 14 }}>✦</Text></View>
+          <View style={styles.avatar}><Icon icon={Sparkles} size="sm" color={colors.accent.primary} /></View>
           <View style={styles.typingBubble}>
             <ActivityIndicator size="small" color={colors.accent.primary} />
           </View>
@@ -284,7 +285,7 @@ export default function AICoachModal() {
           accessibilityLabel={t('aiCoach.sendA11y')}
           accessibilityState={{ disabled: !input.trim() || loading }}
         >
-          <Text style={styles.sendIcon}>↑</Text>
+          <Icon icon={ArrowUp} size="md" color={colors.text.inverse} strokeWidth={2.25} />
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -297,10 +298,8 @@ const styles = StyleSheet.create({
   header:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.base, paddingTop: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.border.subtle, backgroundColor: colors.bg.secondary },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   aiBadge:    { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.accent.dim, alignItems: 'center', justifyContent: 'center' },
-  aiBadgeText:{ fontSize: 18, color: colors.accent.primary },
   title:      { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.primary },
   sub:        { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary },
-  closeBtn:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.base, color: colors.text.secondary },
   clearBtn:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.tertiary },
 
   list: { padding: spacing.base, gap: spacing.sm, paddingBottom: spacing.lg },
@@ -326,7 +325,6 @@ const styles = StyleSheet.create({
   input:          { flex: 1, fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.primary, backgroundColor: colors.bg.tertiary, borderRadius: radius.xl, paddingHorizontal: 14, paddingVertical: 10, maxHeight: 100 },
   sendBtn:        { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.accent.primary, alignItems: 'center', justifyContent: 'center' },
   sendBtnDisabled:{ backgroundColor: colors.border.default },
-  sendIcon:       { color: colors.text.inverse, fontSize: 18, fontWeight: '700' },
 
   viewTabBtn:  { marginTop: 6, backgroundColor: colors.accent.dim, borderWidth: 1, borderColor: colors.accent.primary + '50', borderRadius: radius.full, paddingHorizontal: 14, paddingVertical: 7, alignSelf: 'flex-start' },
   viewTabText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.accent.primary },

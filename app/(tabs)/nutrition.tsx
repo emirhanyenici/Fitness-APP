@@ -12,12 +12,15 @@ import { spacing, radius } from '../../constants/spacing';
 import { useAnalytics } from '../../services/analytics';
 import { AICoachBanner } from '../../components/ui/AICoachBanner';
 import { useT } from '../../constants/i18n';
+import {
+  Icon, Coffee, Sun, UtensilsCrossed, Cookie, Droplets, X, ChevronDown, ChevronUp,
+} from '../../components/ui/Icon';
 
 const MEAL_META = [
-  { id: 'breakfast', labelKey: 'nutrition.breakfast', icon: '🌅' },
-  { id: 'lunch',     labelKey: 'nutrition.lunch',     icon: '☀️'  },
-  { id: 'dinner',    labelKey: 'nutrition.dinner',    icon: '🌙'  },
-  { id: 'snack',     labelKey: 'nutrition.snacks',    icon: '🍎'  },
+  { id: 'breakfast', labelKey: 'nutrition.breakfast', icon: Coffee },
+  { id: 'lunch',     labelKey: 'nutrition.lunch',     icon: Sun },
+  { id: 'dinner',    labelKey: 'nutrition.dinner',    icon: UtensilsCrossed },
+  { id: 'snack',     labelKey: 'nutrition.snacks',    icon: Cookie },
 ];
 
 export default function NutritionScreen() {
@@ -172,7 +175,7 @@ export default function NutritionScreen() {
                 accessibilityLabel={t('nutrition.glassOf', { i: i + 1, total: targets.waterGlasses, state: filled ? t('nutrition.filled') : t('nutrition.empty') })}
                 hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
               >
-                {filled && <Text style={styles.waterCircleIcon}>💧</Text>}
+                {filled && <Icon icon={Droplets} size="sm" color={colors.bg.secondary} strokeWidth={2} />}
               </TouchableOpacity>
             );
           })}
@@ -201,7 +204,7 @@ export default function NutritionScreen() {
               accessibilityRole="button"
               accessibilityLabel={t('nutrition.dismissSuggestion')}
             >
-              <Text style={styles.aiClose}>✕</Text>
+              <Icon icon={X} size="sm" color={colors.text.tertiary} />
             </TouchableOpacity>
           </View>
           <Text style={styles.aiText}>{todayAISuggestion.text}</Text>
@@ -235,7 +238,7 @@ export default function NutritionScreen() {
               accessibilityLabel={t('nutrition.mealSummary', { meal: mealLabel, info: mCals > 0 ? t('nutrition.kilocalories', { n: mCals }) : t('nutrition.nothingLogged') })}
             >
               <View style={styles.mealLeft}>
-                <Text style={{ fontSize: 20 }}>{meal.icon}</Text>
+                <Icon icon={meal.icon} size="md" color={colors.accent.primary} />
                 <View>
                   <Text style={styles.mealTitle}>{mealLabel}</Text>
                   <Text style={styles.mealCals}>
@@ -253,7 +256,7 @@ export default function NutritionScreen() {
                 >
                   <Text style={styles.addBtnText}>{t('nutrition.add')}</Text>
                 </TouchableOpacity>
-                <Text style={styles.chevron}>{isOpen ? '∧' : '∨'}</Text>
+                <Icon icon={isOpen ? ChevronUp : ChevronDown} size="md" color={colors.text.tertiary} />
               </View>
             </TouchableOpacity>
 
@@ -272,7 +275,7 @@ export default function NutritionScreen() {
                       <Text style={styles.foodName} numberOfLines={1}>{item.name}</Text>
                       <View style={styles.foodRight}>
                         <Text style={styles.foodCals}>{item.calories} kcal</Text>
-                        <Text style={styles.foodDelete}>✕</Text>
+                        <Icon icon={X} size="sm" color={colors.text.tertiary} />
                       </View>
                     </TouchableOpacity>
                   ))
@@ -310,7 +313,6 @@ const styles = StyleSheet.create({
   waterDropRow:    { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: spacing.xs },
   waterCircle:     { flex: 1, height: 32, borderRadius: radius.sm, borderWidth: 1.5, borderColor: colors.status.info + '40', backgroundColor: colors.bg.elevated, marginHorizontal: 2, alignItems: 'center', justifyContent: 'center' },
   waterCircleFilled: { backgroundColor: colors.status.info + '20', borderColor: colors.status.info },
-  waterCircleIcon: { fontSize: 14 },
   waterBarBg:    { width: '100%', height: 4, backgroundColor: colors.bg.elevated, borderRadius: 2, overflow: 'hidden' },
   waterBarFill:  { height: '100%', backgroundColor: colors.status.info, borderRadius: 2 },
   waterHint:     { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textAlign: 'center' },
@@ -333,7 +335,6 @@ const styles = StyleSheet.create({
   aiCardHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
   aiBadge:       { backgroundColor: colors.accent.dim, borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 5 },
   aiBadgeText:   { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.accent.primary },
-  aiClose:       { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.tertiary },
   aiText:        { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.primary, lineHeight: 20, marginBottom: spacing.base },
   aiCoachBtn:    { alignSelf: 'flex-end', backgroundColor: colors.accent.dim, borderWidth: 1, borderColor: colors.accent.primary + '50', borderRadius: radius.full, paddingHorizontal: 14, paddingVertical: 7 },
   aiCoachBtnText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.accent.primary },
@@ -346,14 +347,12 @@ const styles = StyleSheet.create({
   mealRight:  { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   addBtn:     { borderWidth: 1, borderColor: colors.accent.primary + '60', borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 5 },
   addBtnText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.accent.primary },
-  chevron:    { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.tertiary, width: 16, textAlign: 'center' },
 
   mealItems:  { borderTopWidth: 1, borderTopColor: colors.border.subtle, paddingHorizontal: spacing.base, paddingBottom: spacing.base },
   foodRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border.subtle },
   foodName:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.primary, flex: 1, marginRight: spacing.sm },
   foodRight:  { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   foodCals:   { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.secondary },
-  foodDelete: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, paddingLeft: 4 },
   emptyText:  { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.tertiary, textAlign: 'center', paddingTop: spacing.base },
 
   hint: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textAlign: 'center', marginTop: spacing.xs },

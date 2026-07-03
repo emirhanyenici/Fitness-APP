@@ -3,11 +3,17 @@ import { View, Text, Platform } from 'react-native';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { useT } from '../../constants/i18n';
+import { Icon, IconComponent, Home, Salad, Dumbbell, MoonStar, CircleUserRound } from '../../components/ui/Icon';
 
-function TabIcon({ emoji, label, focused }: { emoji: string; label: string; focused: boolean }) {
+function TabIcon({ icon, label, focused }: { icon: IconComponent; label: string; focused: boolean }) {
   return (
     <View style={{ alignItems: 'center', justifyContent: 'center', paddingTop: 4, width: 64 }}>
-      <Text style={{ fontSize: 22 }}>{emoji}</Text>
+      <Icon
+        icon={icon}
+        size="lg"
+        color={focused ? colors.accent.primary : colors.text.tertiary}
+        strokeWidth={focused ? 2 : 1.75}
+      />
       <Text
         numberOfLines={1}
         adjustsFontSizeToFit
@@ -47,11 +53,11 @@ export default function TabsLayout() {
         },
       }}
     >
-      <Tabs.Screen name="index" options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" label={t('tabs.home')} focused={focused} /> }} />
-      <Tabs.Screen name="nutrition" options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="🥗" label={t('tabs.nutrition')} focused={focused} /> }} />
-      <Tabs.Screen name="workout" options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="💪" label={t('tabs.workout')} focused={focused} /> }} />
-      <Tabs.Screen name="recovery" options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="😴" label={t('tabs.recovery')} focused={focused} /> }} />
-      <Tabs.Screen name="profile" options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="👤" label={t('tabs.profile')} focused={focused} /> }} />
+      <Tabs.Screen name="index" options={{ tabBarIcon: ({ focused }) => <TabIcon icon={Home} label={t('tabs.home')} focused={focused} /> }} />
+      <Tabs.Screen name="nutrition" options={{ tabBarIcon: ({ focused }) => <TabIcon icon={Salad} label={t('tabs.nutrition')} focused={focused} /> }} />
+      <Tabs.Screen name="workout" options={{ tabBarIcon: ({ focused }) => <TabIcon icon={Dumbbell} label={t('tabs.workout')} focused={focused} /> }} />
+      <Tabs.Screen name="recovery" options={{ tabBarIcon: ({ focused }) => <TabIcon icon={MoonStar} label={t('tabs.recovery')} focused={focused} /> }} />
+      <Tabs.Screen name="profile" options={{ tabBarIcon: ({ focused }) => <TabIcon icon={CircleUserRound} label={t('tabs.profile')} focused={focused} /> }} />
     </Tabs>
   );
 }

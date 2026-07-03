@@ -16,6 +16,10 @@ import { useZenovaScore, computeDayScore, formatDeltaLabel } from '../../hooks/u
 import { AICoachBanner } from '../../components/ui/AICoachBanner';
 import { SparklineChart } from '../../components/ui/SparklineChart';
 import { useT } from '../../constants/i18n';
+import {
+  Icon, Footprints, Flame, MoonStar, Zap, Target, Dumbbell, Salad, Moon,
+  MessageCircle, ChevronRight, Apple, ClipboardCheck, TrendingUp,
+} from '../../components/ui/Icon';
 
 function greetingKey(): string {
   const h = new Date().getHours();
@@ -132,10 +136,10 @@ export default function HomeScreen() {
   );
 
   const stats = [
-    { icon: '👟', value: '0',                                          label: t('home.steps'),    color: colors.accent.primary, pct: 0 },
-    { icon: '🔥', value: todayCalories > 0 ? `${todayCalories}` : '0', label: t('home.calories'), color: colors.status.warning, pct: calPct },
-    { icon: '💤', value: sleepH > 0 ? `${sleepH}h` : '0h',            label: t('home.sleepStat'), color: colors.violet.primary, pct: sleepPct },
-    { icon: '⚡', value: activeMins > 0 ? `${activeMins}m` : '0m',    label: t('home.active'),   color: colors.status.success, pct: workoutTarget > 0 ? Math.min(activeMins / workoutTarget, 1) : 0 },
+    { icon: Footprints, value: '0',                                          label: t('home.steps'),    color: colors.accent.primary, pct: 0 },
+    { icon: Flame,      value: todayCalories > 0 ? `${todayCalories}` : '0', label: t('home.calories'), color: colors.status.warning, pct: calPct },
+    { icon: MoonStar,   value: sleepH > 0 ? `${sleepH}h` : '0h',            label: t('home.sleepStat'), color: colors.violet.primary, pct: sleepPct },
+    { icon: Zap,        value: activeMins > 0 ? `${activeMins}m` : '0m',    label: t('home.active'),   color: colors.status.success, pct: workoutTarget > 0 ? Math.min(activeMins / workoutTarget, 1) : 0 },
   ];
 
   return (
@@ -181,9 +185,12 @@ export default function HomeScreen() {
 
       {/* ── Daily Targets ── */}
       <View style={styles.targetsCard}>
-        <Text style={styles.targetsGoalLabel}>
-          🎯  {GOAL_LABELS[primaryGoal] ?? t('home.healthyLifestyle')}
-        </Text>
+        <View style={styles.targetsGoalRow}>
+          <Icon icon={Target} size="sm" color={colors.accent.primary} />
+          <Text style={styles.targetsGoalLabel}>
+            {GOAL_LABELS[primaryGoal] ?? t('home.healthyLifestyle')}
+          </Text>
+        </View>
         <View style={styles.targetsRow}>
           <View style={styles.targetChip}>
             <Text style={styles.targetVal}>{targets.calories.toLocaleString()}</Text>
@@ -227,40 +234,40 @@ export default function HomeScreen() {
             accessibilityRole="button"
             accessibilityLabel={t('home.openWorkoutPlan')}
           >
-            <Text style={{ fontSize: 18 }}>🏋️</Text>
+            <Icon icon={Dumbbell} size="md" color={colors.accent.primary} />
             <Text style={[styles.planRowText, { flex: 1 }]}>
               {isRestDay ? t('home.restDay') : `${workoutMeta.name} — ${workoutMeta.duration} · ${workoutMeta.intensity}`}
             </Text>
-            <Text style={{ color: colors.text.tertiary, fontSize: 18 }}>›</Text>
+            <Icon icon={ChevronRight} size="md" color={colors.text.tertiary} />
           </TouchableOpacity>
 
           {isPro ? (
             <>
               <View style={styles.planRow}>
-                <Text style={{ fontSize: 18 }}>🥗</Text>
+                <Icon icon={Salad} size="md" color={colors.status.success} />
                 <Text style={styles.planRowText}>
                   {proteinLeft > 0 ? t('home.proteinNeeded', { grams: proteinLeft }) : t('home.proteinReached')}
                 </Text>
               </View>
               <View style={styles.planRow}>
-                <Text style={{ fontSize: 18 }}>🌙</Text>
+                <Icon icon={Moon} size="md" color={colors.violet.primary} />
                 <Text style={styles.planRowText}>
                   {t('home.sleepTip', { hours: targets.sleepHours, time: targets.sleepHours >= 9 ? '9:30 PM' : targets.sleepHours >= 8.5 ? '10:00 PM' : '10:30 PM' })}
                 </Text>
               </View>
               <View style={styles.planRow}>
-                <Text style={{ fontSize: 18 }}>💬</Text>
+                <Icon icon={MessageCircle} size="md" color={colors.status.info} />
                 <Text style={styles.planRowText}>{t('home.motivation')}</Text>
               </View>
             </>
           ) : (
             <>
               <View style={styles.planRow}>
-                <Text style={{ fontSize: 18 }}>🥗</Text>
+                <Icon icon={Salad} size="md" color={colors.status.success} />
                 <View style={styles.blurBar} />
               </View>
               <View style={styles.planRow}>
-                <Text style={{ fontSize: 18 }}>🌙</Text>
+                <Icon icon={Moon} size="md" color={colors.violet.primary} />
                 <View style={styles.blurBar} />
               </View>
               <TouchableOpacity
@@ -302,9 +309,9 @@ export default function HomeScreen() {
       <Text style={styles.sectionTitle}>{t('home.quickLog')}</Text>
       <View style={styles.quickRow}>
         {[
-          { icon: '🍎', label: t('home.food'),        route: '/modals/add-food' as Href },
-          { icon: '💪', label: t('home.workoutQuick'), route: '/modals/log-workout' as Href },
-          { icon: '📊', label: t('home.checkin'),     route: '/(tabs)/recovery' as Href },
+          { icon: Apple,          label: t('home.food'),        route: '/modals/add-food' as Href },
+          { icon: Dumbbell,       label: t('home.workoutQuick'), route: '/modals/log-workout' as Href },
+          { icon: ClipboardCheck, label: t('home.checkin'),     route: '/(tabs)/recovery' as Href },
         ].map((item) => (
           <TouchableOpacity
             key={item.label}
@@ -314,7 +321,7 @@ export default function HomeScreen() {
             accessibilityRole="button"
             accessibilityLabel={t('home.logItem', { item: item.label })}
           >
-            <Text style={{ fontSize: 24 }}>{item.icon}</Text>
+            <Icon icon={item.icon} size="lg" color={colors.accent.primary} />
             <Text style={styles.quickLabel}>{item.label}</Text>
           </TouchableOpacity>
         ))}
@@ -325,7 +332,7 @@ export default function HomeScreen() {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.base }}>
         {stats.map((s) => (
           <View key={s.label} style={styles.statCard}>
-            <Text style={{ fontSize: 22 }}>{s.icon}</Text>
+            <Icon icon={s.icon} size="lg" color={s.color} />
             <Text style={[styles.statVal, { color: s.color }]}>{s.value}</Text>
             <Text style={styles.statLabel}>{s.label}</Text>
             <View style={styles.statBarBg}>
@@ -360,7 +367,7 @@ export default function HomeScreen() {
           accessibilityLabel={t('home.trendUnlockA11y')}
         >
           <View style={styles.trendLockedInner}>
-            <Text style={styles.trendLockedIcon}>📈</Text>
+            <Icon icon={TrendingUp} size="lg" color={colors.accent.primary} />
             <View>
               <Text style={styles.trendLockedTitle}>{t('home.trendCharts')}</Text>
               <Text style={styles.trendLockedSub}>{t('home.trendUpgradeSub')}</Text>
@@ -376,7 +383,7 @@ export default function HomeScreen() {
       {/* ── Streak ── */}
       <View style={styles.streakCard}>
         <View style={styles.streakLeft}>
-          <Text style={{ fontSize: 30 }}>🔥</Text>
+          <Icon icon={Flame} size={30} color={colors.status.warning} strokeWidth={2} />
           <View>
             <Text style={styles.streakNum}>{streak}</Text>
             <Text style={styles.streakLabel}>{t('home.dayStreak')}</Text>
@@ -432,7 +439,8 @@ const styles = StyleSheet.create({
   pillLock:   { fontSize: 9 },
 
   targetsCard:      { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base },
-  targetsGoalLabel: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.text.secondary, marginBottom: spacing.sm },
+  targetsGoalRow:   { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: spacing.sm },
+  targetsGoalLabel: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.text.secondary },
   targetsRow:       { flexDirection: 'row', alignItems: 'center' },
   targetChip:       { flex: 1, alignItems: 'center', gap: 2 },
   targetVal:        { fontFamily: typography.fonts.mono, fontSize: typography.sizes.md, color: colors.text.primary },
@@ -493,7 +501,6 @@ const styles = StyleSheet.create({
   trendCurrent:     { fontFamily: typography.fonts.display, fontSize: typography.sizes.sm },
   trendLocked:      { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   trendLockedInner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  trendLockedIcon:  { fontSize: 22 },
   trendLockedTitle: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.primary },
   trendLockedSub:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 2 },
   trendLockedCta:   { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.accent.primary },

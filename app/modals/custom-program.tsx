@@ -10,6 +10,7 @@ import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { useT } from '../../constants/i18n';
+import { Icon, workoutIcon, ChevronRight, X, Check, Plus } from '../../components/ui/Icon';
 
 // ─── Exercise Library ─────────────────────────────────────────
 
@@ -194,7 +195,7 @@ export default function CustomProgramModal() {
                     <Text style={styles.countText}>{count}</Text>
                   </View>
                 )}
-                <Text style={styles.arrow}>›</Text>
+                <Icon icon={ChevronRight} size="md" color={colors.text.tertiary} />
               </View>
             </TouchableOpacity>
           );
@@ -278,7 +279,7 @@ function DayEditor({ dayIndex, dayLabel, onBack }: {
                   <Text style={styles.currentMeta}>{t('customProgram.setsReps', { sets: ex.sets, reps: ex.reps, muscle: ex.muscle })}</Text>
                 </View>
                 <TouchableOpacity onPress={() => remove(ex.name)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('customProgram.removeA11y', { name: ex.name })}>
-                  <Text style={styles.removeBtn}>✕</Text>
+                  <Icon icon={X} size="sm" color={colors.text.tertiary} />
                 </TouchableOpacity>
               </View>
             ))}
@@ -298,7 +299,7 @@ function DayEditor({ dayIndex, dayLabel, onBack }: {
               accessibilityState={{ selected: activeGroup === g.id }}
               accessibilityLabel={t('customProgram.groupA11y', { group: t(g.labelKey) })}
             >
-              <Text style={{ fontSize: 14 }}>{g.icon}</Text>
+              <Icon icon={workoutIcon(g.icon)} size="sm" color={colors.accent.primary} />
               <Text style={[styles.groupTabLabel, activeGroup === g.id && styles.groupTabLabelActive]}>
                 {t(g.labelKey)}
               </Text>
@@ -330,9 +331,12 @@ function DayEditor({ dayIndex, dayLabel, onBack }: {
                   accessibilityState={{ disabled: added }}
                   accessibilityLabel={added ? t('customProgram.alreadyAdded', { name: ex.name }) : t('customProgram.addExerciseA11y', { name: ex.name, sets: ex.sets, reps: ex.reps })}
                 >
-                  <Text style={[styles.addBtnText, added && styles.addBtnTextDone]}>
-                    {added ? '✓' : '+'}
-                  </Text>
+                  <Icon
+                    icon={added ? Check : Plus}
+                    size="sm"
+                    color={added ? colors.status.success : colors.accent.primary}
+                    strokeWidth={2.5}
+                  />
                 </TouchableOpacity>
               </View>
             );
@@ -366,7 +370,6 @@ const styles = StyleSheet.create({
   dayRight:      { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   countBadge:    { backgroundColor: colors.accent.dim, borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 2 },
   countText:     { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.accent.primary },
-  arrow:         { fontFamily: typography.fonts.body, fontSize: typography.sizes.xl, color: colors.text.tertiary },
 
   cancelBtn:   { paddingVertical: spacing.base, alignItems: 'center' },
   cancelText:  { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.base, color: colors.text.secondary },
@@ -384,7 +387,6 @@ const styles = StyleSheet.create({
   currentInfo: { flex: 1 },
   currentName: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.base, color: colors.text.primary },
   currentMeta: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 2 },
-  removeBtn:   { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.base, color: colors.status.danger, paddingHorizontal: 6 },
 
   groupTabsScroll: { marginBottom: spacing.sm },
   groupTabs:       { flexDirection: 'row', gap: spacing.xs, paddingBottom: 2 },
@@ -400,6 +402,4 @@ const styles = StyleSheet.create({
   libMeta:     { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 2 },
   addBtn:      { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.accent.primary, alignItems: 'center', justifyContent: 'center' },
   addBtnDone:  { backgroundColor: colors.status.success },
-  addBtnText:     { fontFamily: typography.fonts.display, fontSize: typography.sizes.base, color: colors.text.inverse },
-  addBtnTextDone: { fontFamily: typography.fonts.display, fontSize: typography.sizes.sm, color: colors.text.inverse },
 });

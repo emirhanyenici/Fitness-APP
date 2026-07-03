@@ -12,13 +12,17 @@ import { spacing, radius } from '../../constants/spacing';
 import { AICoachBanner } from '../../components/ui/AICoachBanner';
 import { useAnalytics } from '../../services/analytics';
 import { useT } from '../../constants/i18n';
+import {
+  Icon, IconComponent, MoonStar, Moon, HeartPulse, Frown, Smile, Battery, Zap,
+  Leaf, Angry,
+} from '../../components/ui/Icon';
 
 type RatingKey = 'mood' | 'energy' | 'stress';
 
-const METRICS: { key: RatingKey; labelKey: string; low: string; high: string; color: string }[] = [
-  { key: 'mood',   labelKey: 'recovery.mood',   low: '😞', high: '😄', color: colors.status.warning },
-  { key: 'energy', labelKey: 'recovery.energy', low: '😴', high: '⚡', color: colors.accent.primary },
-  { key: 'stress', labelKey: 'recovery.stress', low: '😌', high: '😤', color: colors.status.danger },
+const METRICS: { key: RatingKey; labelKey: string; low: IconComponent; high: IconComponent; color: string }[] = [
+  { key: 'mood',   labelKey: 'recovery.mood',   low: Frown,   high: Smile, color: colors.status.warning },
+  { key: 'energy', labelKey: 'recovery.energy', low: Battery, high: Zap,   color: colors.accent.primary },
+  { key: 'stress', labelKey: 'recovery.stress', low: Leaf,    high: Angry, color: colors.status.danger },
 ];
 
 export default function RecoveryScreen() {
@@ -72,7 +76,7 @@ export default function RecoveryScreen() {
       {/* ── Sleep Card (no sensor connected) ── */}
       <View style={styles.sleepCard}>
         <View style={styles.sleepNoDataRow}>
-          <Text style={{ fontSize: 32 }}>💤</Text>
+          <Icon icon={MoonStar} size={32} color={colors.violet.primary} strokeWidth={1.5} />
           <View style={{ flex: 1 }}>
             <Text style={styles.sleepNoDataTitle}>{t('recovery.sleepTracking')}</Text>
             <Text style={styles.sleepNoDataSub}>{t('recovery.connectHealthSub', { app: HEALTH_APP })}</Text>
@@ -114,9 +118,9 @@ export default function RecoveryScreen() {
           {METRICS.map((m) => (
             <View key={m.key} style={styles.metricRow}>
               <View style={styles.metricMeta}>
-                <Text style={styles.metricLow}>{m.low}</Text>
+                <Icon icon={m.low} size="sm" color={colors.text.tertiary} />
                 <Text style={styles.metricLabel}>{t(m.labelKey)}</Text>
-                <Text style={styles.metricHigh}>{m.high}</Text>
+                <Icon icon={m.high} size="sm" color={m.color} />
               </View>
               <View style={styles.ratingRow}>
                 <Text style={styles.ratingScaleNum}>1</Text>
@@ -151,7 +155,7 @@ export default function RecoveryScreen() {
         {/* Sleep duration input */}
         <View style={styles.sleepInputWrap}>
           <View style={styles.sleepInputRow}>
-            <Text style={styles.sleepInputIcon}>🌙</Text>
+            <Icon icon={Moon} size="md" color={colors.violet.primary} />
             <View style={{ flex: 1 }}>
               <Text style={styles.sleepInputLabel}>{t('recovery.lastNightSleep')}</Text>
               <Text style={styles.sleepInputSub}>{t('recovery.sleepOptional')}</Text>
@@ -231,7 +235,7 @@ export default function RecoveryScreen() {
         return (
           <View style={styles.recoveryCard}>
             <View style={styles.recoveryLeft}>
-              <Text style={{ fontSize: 28 }}>🧘</Text>
+              <Icon icon={HeartPulse} size={28} color={colors.accent.primary} strokeWidth={1.5} />
               <View>
                 <Text style={styles.recoveryTitle}>{t('recovery.recoveryScore')}</Text>
                 <Text style={styles.recoverySub}>{subLabel}</Text>
@@ -283,9 +287,7 @@ const styles = StyleSheet.create({
   metricsWrap: { gap: spacing.xl },
   metricRow:   { gap: spacing.sm },
   metricMeta:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  metricLow:   { fontSize: 16 },
   metricLabel: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.secondary },
-  metricHigh:  { fontSize: 16 },
   ratingRow:       { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   ratingScaleNum:  { fontFamily: typography.fonts.mono, fontSize: typography.sizes.xs, color: colors.text.tertiary, width: 14, textAlign: 'center' },
   ratingDots:      { flex: 1, flexDirection: 'row', gap: spacing.sm },
@@ -293,7 +295,6 @@ const styles = StyleSheet.create({
 
   sleepInputWrap:  { marginTop: spacing.xl, backgroundColor: colors.bg.tertiary, borderRadius: radius.lg, padding: spacing.base },
   sleepInputRow:   { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  sleepInputIcon:  { fontSize: 22 },
   sleepInputLabel: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.primary },
   sleepInputSub:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 2 },
   sleepInputField: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: colors.accent.primary + '40', borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: 6, gap: 4 },

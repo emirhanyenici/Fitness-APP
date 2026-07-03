@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
+import { Icon, Sparkles, ChevronRight } from './Icon';
 
 interface Props {
   subtitle: string;
@@ -18,14 +19,14 @@ export function AICoachBanner({ subtitle, style }: Props) {
     >
       <View style={styles.left}>
         <View style={styles.icon}>
-          <Text style={{ fontSize: 18 }}>✦</Text>
+          <Icon icon={Sparkles} size="md" color={colors.accent.primary} />
         </View>
         <View>
           <Text style={styles.title}>AI Coach</Text>
           <Text style={styles.sub}>{subtitle}</Text>
         </View>
       </View>
-      <Text style={styles.arrow}>›</Text>
+      <Icon icon={ChevronRight} size="md" color={colors.accent.primary} />
     </TouchableOpacity>
   );
 }
@@ -46,5 +47,4 @@ const styles = StyleSheet.create({
   icon:  { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.accent.primary + '20', alignItems: 'center', justifyContent: 'center' },
   title: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.accent.primary },
   sub:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.accent.primary + 'BB', marginTop: 1 },
-  arrow: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xl, color: colors.accent.primary },
 });

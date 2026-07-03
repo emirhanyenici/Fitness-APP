@@ -5,20 +5,23 @@ import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { useT } from '../../constants/i18n';
+import {
+  Icon, IconComponent, Dumbbell, UtensilsCrossed, Flame, Moon, ArrowLeft, Timer,
+} from '../../components/ui/Icon';
 
 type NotifKey = 'notif_workout' | 'notif_calorie' | 'notif_streak' | 'notif_sleep';
 
 const NOTIF_ROWS: {
   key: NotifKey;
-  icon: string;
+  icon: IconComponent;
   labelKey: string;
   subKey: string;
   time: string;
 }[] = [
-  { key: 'notif_workout', icon: '🏋️', labelKey: 'notifications.workoutLabel', subKey: 'notifications.workoutSub', time: '09:00 AM' },
-  { key: 'notif_calorie', icon: '🍽️', labelKey: 'notifications.calorieLabel', subKey: 'notifications.calorieSub', time: '07:00 PM' },
-  { key: 'notif_streak',  icon: '🔥', labelKey: 'notifications.streakLabel',  subKey: 'notifications.streakSub',  time: '08:00 PM' },
-  { key: 'notif_sleep',   icon: '🌙', labelKey: 'notifications.sleepLabel',   subKey: 'notifications.sleepSub',   time: '10:00 PM' },
+  { key: 'notif_workout', icon: Dumbbell,        labelKey: 'notifications.workoutLabel', subKey: 'notifications.workoutSub', time: '09:00 AM' },
+  { key: 'notif_calorie', icon: UtensilsCrossed, labelKey: 'notifications.calorieLabel', subKey: 'notifications.calorieSub', time: '07:00 PM' },
+  { key: 'notif_streak',  icon: Flame,           labelKey: 'notifications.streakLabel',  subKey: 'notifications.streakSub',  time: '08:00 PM' },
+  { key: 'notif_sleep',   icon: Moon,            labelKey: 'notifications.sleepLabel',   subKey: 'notifications.sleepSub',   time: '10:00 PM' },
 ];
 
 export default function NotificationsModal() {
@@ -32,7 +35,7 @@ export default function NotificationsModal() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={10} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t('notifications.goBack')}>
-          <Text style={styles.back}>←</Text>
+          <Icon icon={ArrowLeft} size="lg" color={colors.text.primary} />
         </TouchableOpacity>
         <Text style={styles.title}>{t('notifications.title')}</Text>
         <View style={{ width: 32 }} />
@@ -51,14 +54,17 @@ export default function NotificationsModal() {
               style={[styles.row, i === NOTIF_ROWS.length - 1 && { borderBottomWidth: 0 }]}
             >
               <View style={styles.iconWrap}>
-                <Text style={{ fontSize: 20 }}>{row.icon}</Text>
+                <Icon icon={row.icon} size="md" color={colors.accent.primary} />
               </View>
               <View style={styles.rowMid}>
                 <Text style={styles.rowLabel}>{t(row.labelKey)}</Text>
                 <Text style={styles.rowSub}>{t(row.subKey)}</Text>
                 {enabled && (
                   <View style={styles.timeBadge}>
-                    <Text style={styles.timeText}>⏰  {row.time}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Icon icon={Timer} size={12} color={colors.accent.primary} />
+                      <Text style={styles.timeText}>{row.time}</Text>
+                    </View>
                   </View>
                 )}
               </View>
@@ -92,7 +98,6 @@ const styles = StyleSheet.create({
   content: { padding: spacing.base },
 
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 52, marginBottom: spacing.xl },
-  back:   { fontSize: 24, color: colors.text.primary, width: 32 },
   title:  { fontFamily: typography.fonts.display, fontSize: typography.sizes.xl, color: colors.text.primary },
 
   sectionSub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, lineHeight: 20, marginBottom: spacing.base },

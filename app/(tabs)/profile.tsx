@@ -14,6 +14,10 @@ import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { MEDICAL_DISCLAIMER } from '../../constants/legal';
 import { isValidHeightCm, isValidWeightKg } from '../../services/recommendations';
+import {
+  Icon, Bell, ChartColumn, Heart, CreditCard, Stethoscope, Lock, FileText,
+  Ruler, Globe, ChevronRight, CircleUserRound, Pencil,
+} from '../../components/ui/Icon';
 import { useT } from '../../constants/i18n';
 import { useLocaleStore } from '../../stores/localeStore';
 
@@ -41,13 +45,13 @@ export default function ProfileScreen() {
   const setLang = useLocaleStore((s) => s.setLang);
 
   const SETTINGS = [
-    { icon: '🔔', label: t('profile.notifications'), sub: '',                                                        action: 'notifications', pro: false },
-    { icon: '📊', label: t('profile.weeklyReport'),  sub: isPro ? t('profile.aiPowered') : '',                       action: 'weeklyReport',  pro: !isPro },
-    { icon: '❤️', label: HEALTH_APP,                  sub: t('profile.connect'),                                      action: 'health',        pro: false },
-    { icon: '💳', label: t('profile.subscription'),  sub: plan === 'free' ? t('profile.freePlan') : plan.toUpperCase(), action: 'subscription', pro: false },
-    { icon: '⚕️', label: t('profile.healthDisclaimer'), sub: t('profile.notMedicalAdvice'),                          action: 'disclaimer',    pro: false },
-    { icon: '🔒', label: t('profile.privacyPolicy'), sub: '',                                                        action: 'privacy',       pro: false },
-    { icon: '📄', label: t('profile.termsOfService'), sub: '',                                                       action: 'terms',         pro: false },
+    { icon: Bell,        label: t('profile.notifications'), sub: '',                                                        action: 'notifications', pro: false },
+    { icon: ChartColumn, label: t('profile.weeklyReport'),  sub: isPro ? t('profile.aiPowered') : '',                       action: 'weeklyReport',  pro: !isPro },
+    { icon: Heart,       label: HEALTH_APP,                  sub: t('profile.connect'),                                      action: 'health',        pro: false },
+    { icon: CreditCard,  label: t('profile.subscription'),  sub: plan === 'free' ? t('profile.freePlan') : plan.toUpperCase(), action: 'subscription', pro: false },
+    { icon: Stethoscope, label: t('profile.healthDisclaimer'), sub: t('profile.notMedicalAdvice'),                          action: 'disclaimer',    pro: false },
+    { icon: Lock,        label: t('profile.privacyPolicy'), sub: '',                                                        action: 'privacy',       pro: false },
+    { icon: FileText,    label: t('profile.termsOfService'), sub: '',                                                       action: 'terms',         pro: false },
   ];
 
   const { score, scoreColor, delta, deltaColor } = useZenovaScore();
@@ -176,7 +180,7 @@ export default function ProfileScreen() {
             <View style={styles.avatar}>
               {profile?.avatar
                 ? <Image source={{ uri: profile.avatar }} style={styles.avatarImage} />
-                : <Text style={{ fontSize: 32 }}>👤</Text>}
+                : <Icon icon={CircleUserRound} size={32} color={colors.accent.primary} />}
             </View>
             <TouchableOpacity
               style={styles.editBadge}
@@ -200,7 +204,7 @@ export default function ProfileScreen() {
                 }
               }}
             >
-              <Text style={{ fontSize: 12 }}>✏️</Text>
+              <Icon icon={Pencil} size={12} color={colors.bg.secondary} strokeWidth={2} />
             </TouchableOpacity>
           </View>
 
@@ -343,7 +347,7 @@ export default function ProfileScreen() {
             {/* Units toggle row */}
             <View style={styles.settingRow}>
               <View style={styles.settingLeft}>
-                <Text style={{ fontSize: 18 }}>📏</Text>
+                <Icon icon={Ruler} size="md" color={colors.text.secondary} />
                 <View>
                   <Text style={styles.settingLabel}>{t('profile.units')}</Text>
                   <Text style={styles.settingSubSmall}>{units === 'imperial' ? t('profile.unitsImperial') : t('profile.unitsMetric')}</Text>
@@ -363,7 +367,7 @@ export default function ProfileScreen() {
             {/* Language toggle row */}
             <View style={styles.settingRow}>
               <View style={styles.settingLeft}>
-                <Text style={{ fontSize: 18 }}>🌐</Text>
+                <Icon icon={Globe} size="md" color={colors.text.secondary} />
                 <View>
                   <Text style={styles.settingLabel}>{t('profile.language')}</Text>
                   <Text style={styles.settingSubSmall}>{lang === 'tr' ? t('profile.languageTurkish') : t('profile.languageEnglish')}</Text>
@@ -391,7 +395,7 @@ export default function ProfileScreen() {
                 accessibilityLabel={`${item.label}${item.pro ? ', Pro feature' : ''}`}
               >
                 <View style={styles.settingLeft}>
-                  <Text style={{ fontSize: 18 }}>{item.icon}</Text>
+                  <Icon icon={item.icon} size="md" color={colors.text.secondary} />
                   <Text style={styles.settingLabel}>{item.label}</Text>
                 </View>
                 <View style={styles.settingRight}>
@@ -399,7 +403,7 @@ export default function ProfileScreen() {
                     <View style={styles.proTag}><Text style={styles.proTagText}>PRO</Text></View>
                   )}
                   {item.sub ? <Text style={styles.settingSub}>{item.sub}</Text> : null}
-                  <Text style={styles.chevron}>›</Text>
+                  <Icon icon={ChevronRight} size="sm" color={colors.text.tertiary} />
                 </View>
               </TouchableOpacity>
             ))}
@@ -491,7 +495,6 @@ const styles = StyleSheet.create({
   settingRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   settingSub:     { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.tertiary },
   settingSubSmall: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 1 },
-  chevron:      { fontFamily: typography.fonts.body, fontSize: typography.sizes.lg, color: colors.text.tertiary },
   proTag:       { backgroundColor: colors.accent.dim, borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 2 },
   proTagText:   { fontFamily: typography.fonts.bodyMed, fontSize: 10, color: colors.accent.primary },
 

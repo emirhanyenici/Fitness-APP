@@ -9,6 +9,7 @@ import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { useT } from '../../constants/i18n';
+import { Icon, Dumbbell, X, Target, MapPin, Wrench } from '../../components/ui/Icon';
 
 export default function ExerciseDemoModal() {
   const { name, muscle } = useLocalSearchParams<{ name: string; muscle?: string }>();
@@ -36,7 +37,7 @@ export default function ExerciseDemoModal() {
       {/* ── Header ── */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <View style={styles.badge}><Text style={styles.badgeText}>💪</Text></View>
+          <View style={styles.badge}><Icon icon={Dumbbell} size="md" color={colors.accent.primary} /></View>
           <View>
             <Text style={styles.title} numberOfLines={1}>{name}</Text>
             {muscle ? <Text style={styles.sub}>{muscle}</Text> : null}
@@ -48,7 +49,7 @@ export default function ExerciseDemoModal() {
           accessibilityRole="button"
           accessibilityLabel={t('exerciseDemo.close')}
         >
-          <Text style={styles.closeBtn}>✕</Text>
+          <Icon icon={X} size="md" color={colors.text.secondary} />
         </TouchableOpacity>
       </View>
 
@@ -73,7 +74,7 @@ export default function ExerciseDemoModal() {
             />
           ) : (
             <View style={styles.gifPlaceholder}>
-              <Text style={{ fontSize: 48 }}>🏋️</Text>
+              <Icon icon={Dumbbell} size={48} color={colors.text.tertiary} strokeWidth={1.5} />
               <Text style={styles.noGifText}>{t('exerciseDemo.noDemo')}</Text>
               <Text style={styles.noGifSub}>{t('exerciseDemo.watchYoutubeInstead')}</Text>
             </View>
@@ -85,17 +86,20 @@ export default function ExerciseDemoModal() {
           <View style={styles.metaRow}>
             {demo.bodyPart ? (
               <View style={styles.metaChip}>
-                <Text style={styles.metaChipText}>📍 {demo.bodyPart}</Text>
+                <Icon icon={MapPin} size={12} color={colors.text.secondary} />
+                <Text style={styles.metaChipText}>{demo.bodyPart}</Text>
               </View>
             ) : null}
             {demo.target ? (
               <View style={styles.metaChip}>
-                <Text style={styles.metaChipText}>🎯 {demo.target}</Text>
+                <Icon icon={Target} size={12} color={colors.text.secondary} />
+                <Text style={styles.metaChipText}>{demo.target}</Text>
               </View>
             ) : null}
             {demo.equipment ? (
               <View style={styles.metaChip}>
-                <Text style={styles.metaChipText}>🔧 {demo.equipment}</Text>
+                <Icon icon={Wrench} size={12} color={colors.text.secondary} />
+                <Text style={styles.metaChipText}>{demo.equipment}</Text>
               </View>
             ) : null}
           </View>
@@ -142,7 +146,6 @@ const styles = StyleSheet.create({
   header:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.base, paddingTop: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.border.subtle, backgroundColor: colors.bg.secondary },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1, marginRight: spacing.sm },
   badge:      { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.accent.dim, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  badgeText:  { fontSize: 20 },
   title:      { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.primary },
   sub:        { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 2 },
   closeBtn:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.base, color: colors.text.secondary },
@@ -157,7 +160,7 @@ const styles = StyleSheet.create({
   noGifSub:      { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary },
 
   metaRow:      { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  metaChip:     { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 6 },
+  metaChip:     { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 6 },
   metaChipText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.text.secondary },
 
   section:         { gap: spacing.sm },

@@ -17,6 +17,7 @@ import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { supabase } from '../../services/supabase';
 import { useT } from '../../constants/i18n';
+import { Icon, ChartColumn, X } from '../../components/ui/Icon';
 
 const EDGE_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/ai-coach`;
 
@@ -146,14 +147,14 @@ Keep it motivating, honest, and specific to their numbers. Be brief and direct.`
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <View style={styles.iconBadge}><Text style={{ fontSize: 18 }}>📊</Text></View>
+          <View style={styles.iconBadge}><Icon icon={ChartColumn} size="md" color={colors.accent.primary} /></View>
           <View>
             <Text style={styles.title}>{t('weeklyReport.title')}</Text>
             <Text style={styles.sub}>{t('weeklyReport.subtitle')}</Text>
           </View>
         </View>
         <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} accessibilityRole="button" accessibilityLabel={t('weeklyReport.closeA11y')}>
-          <Text style={styles.closeBtn}>✕</Text>
+          <Icon icon={X} size="md" color={colors.text.secondary} />
         </TouchableOpacity>
       </View>
 
@@ -223,7 +224,6 @@ const styles = StyleSheet.create({
   iconBadge:  { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.accent.dim, alignItems: 'center', justifyContent: 'center' },
   title:      { fontFamily: typography.fonts.heading, fontSize: typography.sizes.md, color: colors.text.primary },
   sub:        { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 2 },
-  closeBtn:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.base, color: colors.text.secondary },
 
   sectionTitle: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.primary, marginBottom: spacing.sm },
 

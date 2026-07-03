@@ -9,6 +9,7 @@ import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { useT } from '../../constants/i18n';
+import { Icon, workoutIcon, NotebookPen, Bed, ChevronRight } from '../../components/ui/Icon';
 
 export default function LogWorkoutModal() {
   const t = useT();
@@ -62,7 +63,7 @@ export default function LogWorkoutModal() {
               accessibilityLabel={t('logWorkout.programA11y', { name: p.name, rec: isRecommended ? t('logWorkout.recSuffix') : '', cur: isCurrent ? t('logWorkout.curSuffix') : '', sub: p.sub, min: p.minDays, max: p.maxDays })}
             >
               <View style={[styles.rowIcon, isRecommended && styles.rowIconRecommended]}>
-                <Text style={{ fontSize: 26 }}>{p.icon}</Text>
+                <Icon icon={workoutIcon(p.icon)} size="lg" color={colors.accent.primary} />
               </View>
               <View style={styles.rowInfo}>
                 <View style={styles.rowLabelRow}>
@@ -81,7 +82,7 @@ export default function LogWorkoutModal() {
                 <Text style={styles.rowSub}>{p.sub}</Text>
                 <Text style={styles.rowDays}>{t('logWorkout.daysPerWeek', { min: p.minDays, max: p.maxDays })}</Text>
               </View>
-              <Text style={styles.rowArrow}>›</Text>
+              <Icon icon={ChevronRight} size="md" color={colors.text.tertiary} />
             </TouchableOpacity>
           );
         })}
@@ -101,7 +102,7 @@ export default function LogWorkoutModal() {
           }}
         >
           <View style={styles.rowIcon}>
-            <Text style={{ fontSize: 26 }}>✏️</Text>
+            <Icon icon={NotebookPen} size="lg" color={colors.accent.primary} />
           </View>
           <View style={styles.rowInfo}>
             <View style={styles.rowLabelRow}>
@@ -125,7 +126,7 @@ export default function LogWorkoutModal() {
               <Text style={styles.editCustomText}>{t('logWorkout.edit')}</Text>
             </TouchableOpacity>
           ) : (
-            <Text style={styles.rowArrow}>›</Text>
+            <Icon icon={ChevronRight} size="md" color={colors.text.tertiary} />
           )}
         </TouchableOpacity>
 
@@ -138,13 +139,13 @@ export default function LogWorkoutModal() {
           onPress={() => { setSelectedType('rest'); setSelectedProgram(null); router.back(); }}
         >
           <View style={styles.rowIcon}>
-            <Text style={{ fontSize: 26 }}>😴</Text>
+            <Icon icon={Bed} size="lg" color={colors.violet.primary} />
           </View>
           <View style={styles.rowInfo}>
             <Text style={styles.rowLabel}>{t('logWorkout.restDay')}</Text>
             <Text style={styles.rowSub}>{t('logWorkout.restDaySub')}</Text>
           </View>
-          <Text style={styles.rowArrow}>›</Text>
+          <Icon icon={ChevronRight} size="md" color={colors.text.tertiary} />
         </TouchableOpacity>
       </ScrollView>
       <TouchableOpacity style={styles.cancelBtn} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={t('logWorkout.cancelClose')}>
@@ -172,7 +173,6 @@ const styles = StyleSheet.create({
   rowLabel: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.primary },
   rowSub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 2 },
   rowDays: { fontFamily: typography.fonts.mono, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 3 },
-  rowArrow: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xl, color: colors.text.tertiary },
 
   recBadge: { backgroundColor: colors.accent.primary + '20', borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 2 },
   recBadgeText: { fontFamily: typography.fonts.bodyMed, fontSize: 10, color: colors.accent.primary },

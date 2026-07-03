@@ -14,6 +14,7 @@ import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { useT } from '../../constants/i18n';
+import { Icon, Search, ScanBarcode, Keyboard, Camera, ImageIcon } from '../../components/ui/Icon';
 
 type Screen = 'home' | 'search' | 'manual' | 'barcode' | 'snap';
 
@@ -52,10 +53,10 @@ export default function AddFoodModal() {
 
       <View style={styles.grid}>
         {[
-          { icon: '🔍', label: t('addFood.searchDatabase'), sub: t('addFood.searchDatabaseSub'), pro: false, sc: 'search'  as Screen },
-          { icon: '📦', label: t('addFood.scanBarcode'),    sub: t('addFood.scanBarcodeSub'),    pro: false, sc: 'barcode' as Screen },
-          { icon: '✏️', label: t('addFood.enterManually'),  sub: t('addFood.enterManuallySub'),  pro: false, sc: 'manual'  as Screen },
-          { icon: '📷', label: t('addFood.snapPhoto'),      sub: t('addFood.snapPhotoSub'),      pro: true,  sc: 'snap'    as Screen },
+          { icon: Search,      label: t('addFood.searchDatabase'), sub: t('addFood.searchDatabaseSub'), pro: false, sc: 'search'  as Screen },
+          { icon: ScanBarcode, label: t('addFood.scanBarcode'),    sub: t('addFood.scanBarcodeSub'),    pro: false, sc: 'barcode' as Screen },
+          { icon: Keyboard,    label: t('addFood.enterManually'),  sub: t('addFood.enterManuallySub'),  pro: false, sc: 'manual'  as Screen },
+          { icon: Camera,      label: t('addFood.snapPhoto'),      sub: t('addFood.snapPhotoSub'),      pro: true,  sc: 'snap'    as Screen },
         ].map((opt) => (
           <TouchableOpacity
             key={opt.label}
@@ -68,7 +69,7 @@ export default function AddFoodModal() {
               if (opt.sc) setScreen(opt.sc);
             }}
           >
-            <Text style={styles.cardIcon}>{opt.icon}</Text>
+            <Icon icon={opt.icon} size="lg" color={colors.accent.primary} />
             <Text style={styles.cardLabel}>{opt.label}</Text>
             <Text style={styles.cardSub}>{opt.sub}</Text>
             {opt.pro && (
@@ -591,11 +592,11 @@ function SnapScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBack
       {!imageUri && (
         <View style={styles.snapPickRow}>
           <TouchableOpacity style={styles.snapPickBtn} onPress={() => pickImage(true)} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t('addFood.takePhotoA11y')}>
-            <Text style={{ fontSize: 28 }}>📷</Text>
+            <Icon icon={Camera} size={28} color={colors.accent.primary} strokeWidth={1.5} />
             <Text style={styles.snapPickLabel}>{t('addFood.takePhoto')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.snapPickBtn} onPress={() => pickImage(false)} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t('addFood.fromLibraryA11y')}>
-            <Text style={{ fontSize: 28 }}>🖼️</Text>
+            <Icon icon={ImageIcon} size={28} color={colors.accent.primary} strokeWidth={1.5} />
             <Text style={styles.snapPickLabel}>{t('addFood.fromLibrary')}</Text>
           </TouchableOpacity>
         </View>
@@ -685,7 +686,6 @@ const styles = StyleSheet.create({
 
   grid:      { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   card:      { width: '48%', backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.xl, alignItems: 'center', gap: spacing.xs },
-  cardIcon:  { fontSize: 32, marginBottom: spacing.xs },
   cardLabel: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.primary, textAlign: 'center' },
   cardSub:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, textAlign: 'center' },
   proBadge:  { backgroundColor: colors.accent.dim, borderRadius: radius.full, paddingHorizontal: 10, paddingVertical: 3, marginTop: spacing.xs },

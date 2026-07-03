@@ -17,6 +17,10 @@ import { useAnalytics } from '../../services/analytics';
 import { AICoachBanner } from '../../components/ui/AICoachBanner';
 import { useCustomProgramStore } from '../../stores/customProgramStore';
 import { useT } from '../../constants/i18n';
+import {
+  Icon, workoutIcon, X, NotebookPen, Bed, Sparkles, Timer, Flame, Dumbbell,
+  Check, ChevronRight,
+} from '../../components/ui/Icon';
 
 function formatWorkoutDate(dateStr: string): string {
   const today = todayStr();
@@ -263,7 +267,7 @@ export default function WorkoutScreen() {
               accessibilityRole="button"
               accessibilityLabel={t('workout.dismissAiPlan')}
             >
-              <Text style={styles.aiClose}>✕</Text>
+              <Icon icon={X} size="sm" color={colors.text.tertiary} />
             </TouchableOpacity>
           </View>
           <Text style={styles.aiSuggestText}>{todayAISuggestion.text}</Text>
@@ -273,7 +277,7 @@ export default function WorkoutScreen() {
       {/* ── Custom Program Empty State ── */}
       {programType === 'custom' && exercises.length === 0 && !isRestDay && (
         <View style={styles.restCard}>
-          <Text style={{ fontSize: 48 }}>✏️</Text>
+          <Icon icon={NotebookPen} size={48} color={colors.accent.primary} strokeWidth={1.5} />
           <Text style={styles.restTitle}>{t('workout.customProgram')}</Text>
           <Text style={styles.restSub}>{t('workout.customEmpty', { day: DAY_SHORT[dayOfWeek] })}</Text>
           <TouchableOpacity
@@ -291,7 +295,7 @@ export default function WorkoutScreen() {
       {/* ── Rest Day ── */}
       {isRestDay ? (
         <View style={styles.restCard}>
-          <Text style={{ fontSize: 48 }}>😴</Text>
+          <Icon icon={Bed} size={48} color={colors.violet.primary} strokeWidth={1.5} />
           <Text style={styles.restTitle}>{t('workout.restDay')}</Text>
           <Text style={styles.restSub}>{t('workout.restDaySub')}</Text>
           <TouchableOpacity
@@ -308,8 +312,9 @@ export default function WorkoutScreen() {
         /* ── Today's Plan ── */
         <View style={styles.aiCard}>
           <View style={styles.aiCardTop}>
-            <View style={styles.aiBadge}>
-              <Text style={styles.aiBadgeText}>✦ {todayPlan.dayLabel}</Text>
+            <View style={[styles.aiBadge, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+              <Icon icon={Sparkles} size={12} color={colors.accent.primary} />
+              <Text style={styles.aiBadgeText}>{todayPlan.dayLabel}</Text>
             </View>
             {isPro && <Text style={styles.proTag}>PRO</Text>}
           </View>
@@ -317,9 +322,9 @@ export default function WorkoutScreen() {
           <Text style={styles.workoutName}>{todayPlan.muscleGroup}</Text>
 
           <View style={styles.metaRow}>
-            <View style={styles.metaChip}><Text style={styles.metaText}>⏱ {todayPlan.duration}</Text></View>
-            <View style={styles.metaChip}><Text style={styles.metaText}>🔥 {todayPlan.intensity}</Text></View>
-            <View style={styles.metaChip}><Text style={styles.metaText}>💪 {t('workout.exercisesCount', { n: exercises.length })}</Text></View>
+            <View style={styles.metaChip}><Icon icon={Timer} size="sm" color={colors.text.secondary} /><Text style={styles.metaText}>{todayPlan.duration}</Text></View>
+            <View style={styles.metaChip}><Icon icon={Flame} size="sm" color={colors.text.secondary} /><Text style={styles.metaText}>{todayPlan.intensity}</Text></View>
+            <View style={styles.metaChip}><Icon icon={Dumbbell} size="sm" color={colors.text.secondary} /><Text style={styles.metaText}>{t('workout.exercisesCount', { n: exercises.length })}</Text></View>
           </View>
 
           <View style={styles.exerciseList}>
@@ -347,7 +352,7 @@ export default function WorkoutScreen() {
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
                     <View style={[styles.exCheck, done && styles.exCheckDone]}>
-                      {done && <Text style={{ fontSize: 10, color: colors.text.inverse }}>✓</Text>}
+                      {done && <Icon icon={Check} size={12} color={colors.text.inverse} strokeWidth={3} />}
                     </View>
                   </TouchableOpacity>
 
@@ -380,7 +385,7 @@ export default function WorkoutScreen() {
                     {/* Weight row — only when workout is started and not bodyweight */}
                     {started && !isBodywt && (
                       <View style={styles.weightRow}>
-                        <Text style={styles.weightIcon}>🏋️</Text>
+                        <Icon icon={Dumbbell} size="sm" color={colors.text.secondary} />
                         <TextInput
                           style={styles.weightInput}
                           value={weights[ex.name] ?? ''}
@@ -399,7 +404,10 @@ export default function WorkoutScreen() {
                           accessibilityRole="button"
                           accessibilityLabel={t('workout.useAiWeight', { name: ex.name })}
                         >
-                          <Text style={styles.aiWeightBtnText}>✦ AI</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                            <Icon icon={Sparkles} size={11} color={colors.accent.primary} />
+                            <Text style={styles.aiWeightBtnText}>AI</Text>
+                          </View>
                         </TouchableOpacity>
                         {lastW !== null && (
                           <View style={styles.prBadge}>
@@ -431,7 +439,7 @@ export default function WorkoutScreen() {
         accessibilityLabel={t('workout.switchProgram')}
       >
         <Text style={styles.logDiffText}>{t('workout.switchProgram')}</Text>
-        <Text style={styles.logDiffArrow}>›</Text>
+        <Icon icon={ChevronRight} size="sm" color={colors.text.tertiary} />
       </TouchableOpacity>
 
       {/* ── Recent Workouts ── */}
@@ -442,7 +450,7 @@ export default function WorkoutScreen() {
             const weightEntries = Object.entries(w.exerciseWeights ?? {}).filter(([, kg]) => kg > 0);
             return (
               <View key={w.id} style={styles.recentRow}>
-                <View style={styles.recentIcon}><Text style={{ fontSize: 22 }}>{w.icon}</Text></View>
+                <View style={styles.recentIcon}><Icon icon={workoutIcon(w.icon)} size="md" color={colors.accent.primary} /></View>
                 <View style={styles.recentInfo}>
                   <Text style={styles.recentName}>{w.name}</Text>
                   <Text style={styles.recentDate}>{formatWorkoutDate(w.date)}  ·  {w.duration}  ·  {w.exercisesDone}/{w.exercisesTotal}</Text>
@@ -465,7 +473,7 @@ export default function WorkoutScreen() {
           })
         ) : (
           <View style={styles.emptyState}>
-            <Text style={{ fontSize: 36 }}>🏋️</Text>
+            <Icon icon={Dumbbell} size={36} color={colors.text.tertiary} strokeWidth={1.5} />
             <Text style={styles.emptyTitle}>{t('workout.noWorkouts')}</Text>
             <Text style={styles.emptySub}>{t('workout.noWorkoutsSub')}</Text>
           </View>
@@ -536,7 +544,7 @@ const styles = StyleSheet.create({
 
   workoutName: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.xl, color: colors.text.primary, marginBottom: spacing.sm },
   metaRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
-  metaChip: { backgroundColor: colors.bg.elevated, borderRadius: radius.full, paddingHorizontal: 10, paddingVertical: 5 },
+  metaChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.bg.elevated, borderRadius: radius.full, paddingHorizontal: 10, paddingVertical: 5 },
   metaText: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.secondary },
 
   exerciseList: { borderTopWidth: 1, borderTopColor: colors.border.subtle, marginBottom: spacing.base },
@@ -557,7 +565,6 @@ const styles = StyleSheet.create({
   exRest: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 2 },
 
   weightRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
-  weightIcon: { fontSize: 13 },
   weightInput: {
     backgroundColor: colors.bg.tertiary,
     borderWidth: 1,
@@ -585,7 +592,6 @@ const styles = StyleSheet.create({
 
   logDiffRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.base, marginBottom: spacing.sm },
   logDiffText: { fontFamily: typography.fonts.body, fontSize: typography.sizes.base, color: colors.text.secondary },
-  logDiffArrow: { fontFamily: typography.fonts.body, fontSize: typography.sizes.lg, color: colors.text.tertiary },
 
   sectionTitle: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.primary, marginBottom: spacing.sm },
 
@@ -607,6 +613,5 @@ const styles = StyleSheet.create({
 
   aiSuggestCard:   { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.accent.primary + '30', borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base },
   aiSuggestHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
-  aiClose:         { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.tertiary },
   aiSuggestText:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.primary, lineHeight: 20 },
 });

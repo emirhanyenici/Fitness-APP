@@ -8,6 +8,7 @@ import { colors } from '../constants/colors';
 import { typography } from '../constants/typography';
 import { spacing, radius } from '../constants/spacing';
 import { useT } from '../constants/i18n';
+import { Icon, X, Crown, Brain, Camera, ChartColumn, TrendingUp } from '../components/ui/Icon';
 
 export default function PaywallScreen() {
   const [loading, setLoading] = useState(false);
@@ -15,10 +16,10 @@ export default function PaywallScreen() {
   const t = useT();
 
   const FEATURES = [
-    { icon: '🧠', title: t('paywall.featAiTitle'),     sub: t('paywall.featAiSub') },
-    { icon: '📸', title: t('paywall.featSnapTitle'),   sub: t('paywall.featSnapSub') },
-    { icon: '📊', title: t('paywall.featReportTitle'), sub: t('paywall.featReportSub') },
-    { icon: '📈', title: t('paywall.featTrendTitle'),  sub: t('paywall.featTrendSub') },
+    { icon: Brain,       title: t('paywall.featAiTitle'),     sub: t('paywall.featAiSub') },
+    { icon: Camera,      title: t('paywall.featSnapTitle'),   sub: t('paywall.featSnapSub') },
+    { icon: ChartColumn, title: t('paywall.featReportTitle'), sub: t('paywall.featReportSub') },
+    { icon: TrendingUp,  title: t('paywall.featTrendTitle'),  sub: t('paywall.featTrendSub') },
   ];
 
   const handlePurchase = async (productId: string) => {
@@ -93,18 +94,20 @@ export default function PaywallScreen() {
         accessibilityLabel={t('paywall.close')}
         hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
       >
-        <Text style={styles.closeBtnText}>✕</Text>
+        <Icon icon={X} size="md" color={colors.text.secondary} />
       </TouchableOpacity>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.crown}>👑</Text>
+        <View style={styles.crown}>
+          <Icon icon={Crown} size={44} color={colors.accent.primary} strokeWidth={1.5} />
+        </View>
         <Text style={styles.title}>{t('paywall.title')}</Text>
         <Text style={styles.sub}>{t('paywall.subtitle')}</Text>
 
         <View style={styles.features}>
           {FEATURES.map((f) => (
             <View key={f.title} style={styles.featureRow}>
-              <Text style={styles.featureIcon}>{f.icon}</Text>
+              <Icon icon={f.icon} size="lg" color={colors.accent.primary} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.featureTitle}>{f.title}</Text>
                 <Text style={styles.featureSub}>{f.sub}</Text>
@@ -166,14 +169,12 @@ export default function PaywallScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg.primary },
   closeBtn: { position: 'absolute', top: 56, right: spacing.base, zIndex: 10, width: 36, height: 36, borderRadius: 18, backgroundColor: colors.bg.elevated, alignItems: 'center', justifyContent: 'center' },
-  closeBtnText: { color: colors.text.secondary, fontSize: 16 },
   content: { padding: spacing.base, paddingTop: 80, alignItems: 'center' },
-  crown: { fontSize: 44, marginBottom: spacing.sm },
+  crown: { marginBottom: spacing.sm, alignItems: 'center' },
   title: { fontFamily: typography.fonts.display, fontSize: typography.sizes['2xl'], color: colors.text.primary, textAlign: 'center' },
   sub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.base, color: colors.text.secondary, textAlign: 'center', marginTop: spacing.sm, marginBottom: spacing.xl },
   features: { width: '100%', gap: spacing.sm, marginBottom: spacing.xl },
   featureRow: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, flexDirection: 'row', alignItems: 'center', gap: spacing.base },
-  featureIcon: { fontSize: 26 },
   featureTitle: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.primary },
   featureSub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, marginTop: 2 },
   priceCard: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.accent.primary + '40', borderRadius: radius.xl, padding: spacing.xl, width: '100%', alignItems: 'center', marginBottom: spacing.base },

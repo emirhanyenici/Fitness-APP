@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, Pressable } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon, Eye, EyeOff, Check } from '../../components/ui/Icon';
 import { secureStorage } from '../../services/secureStorage';
 import { router } from 'expo-router';
 import { useAuthStore } from '../../stores/authStore';
@@ -182,7 +182,7 @@ export default function LoginScreen() {
           accessibilityRole="button"
           accessibilityLabel={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
         >
-          <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.text.tertiary} />
+          <Icon icon={showPassword ? EyeOff : Eye} size="md" color={colors.text.tertiary} />
         </Pressable>
       </View>
       {fieldError?.field === 'password' && <Text style={styles.inlineError}>{fieldError.msg}</Text>}
@@ -206,7 +206,7 @@ export default function LoginScreen() {
               accessibilityRole="button"
               accessibilityLabel={showConfirm ? t('auth.hideConfirm') : t('auth.showConfirm')}
             >
-              <Ionicons name={showConfirm ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.text.tertiary} />
+              <Icon icon={showConfirm ? EyeOff : Eye} size="md" color={colors.text.tertiary} />
             </Pressable>
           </View>
           {fieldError?.field === 'confirm' && <Text style={styles.inlineError}>{fieldError.msg}</Text>}
@@ -231,7 +231,7 @@ export default function LoginScreen() {
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <View style={[styles.checkbox, rememberMe && styles.checkboxActive]}>
-              {rememberMe && <Text style={styles.checkmark}>✓</Text>}
+              {rememberMe && <Icon icon={Check} size={13} color={colors.text.inverse} strokeWidth={3} />}
             </View>
             <Text style={styles.rememberText}>{t('auth.rememberMe')}</Text>
           </TouchableOpacity>
@@ -315,7 +315,6 @@ const styles = StyleSheet.create({
   rememberRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: colors.border.default, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg.elevated },
   checkboxActive: { borderColor: colors.accent.primary, backgroundColor: colors.accent.primary },
-  checkmark: { color: '#fff', fontSize: 11, fontWeight: '700' },
   rememberText: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary },
   forgotText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.accent.primary },
 
