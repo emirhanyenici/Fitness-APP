@@ -26,11 +26,6 @@ export const colors = {
     soft:      '#8B5CF6',
     glow:      'rgba(124, 58, 237, 0.12)',
   },
-  mint: {
-    primary:   '#65A30D',   // Lime/grass green — streak & vitality
-    soft:      '#84CC16',
-    glow:      'rgba(101, 163, 13, 0.12)',
-  },
   status: {
     success:   '#16A34A',   // Green — vibrant, distinct from emerald brand
     warning:   '#D97706',   // Earthy amber

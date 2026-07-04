@@ -15,7 +15,6 @@ export const typography = {
     xl:    24,
     '2xl': 28,
     '3xl': 34,
-    '4xl': 42,
     '5xl': 52,
   },
   lineHeights: {
