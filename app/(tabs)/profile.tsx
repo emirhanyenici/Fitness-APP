@@ -21,6 +21,7 @@ import {
 } from '../../components/ui/Icon';
 import { useT } from '../../constants/i18n';
 import { useLocaleStore } from '../../stores/localeStore';
+import { ProgressRing } from '../../components/ui/ProgressRing';
 
 // ── Unit helpers ──────────────────────────────────────────────────────────────
 function kgToLbs(kg: number)  { return Math.round(kg * 2.20462); }
@@ -332,9 +333,9 @@ export default function ProfileScreen() {
                 <Text style={[styles.scoreSub, { color: deltaColor }]}>{t('profile.vsYesterday', { delta: deltaLabel })}</Text>
               </View>
             </View>
-            <View style={[styles.scoreRing, { borderColor: scoreColor }]}>
+            <ProgressRing progress={score / 100} size={54} strokeWidth={5} color={scoreColor}>
               <Text style={[styles.scoreRingNum, { color: scoreColor }]}>{score}</Text>
-            </View>
+            </ProgressRing>
           </View>
         )}
 
@@ -485,7 +486,6 @@ const styles = StyleSheet.create({
   scoreNum:     { fontFamily: typography.fonts.mono, fontSize: typography.sizes['3xl'] },
   scoreTitle:   { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.primary },
   scoreSub:     { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 2 },
-  scoreRing:    { width: 54, height: 54, borderRadius: 27, borderWidth: 5, alignItems: 'center', justifyContent: 'center' },
   scoreRingNum: { fontFamily: typography.fonts.mono, fontSize: typography.sizes.md },
 
   settingsCard: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, marginBottom: spacing.base, overflow: 'hidden', ...elevation.card },

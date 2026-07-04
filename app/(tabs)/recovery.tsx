@@ -12,6 +12,8 @@ import { spacing, radius } from '../../constants/spacing';
 import { elevation } from '../../constants/elevation';
 import { AICoachBanner } from '../../components/ui/AICoachBanner';
 import { Button } from '../../components/ui/Button';
+import { AnimatedBar } from '../../components/ui/AnimatedBar';
+import { hapticTap, hapticSuccess } from '../../services/haptics';
 import { useAnalytics } from '../../services/analytics';
 import { useT } from '../../constants/i18n';
 import {
@@ -48,6 +50,7 @@ export default function RecoveryScreen() {
   const [saved, setSaved] = useState(!!todayEntry);
 
   const setRating = (key: RatingKey, val: number) => {
+    hapticTap();
     setRatings((prev) => ({ ...prev, [key]: val }));
     setSaved(false);
   };
@@ -63,6 +66,7 @@ export default function RecoveryScreen() {
     setSaved(true);
     const avgScore = Math.round((ratings.mood + ratings.energy + (6 - ratings.stress)) / 3);
     analytics.recoveryRated(avgScore);
+    hapticSuccess();
     Alert.alert(t('recovery.savedTitle'), t('recovery.savedBody'));
   };
 
@@ -183,19 +187,18 @@ export default function RecoveryScreen() {
             </View>
           </View>
           {sleepInput ? (
-            <View style={styles.sleepBar}>
-              <View style={[
-                styles.sleepBarFill,
-                {
-                  width: `${Math.min((parseFloat(sleepInput) / targets.sleepHours) * 100, 100)}%` as any,
-                  backgroundColor: parseFloat(sleepInput) >= targets.sleepHours
-                    ? colors.status.success
-                    : parseFloat(sleepInput) >= targets.sleepHours * 0.8
-                    ? colors.status.warning
-                    : colors.status.danger,
-                },
-              ]} />
-            </View>
+            <AnimatedBar
+              pct={parseFloat(sleepInput) / targets.sleepHours}
+              color={
+                parseFloat(sleepInput) >= targets.sleepHours
+                  ? colors.status.success
+                  : parseFloat(sleepInput) >= targets.sleepHours * 0.8
+                  ? colors.status.warning
+                  : colors.status.danger
+              }
+              height={6}
+              style={{ marginTop: spacing.sm }}
+            />
           ) : null}
           {sleepInput ? (
             <Text style={styles.sleepBarLabel}>
@@ -300,8 +303,6 @@ const styles = StyleSheet.create({
   sleepInputField: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.25), borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: 6, gap: 4 },
   sleepInputText:  { fontFamily: typography.fonts.mono, fontSize: typography.sizes.lg, color: colors.text.primary, minWidth: 36, textAlign: 'center' },
   sleepInputUnit:  { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary },
-  sleepBar:        { height: 6, backgroundColor: colors.bg.elevated, borderRadius: 3, marginTop: spacing.sm, overflow: 'hidden' },
-  sleepBarFill:    { height: 6, borderRadius: 3 },
   sleepBarLabel:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 4 },
 
   recoveryCard:  { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: withAlpha(colors.status.success, 0.15), borderRadius: radius.xl, padding: spacing.base, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.base, ...elevation.card },

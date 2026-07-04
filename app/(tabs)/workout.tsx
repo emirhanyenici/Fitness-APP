@@ -17,6 +17,7 @@ import { elevation } from '../../constants/elevation';
 import { useAnalytics } from '../../services/analytics';
 import { AICoachBanner } from '../../components/ui/AICoachBanner';
 import { Button } from '../../components/ui/Button';
+import { hapticTap, hapticSuccess } from '../../services/haptics';
 import { useCustomProgramStore } from '../../stores/customProgramStore';
 import { useT } from '../../constants/i18n';
 import {
@@ -204,6 +205,7 @@ export default function WorkoutScreen() {
     setStarted(false);
     setChecked(new Set());
     setWeights({});
+    hapticSuccess();
     Alert.alert(t('workout.completeTitle'), t('workout.completeBody', { done: checked.size, total: exercises.length }));
   };
 
@@ -337,7 +339,7 @@ export default function WorkoutScreen() {
                   {/* Check / tap */}
                   <TouchableOpacity
                     onPress={() => {
-                      if (started) toggleCheck(ex.name);
+                      if (started) { hapticTap(); toggleCheck(ex.name); }
                       else Alert.alert(t('workout.workoutNotStarted'), t('workout.tapStartToTrack'));
                     }}
                     activeOpacity={0.7}

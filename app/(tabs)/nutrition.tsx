@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, LayoutAnimation } from 'react-native';
 import { router } from 'expo-router';
 import { useNutritionStore, FoodEntry } from '../../stores/nutritionStore';
 import { useAISuggestionsStore } from '../../stores/aiSuggestionsStore';
@@ -12,6 +12,8 @@ import { spacing, radius } from '../../constants/spacing';
 import { elevation } from '../../constants/elevation';
 import { useAnalytics } from '../../services/analytics';
 import { AICoachBanner } from '../../components/ui/AICoachBanner';
+import { AnimatedBar } from '../../components/ui/AnimatedBar';
+import { hapticTap } from '../../services/haptics';
 import { useT } from '../../constants/i18n';
 import {
   Icon, Coffee, Sun, UtensilsCrossed, Cookie, Droplets, X, ChevronDown, ChevronUp,
@@ -82,9 +84,16 @@ export default function NutritionScreen() {
   };
 
   const handleWaterTap = () => {
+    hapticTap();
     const next = Math.min(water + 1, targets.waterGlasses);
     setWater(next);
     analytics.waterUpdated(next);
+  };
+
+  const toggleMeal = (mealId: string, isOpen: boolean) => {
+    // Best-effort — LayoutAnimation is a no-op on platforms that lack it.
+    try { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); } catch { /* noop */ }
+    setExpanded(isOpen ? null : mealId);
   };
 
   return (
@@ -103,9 +112,7 @@ export default function NutritionScreen() {
         <View style={styles.calorieLeft}>
           <Text style={styles.calsNum}>{totalCals.toLocaleString()}</Text>
           <Text style={styles.calsSub}>/ {GOAL_CALS.toLocaleString()} kcal</Text>
-          <View style={styles.calBarBg}>
-            <View style={[styles.calBarFill, { width: `${Math.round(pct * 100)}%` as any }]} />
-          </View>
+          <AnimatedBar pct={pct} color={colors.accent.primary} height={5} style={{ marginBottom: spacing.xs }} />
           <Text style={styles.calsRemain}>
             {totalCals >= GOAL_CALS
               ? t('nutrition.kcalOver', { n: totalCals - GOAL_CALS })
@@ -116,9 +123,7 @@ export default function NutritionScreen() {
         <View style={styles.macroCol}>
           {macros.map((m) => (
             <View key={m.label} style={styles.macroItem}>
-              <View style={styles.macroBarBg}>
-                <View style={[styles.macroBarFill, { width: `${Math.min(m.current / m.target, 1) * 100}%` as any, backgroundColor: m.color }]} />
-              </View>
+              <AnimatedBar pct={m.current / m.target} color={m.color} height={4} />
               {/* Round to 1 decimal for display — summed 0.1g-precision floats
                   accumulate FP noise like 10.799999999999999 (finding F11) */}
               <Text style={[styles.macroLabel, { color: m.color }]}>{m.short}  {Math.round(m.current * 10) / 10}g</Text>
@@ -137,7 +142,7 @@ export default function NutritionScreen() {
           <View style={styles.waterControls}>
             <TouchableOpacity
               style={styles.waterCtrlBtn}
-              onPress={() => { const n = Math.max(water - 1, 0); setWater(n); analytics.waterUpdated(n); }}
+              onPress={() => { hapticTap(); const n = Math.max(water - 1, 0); setWater(n); analytics.waterUpdated(n); }}
               activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel={t('nutrition.removeWaterGlass')}
@@ -167,6 +172,7 @@ export default function NutritionScreen() {
                 key={i}
                 style={[styles.waterCircle, filled && styles.waterCircleFilled]}
                 onPress={() => {
+                  hapticTap();
                   // tap filled = decrement to i, tap empty = fill to i+1
                   const n = filled && i === water - 1 ? i : i + 1;
                   setWater(n); analytics.waterUpdated(n);
@@ -182,9 +188,7 @@ export default function NutritionScreen() {
           })}
         </View>
 
-        <View style={styles.waterBarBg}>
-          <View style={[styles.waterBarFill, { width: `${Math.min(water / targets.waterGlasses, 1) * 100}%` as any }]} />
-        </View>
+        <AnimatedBar pct={water / targets.waterGlasses} color={colors.status.info} height={4} />
 
         <Text style={styles.waterHint}>{t('nutrition.waterHint', { glasses: targets.waterGlasses, liters: targets.waterGlasses * 250 / 1000 })}</Text>
       </View>
@@ -232,7 +236,7 @@ export default function NutritionScreen() {
           <View key={meal.id} style={styles.mealCard}>
             <TouchableOpacity
               style={styles.mealHeader}
-              onPress={() => setExpanded(isOpen ? null : meal.id)}
+              onPress={() => toggleMeal(meal.id, isOpen)}
               activeOpacity={0.75}
               accessibilityRole="button"
               accessibilityState={{ expanded: isOpen }}
@@ -314,22 +318,16 @@ const styles = StyleSheet.create({
   waterDropRow:    { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: spacing.xs },
   waterCircle:     { flex: 1, height: 32, borderRadius: radius.sm, borderWidth: 1.5, borderColor: withAlpha(colors.status.info, 0.25), backgroundColor: colors.bg.elevated, marginHorizontal: 2, alignItems: 'center', justifyContent: 'center' },
   waterCircleFilled: { backgroundColor: withAlpha(colors.status.info, 0.13), borderColor: colors.status.info },
-  waterBarBg:    { width: '100%', height: 4, backgroundColor: colors.bg.elevated, borderRadius: 2, overflow: 'hidden' },
-  waterBarFill:  { height: '100%', backgroundColor: colors.status.info, borderRadius: 2 },
   waterHint:     { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textAlign: 'center' },
 
   calorieCard:  { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.13), borderRadius: radius['2xl'], padding: spacing.base, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.base, gap: spacing.base, ...elevation.raised },
   calorieLeft:  { flex: 1 },
   calsNum:      { fontFamily: typography.fonts.mono, fontSize: typography.sizes['3xl'], color: colors.text.primary },
   calsSub:      { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, marginBottom: spacing.sm },
-  calBarBg:     { width: '100%', height: 5, backgroundColor: colors.bg.elevated, borderRadius: 3, overflow: 'hidden', marginBottom: spacing.xs },
-  calBarFill:   { height: '100%', backgroundColor: colors.accent.primary, borderRadius: 3 },
   calsRemain:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary },
 
   macroCol:     { gap: spacing.sm, width: 100 },
   macroItem:    { gap: 4 },
-  macroBarBg:   { width: '100%', height: 4, backgroundColor: colors.bg.elevated, borderRadius: 2, overflow: 'hidden' },
-  macroBarFill: { height: '100%', borderRadius: 2 },
   macroLabel:   { fontFamily: typography.fonts.mono, fontSize: typography.sizes.xs },
 
   aiCard:        { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.19), borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base, ...elevation.card },

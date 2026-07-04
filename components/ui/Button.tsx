@@ -3,6 +3,7 @@ import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { elevation } from '../../constants/elevation';
+import { hapticTap } from '../../services/haptics';
 import { Icon, type IconComponent } from './Icon';
 
 /**
@@ -23,15 +24,21 @@ interface ButtonProps {
   icon?: IconComponent;
   disabled?: boolean;
   loading?: boolean;
+  /** Light impact on press (default). Pass 'none' to opt out. */
+  haptic?: 'light' | 'none';
   accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
 }
 
 export function Button({
   label, onPress, variant = 'primary', size = 'lg', subLabel, icon,
-  disabled = false, loading = false, accessibilityLabel, style,
+  disabled = false, loading = false, haptic = 'light', accessibilityLabel, style,
 }: ButtonProps) {
   const inactive = disabled || loading;
+  const handlePress = () => {
+    if (haptic === 'light') hapticTap();
+    onPress();
+  };
   const labelColor =
     variant === 'primary' || variant === 'success' ? colors.text.inverse :
     variant === 'danger'  ? colors.status.danger :
@@ -41,7 +48,7 @@ export function Button({
   return (
     <TouchableOpacity
       style={[styles.base, styles[variant], size === 'md' && styles.md, inactive && styles.disabled, style]}
-      onPress={onPress}
+      onPress={handlePress}
       disabled={inactive}
       activeOpacity={0.85}
       accessibilityRole="button"

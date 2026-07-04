@@ -17,6 +17,9 @@ import { useZenovaScore, computeDayScore, formatDeltaLabel } from '../../hooks/u
 import { AICoachBanner } from '../../components/ui/AICoachBanner';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { ProgressRing, CountUpText } from '../../components/ui/ProgressRing';
+import { AnimatedBar } from '../../components/ui/AnimatedBar';
+import { hapticTap } from '../../services/haptics';
 import { SparklineChart } from '../../components/ui/SparklineChart';
 import { useT } from '../../constants/i18n';
 import {
@@ -166,9 +169,11 @@ export default function HomeScreen() {
 
       {/* ── Novra Score Hero ── */}
       <Card variant="hero" style={styles.heroCard}>
-        <View style={[styles.ring, { borderColor: scoreColor, shadowColor: scoreColor }]}>
-          <Text style={[styles.scoreNum, { color: scoreColor }]}>{score}</Text>
-          <Text style={styles.scoreLabel}>LIFESCORE</Text>
+        <View style={styles.ringWrap}>
+          <ProgressRing progress={score / 100} size={180} strokeWidth={14} color={scoreColor}>
+            <CountUpText value={score} style={[styles.scoreNum, { color: scoreColor }]} />
+            <Text style={styles.scoreLabel}>LIFESCORE</Text>
+          </ProgressRing>
         </View>
         <Text style={[styles.delta, { color: deltaColor }]}>{t('home.vsYesterday', { delta: deltaLabel })}</Text>
 
@@ -316,7 +321,7 @@ export default function HomeScreen() {
           <TouchableOpacity
             key={item.label}
             style={styles.quickBtn}
-            onPress={() => router.push(item.route)}
+            onPress={() => { hapticTap(); router.push(item.route); }}
             activeOpacity={0.75}
             accessibilityRole="button"
             accessibilityLabel={t('home.logItem', { item: item.label })}
@@ -335,9 +340,7 @@ export default function HomeScreen() {
             <Icon icon={s.icon} size="lg" color={s.color} />
             <Text style={[styles.statVal, { color: s.color }]}>{s.value}</Text>
             <Text style={styles.statLabel}>{s.label}</Text>
-            <View style={styles.statBarBg}>
-              <View style={[styles.statBarFill, { width: `${s.pct * 100}%` as any, backgroundColor: s.color }]} />
-            </View>
+            <AnimatedBar pct={s.pct} color={s.color} height={3} style={{ marginTop: 2 }} />
           </View>
         ))}
       </ScrollView>
@@ -425,7 +428,7 @@ const styles = StyleSheet.create({
   dateText: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.secondary },
 
   heroCard:   { padding: spacing.xl, alignItems: 'center', marginBottom: spacing.base },
-  ring:       { width: 180, height: 180, borderRadius: 90, borderWidth: 14, alignItems: 'center', justifyContent: 'center', shadowOpacity: 0.18, shadowRadius: 22, shadowOffset: { width: 0, height: 0 }, marginBottom: spacing.sm },
+  ringWrap:   { marginBottom: spacing.sm },
   scoreNum:   { fontFamily: typography.fonts.mono, fontSize: typography.sizes['5xl'] },
   scoreLabel: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, letterSpacing: 4 },
   delta:      { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, marginBottom: spacing.base },
@@ -466,8 +469,6 @@ const styles = StyleSheet.create({
   statCard:    { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, width: 108, marginRight: spacing.sm, alignItems: 'center', gap: 4, ...elevation.card },
   statVal:     { fontFamily: typography.fonts.mono, fontSize: typography.sizes.lg },
   statLabel:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.secondary },
-  statBarBg:   { width: '100%', height: 3, backgroundColor: colors.bg.elevated, borderRadius: 2, marginTop: 2, overflow: 'hidden' },
-  statBarFill: { height: '100%', borderRadius: 2 },
 
   welcomeBanner:       { backgroundColor: colors.accent.dim, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.21), borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base, gap: spacing.sm },
   welcomeTitle:        { fontFamily: typography.fonts.heading, fontSize: typography.sizes.md, color: colors.text.primary },
