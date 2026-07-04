@@ -68,9 +68,14 @@ Deno.serve(async (req) => {
   }
 
   // Per-user daily rate limit — protects against unbounded AI-provider spend.
-  // Photo analysis is pricier per call, so it gets a tighter default cap than
-  // the text coach. Make tier-aware once the plan is persisted server-side.
-  const PHOTO_DAILY_LIMIT = Number(Deno.env.get('ANALYZE_PHOTO_DAILY_LIMIT') ?? '20');
+  // Tier-aware via public.subscriptions (mirrored by revenuecat-webhook fn;
+  // missing row = free). Free backstop (5/day) covers the client's 3-lifetime
+  // taste quota with slack; snap is otherwise a Pro feature.
+  const { data: subRow } = await supabase.from('subscriptions').select('plan').maybeSingle();
+  const isPaid = subRow?.plan === 'pro' || subRow?.plan === 'elite';
+  const PHOTO_DAILY_LIMIT = isPaid
+    ? Number(Deno.env.get('PHOTO_LIMIT_PRO') ?? '30')
+    : Number(Deno.env.get('PHOTO_LIMIT_FREE') ?? '5');
   const { data: allowed, error: limitError } = await supabase.rpc(
     'check_and_increment_ai_usage', { p_limit: PHOTO_DAILY_LIMIT },
   );
