@@ -470,7 +470,7 @@ export const tr: Translations = {
 
   aiCoach: {
     title: 'AI Koç',
-    poweredBy: 'Claude destekli',
+    poweredBy: 'Grok destekli',
     closeA11y: 'AI koçu kapat',
     signInError: 'AI koçu kullanmak için lütfen giriş yapın.',
     noResponse: 'Üzgünüm, bir yanıt oluşturamadım.',

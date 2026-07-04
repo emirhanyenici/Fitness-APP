@@ -470,7 +470,7 @@ export const en = {
 
   aiCoach: {
     title: 'AI Coach',
-    poweredBy: 'Powered by Claude',
+    poweredBy: 'Powered by Grok',
     closeA11y: 'Close AI coach',
     signInError: 'Please sign in to use the AI coach.',
     noResponse: 'Sorry, I could not generate a response.',
