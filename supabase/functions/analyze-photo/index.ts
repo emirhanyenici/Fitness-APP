@@ -1,7 +1,7 @@
 /**
  * analyze-photo Edge Function
  * Accepts a base64-encoded food image and returns calorie/macro estimates
- * via Claude vision. API key stays server-side — never exposed to clients.
+ * via Grok vision (xAI). API key stays server-side — never exposed to clients.
  */
 
 const RAW_ORIGINS = Deno.env.get('ALLOWED_ORIGINS') ?? '';
@@ -22,7 +22,9 @@ function corsHeaders(origin: string | null): Record<string, string> {
   };
 }
 
-const ANTHROPIC_KEY  = Deno.env.get('ANTHROPIC_API_KEY') ?? '';
+// xAI (Grok) — OpenAI-compatible API; model must be vision-capable.
+const XAI_KEY        = Deno.env.get('XAI_API_KEY') ?? '';
+const XAI_MODEL      = Deno.env.get('XAI_VISION_MODEL') ?? 'grok-4-1-fast-non-reasoning';
 const SUPABASE_URL   = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_ANON  = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 
@@ -65,7 +67,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Per-user daily rate limit — protects against unbounded Anthropic spend.
+  // Per-user daily rate limit — protects against unbounded AI-provider spend.
   // Photo analysis is pricier per call, so it gets a tighter default cap than
   // the text coach. Make tier-aware once the plan is persisted server-side.
   const PHOTO_DAILY_LIMIT = Number(Deno.env.get('ANALYZE_PHOTO_DAILY_LIMIT') ?? '20');
@@ -98,7 +100,7 @@ Deno.serve(async (req) => {
     }
 
     // Cap the payload: base64 inflates ~33%, so 7M chars ≈ 5 MB of image.
-    // Without this, an oversized upload could drive up Anthropic cost and
+    // Without this, an oversized upload could drive up AI-provider cost and
     // strain the function's memory.
     const MAX_BASE64_LEN = 7_000_000;
     if (base64.length > MAX_BASE64_LEN) {
@@ -108,23 +110,22 @@ Deno.serve(async (req) => {
       });
     }
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('https://api.x.ai/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'x-api-key': ANTHROPIC_KEY,
-        'anthropic-version': '2023-06-01',
+        'Authorization': `Bearer ${XAI_KEY}`,
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: XAI_MODEL,
         max_tokens: 256,
         messages: [
           {
             role: 'user',
             content: [
               {
-                type: 'image',
-                source: { type: 'base64', media_type: 'image/jpeg', data: base64 },
+                type: 'image_url',
+                image_url: { url: `data:image/jpeg;base64,${base64}` },
               },
               {
                 type: 'text',
@@ -139,14 +140,14 @@ Deno.serve(async (req) => {
     const data = await response.json();
 
     if (!response.ok) {
-      console.error('Anthropic API error:', data?.error);
+      console.error('xAI API error:', data?.error);
       return new Response(
         JSON.stringify({ error: 'AI service unavailable. Please try again.' }),
         { status: 500, headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' } },
       );
     }
 
-    const raw: string = data.content?.[0]?.text?.trim() ?? '';
+    const raw: string = data.choices?.[0]?.message?.content?.trim() ?? '';
     const clean = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
     const parsed = JSON.parse(clean);
 

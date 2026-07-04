@@ -22,7 +22,10 @@ function corsHeaders(origin: string | null): Record<string, string> {
   };
 }
 
-const ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? '';
+// xAI (Grok) — OpenAI-compatible chat completions API. Key lives only in
+// Supabase secrets (supabase secrets set XAI_API_KEY=...), never in the client.
+const XAI_KEY       = Deno.env.get('XAI_API_KEY') ?? '';
+const XAI_MODEL     = Deno.env.get('XAI_MODEL') ?? 'grok-4-1-fast-non-reasoning';
 const SUPABASE_URL  = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_ANON = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 
@@ -112,7 +115,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Per-user daily rate limit — protects against unbounded Anthropic spend
+  // Per-user daily rate limit — protects against unbounded AI-provider spend
   // from a leaked JWT or abusive client. See the ai_usage migration; make
   // AI_DAILY_LIMIT tier-aware once the plan is persisted server-side.
   const AI_DAILY_LIMIT = Number(Deno.env.get('AI_COACH_DAILY_LIMIT') ?? '30');
@@ -151,32 +154,33 @@ Deno.serve(async (req) => {
       ? [{ role: 'user', content: 'Generate a complete weekly workout plan for me based on my profile. Format it day by day.' }]
       : messages!;
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('https://api.x.ai/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'x-api-key': ANTHROPIC_KEY,
-        'anthropic-version': '2023-06-01',
+        'Authorization': `Bearer ${XAI_KEY}`,
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: XAI_MODEL,
         max_tokens: mode === 'generate_plan' ? 1024 : 512,
-        system: SYSTEM_PROMPT + contextNote,
-        messages: finalMessages,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT + contextNote },
+          ...finalMessages,
+        ],
       }),
     });
 
     const data = await response.json();
 
     if (!response.ok) {
-      console.error('Anthropic API error:', data?.error);
+      console.error('xAI API error:', data?.error);
       return new Response(
         JSON.stringify({ error: 'AI service unavailable. Please try again.' }),
         { status: 500, headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' } }
       );
     }
 
-    const content = data.content?.[0]?.text ?? '';
+    const content = data.choices?.[0]?.message?.content ?? '';
     return new Response(
       JSON.stringify({ content }),
       { headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' } }

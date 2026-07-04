@@ -1,6 +1,6 @@
 /**
  * Food photo analysis — calls the analyze-photo Supabase Edge Function.
- * The Anthropic API key lives server-side only; it is never bundled into the app binary.
+ * The AI-provider (xAI) API key lives server-side only; it is never bundled into the app binary.
  */
 
 import { supabase } from './supabase';

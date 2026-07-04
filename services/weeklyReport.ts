@@ -4,7 +4,7 @@ import type { TFunction } from '../constants/i18n';
  * Rule-based weekly report, generated fully on-device.
  *
  * The weekly-report modal first tries the ai-coach edge function; until that
- * is deployed (no Anthropic key yet) — or whenever the network/server fails —
+ * is deployed — or whenever the network/server fails —
  * this local generator produces the report instead, so the feature always
  * works. Output is plain text (the screen renders it in a <Text>, so no
  * markdown syntax here).
