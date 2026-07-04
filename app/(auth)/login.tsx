@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, Pressable } from 'react-native';
 import { Icon, Eye, EyeOff, Check } from '../../components/ui/Icon';
 import { secureStorage } from '../../services/secureStorage';
@@ -28,10 +28,15 @@ export default function LoginScreen() {
   const [fieldError, setFieldError] = useState<{ field: 'email' | 'password' | 'confirm' | 'general'; msg: string } | null>(null);
 
   const { signIn, signUp, isLoading } = useAuthStore();
+  const session = useAuthStore((s) => s.session);
   const isOnboarded = useUserStore((s) => s.isOnboarded);
   const analytics = useAnalytics();
   const t = useT();
   const isSignUp = mode === 'signup';
+
+  // Set once the user starts an interactive sign-in/sign-up — the auto-redirect
+  // below must not race handleSubmit's own (server-aware) navigation.
+  const interactiveAuth = useRef(false);
 
   useEffect(() => {
     secureStorage.getItem(SAVED_EMAIL_KEY).then((saved) => {
@@ -39,7 +44,17 @@ export default function LoginScreen() {
     });
   }, []);
 
+  // F9 recovery path: if a restored session appears while this screen is up
+  // (late hydration, or the index gate timed out before storage answered),
+  // route the user back in instead of stranding them on the login form.
+  useEffect(() => {
+    if (!session || interactiveAuth.current) return;
+    const serverOnboarded = session.user?.user_metadata?.onboarding_completed === true;
+    router.replace(serverOnboarded || isOnboarded ? '/(tabs)' : '/(onboarding)/welcome');
+  }, [session, isOnboarded]);
+
   const handleSubmit = async () => {
+    interactiveAuth.current = true;
     setFieldError(null);
     if (!email.trim()) {
       setFieldError({ field: 'email', msg: t('auth.emailRequired') }); return;

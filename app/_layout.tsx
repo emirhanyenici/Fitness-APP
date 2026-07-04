@@ -60,9 +60,14 @@ export default function RootLayout() {
     // 'free' on each cold start.
     void initPurchases();
 
-    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      // Session state is now known (restored or absent) — routing may proceed (F9).
+      useAuthStore.getState().markSessionResolved();
+    });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
+      if (event === 'INITIAL_SESSION') useAuthStore.getState().markSessionResolved();
 
       // Cloud sync: start when a user becomes present (login or restored
       // session), stop on sign-out. Skip TOKEN_REFRESHED so we don't re-pull

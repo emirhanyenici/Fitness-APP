@@ -7,6 +7,15 @@ interface AuthStore {
   session: Session | null;
   user: User | null;
   isLoading: boolean;
+  /**
+   * True once the persisted session has been read from secure storage
+   * (supabase.auth.getSession() resolved). Until then `session === null`
+   * means "unknown", NOT "signed out" — routing must not treat it as
+   * signed out (finding F9: cold start/reload dropped logged-in users
+   * onto the login screen).
+   */
+  sessionResolved: boolean;
+  markSessionResolved: () => void;
   setSession: (session: Session | null) => void;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
@@ -18,6 +27,9 @@ export const useAuthStore = create<AuthStore>((set) => ({
   session: null,
   user: null,
   isLoading: false,
+  sessionResolved: false,
+
+  markSessionResolved: () => set({ sessionResolved: true }),
 
   setSession: (session) => set({ session, user: session?.user ?? null }),
 
