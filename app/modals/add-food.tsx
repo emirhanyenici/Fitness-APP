@@ -8,6 +8,7 @@ import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-ca
 import * as ImagePicker from 'expo-image-picker';
 import { useNutritionStore, MealType } from '../../stores/nutritionStore';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
+import { useUserStore } from '../../stores/userStore';
 import { searchFoods, searchFoodsOFF, lookupBarcode, scaleFood, FoodItem } from '../../services/usda';
 import { analyzeFood, SnapResult } from '../../services/foodSnap';
 import { colors, withAlpha } from '../../constants/colors';
@@ -18,11 +19,16 @@ import { Icon, Search, ScanBarcode, Keyboard, Camera, ImageIcon } from '../../co
 
 type Screen = 'home' | 'search' | 'manual' | 'barcode' | 'snap';
 
+/** Free-tier taste: this many photo analyses before the paywall (lifetime). */
+export const FREE_SNAP_LIMIT = 3;
+
 export default function AddFoodModal() {
   const { mealType = 'snack' } = useLocalSearchParams<{ mealType: string }>();
   const [screen, setScreen] = useState<Screen>('home');
   const addEntry = useNutritionStore((s) => s.addEntry);
   const isPro = useSubscriptionStore((s) => s.isPro);
+  const freeSnapsUsed = useUserStore((s) => s.freeSnapsUsed);
+  const snapsLeft = Math.max(0, FREE_SNAP_LIMIT - freeSnapsUsed);
   const t = useT();
 
   const handleAdd = useCallback((item: FoodItem) => {
@@ -56,7 +62,16 @@ export default function AddFoodModal() {
           { icon: Search,      label: t('addFood.searchDatabase'), sub: t('addFood.searchDatabaseSub'), pro: false, sc: 'search'  as Screen },
           { icon: ScanBarcode, label: t('addFood.scanBarcode'),    sub: t('addFood.scanBarcodeSub'),    pro: false, sc: 'barcode' as Screen },
           { icon: Keyboard,    label: t('addFood.enterManually'),  sub: t('addFood.enterManuallySub'),  pro: false, sc: 'manual'  as Screen },
-          { icon: Camera,      label: t('addFood.snapPhoto'),      sub: t('addFood.snapPhotoSub'),      pro: true,  sc: 'snap'    as Screen },
+          {
+            icon: Camera,
+            label: t('addFood.snapPhoto'),
+            // Free taste: show remaining trial count until it runs out
+            sub: !isPro && snapsLeft > 0
+              ? t('addFood.freeSnapsLeft', { n: snapsLeft })
+              : t('addFood.snapPhotoSub'),
+            pro: true,
+            sc: 'snap' as Screen,
+          },
         ].map((opt) => (
           <TouchableOpacity
             key={opt.label}
@@ -65,7 +80,8 @@ export default function AddFoodModal() {
             accessibilityRole="button"
             accessibilityLabel={`${opt.label}. ${opt.sub}${opt.pro ? '. ' + t('common.proFeature') : ''}`}
             onPress={() => {
-              if (opt.pro && !isPro) { router.push('/paywall'); return; }
+              // Snap is Pro, but free users get FREE_SNAP_LIMIT taste analyses
+              if (opt.pro && !isPro && snapsLeft <= 0) { router.push('/paywall'); return; }
               if (opt.sc) setScreen(opt.sc);
             }}
           >
@@ -527,6 +543,9 @@ function SnapScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBack
   const [editCarbs,    setEditCarbs]    = useState('');
   const [editFat,      setEditFat]      = useState('');
   const [editQty,      setEditQty]      = useState('1');
+  const isPro = useSubscriptionStore((s) => s.isPro);
+  const freeSnapsUsed = useUserStore((s) => s.freeSnapsUsed);
+  const incrementFreeSnaps = useUserStore((s) => s.incrementFreeSnaps);
   const t = useT();
 
   const applyResult = (r: SnapResult) => {
@@ -560,9 +579,13 @@ function SnapScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBack
 
   const analyze = async () => {
     if (!imageB64) return;
+    // Free taste guard: quota may run out while this screen is already open
+    if (!isPro && freeSnapsUsed >= FREE_SNAP_LIMIT) { router.push('/paywall'); return; }
     setAnalyzing(true);
     try {
       const r = await analyzeFood(imageB64);
+      // Count only successful analyses against the free taste quota
+      if (!isPro) incrementFreeSnaps();
       applyResult(r);
     } catch (e: any) {
       Alert.alert(t('addFood.analysisFailed'), e.message ?? t('addFood.couldNotIdentify'));

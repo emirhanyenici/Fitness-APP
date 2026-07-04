@@ -32,8 +32,11 @@ export interface UserProfile {
 interface UserStore {
   profile: UserProfile | null;
   isOnboarded: boolean;
+  /** Lifetime count of free-tier Snap photo analyses used (3 free tastes, then paywall) */
+  freeSnapsUsed: number;
   setProfile: (p: UserProfile) => void;
   updateProfile: (updates: Partial<UserProfile>) => void;
+  incrementFreeSnaps: () => void;
   clearProfile: () => void;
 }
 
@@ -42,6 +45,7 @@ export const useUserStore = create<UserStore>()(
     (set) => ({
       profile: null,
       isOnboarded: false,
+      freeSnapsUsed: 0,
 
       setProfile: (profile) =>
         set({ profile, isOnboarded: profile.onboarding_completed ?? false }),
@@ -54,7 +58,10 @@ export const useUserStore = create<UserStore>()(
           return { profile, isOnboarded: profile.onboarding_completed ?? false };
         }),
 
-      clearProfile: () => set({ profile: null, isOnboarded: false }),
+      incrementFreeSnaps: () =>
+        set((state) => ({ freeSnapsUsed: state.freeSnapsUsed + 1 })),
+
+      clearProfile: () => set({ profile: null, isOnboarded: false, freeSnapsUsed: 0 }),
     }),
     {
       name: 'zenova-user-storage',

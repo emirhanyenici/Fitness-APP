@@ -312,6 +312,53 @@ describe('services/progressUtils.ts', () => {
       logResult('suggestAdjustment: 7.5% cut = 150 kcal on 2000 kcal', true);
     } catch (e) { logResult('suggestAdjustment: 7.5% cut = 150 kcal on 2000 kcal', false, e); throw e; }
   });
+
+  test('suggestAdjustment: every messageKey exists in en AND tr (i18n)', () => {
+    try {
+      const { en } = require('../constants/i18n/en');
+      const { tr } = require('../constants/i18n/tr');
+      const cases = [
+        suggestAdjustment('lose_weight', true, 2000, 4.0),  // deload
+        suggestAdjustment('lose_weight', false, 2000, 1.0), // onTrack
+        suggestAdjustment('lose_weight', true, 2000, 1.0),  // cut
+        suggestAdjustment('gain_muscle', true, 2000, 1.0),  // overload
+        suggestAdjustment('general_health', true, 2000, 1.0), // hiit
+      ];
+      for (const c of cases) {
+        const [section, key] = c.messageKey.split('.');
+        expect(typeof (en as any)[section]?.[key]).toBe('string');
+        expect(typeof (tr as any)[section]?.[key]).toBe('string');
+      }
+      // The cut message interpolates {cut} and {target}
+      const cut = cases[2];
+      expect(cut.params).toEqual({ cut: 150, target: 1850 });
+      logResult('suggestAdjustment: messageKeys exist in en+tr', true);
+    } catch (e) { logResult('suggestAdjustment: messageKeys exist in en+tr', false, e); throw e; }
+  });
+
+  test('free snap taste: 3 analyses then paywall (F-pro tiering)', () => {
+    try {
+      const FREE_SNAP_LIMIT = 3;
+      // Simulate the add-food gate: free user with N used snaps
+      const canSnap = (isPro: boolean, used: number) =>
+        isPro || Math.max(0, FREE_SNAP_LIMIT - used) > 0;
+
+      expect(canSnap(false, 0)).toBe(true);   // fresh free user
+      expect(canSnap(false, 2)).toBe(true);   // last taste
+      expect(canSnap(false, 3)).toBe(false);  // quota exhausted → paywall
+      expect(canSnap(false, 99)).toBe(false);
+      expect(canSnap(true, 99)).toBe(true);   // pro never gated
+
+      // Counter increments only on success, like incrementFreeSnaps
+      let used = 2;
+      const onAnalyzeSuccess = (isPro: boolean) => { if (!isPro) used += 1; };
+      onAnalyzeSuccess(false);
+      expect(used).toBe(3);
+      onAnalyzeSuccess(true); // pro analysis does not consume quota
+      expect(used).toBe(3);
+      logResult('free snap taste: 3 then paywall', true);
+    } catch (e) { logResult('free snap taste: 3 then paywall', false, e); throw e; }
+  });
 });
 
 // ══════════════════════════════════════════════════════════════

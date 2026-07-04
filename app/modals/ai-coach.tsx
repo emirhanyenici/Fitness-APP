@@ -81,7 +81,7 @@ export default function AICoachModal() {
     return () => { mountedRef.current = false; };
   }, []);
 
-  const FREE_LIMIT = 10;
+  const FREE_LIMIT = 5;
   // Date-keyed counter (survives "Clear conversation") + legacy message count
   const todayCount = useAIChatStore((s) => getTodayUsage(s, userId));
   const limitReached = !isPro && todayCount >= FREE_LIMIT;

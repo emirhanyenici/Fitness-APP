@@ -28,7 +28,9 @@ export function detectPlateau(entries: WeightEntry[], weeks = 3): boolean {
 
 export interface AdjustmentSuggestion {
   calorieAdj: number;       // negative = cut, 0 = no change
-  message: string;
+  /** i18n key under `progression.*` — screens render with t(messageKey, params) */
+  messageKey: string;
+  params?: Record<string, string | number>;
   action: 'cut' | 'cardio' | 'deload' | 'none';
 }
 
@@ -46,16 +48,11 @@ export function suggestAdjustment(
 ): AdjustmentSuggestion {
   // Fatigue overrides everything — always recommend recovery first
   if (fatigueScore > 3.5) {
-    return {
-      calorieAdj: 0,
-      action: 'deload',
-      message:
-        'Your energy levels have been low for several days. Consider a deload week — reduce training volume by 40% and prioritise sleep and nutrition.',
-    };
+    return { calorieAdj: 0, action: 'deload', messageKey: 'progression.msgDeload' };
   }
 
   if (!plateau) {
-    return { calorieAdj: 0, action: 'none', message: 'Progress is on track. Keep it up!' };
+    return { calorieAdj: 0, action: 'none', messageKey: 'progression.msgOnTrack' };
   }
 
   if (goal === 'lose_weight') {
@@ -63,25 +60,16 @@ export function suggestAdjustment(
     return {
       calorieAdj: -cut,
       action: 'cut',
-      message: `Weight has been stable for 3 weeks. Try reducing daily calories by ${cut} kcal (to ${currentCalories - cut} kcal) or adding one extra cardio session per week.`,
+      messageKey: 'progression.msgCut',
+      params: { cut, target: currentCalories - cut },
     };
   }
 
   if (goal === 'gain_muscle') {
-    return {
-      calorieAdj: 0,
-      action: 'cardio',
-      message:
-        'Strength progress has stalled. Consider adding a progressive overload week — increase working weight by 2.5–5% on your main lifts, or reduce rep range to 4–6 for 2 weeks.',
-    };
+    return { calorieAdj: 0, action: 'cardio', messageKey: 'progression.msgOverload' };
   }
 
-  return {
-    calorieAdj: 0,
-    action: 'cardio',
-    message:
-      'Progress has slowed. Try adding a HIIT session or increasing workout intensity to break through the plateau.',
-  };
+  return { calorieAdj: 0, action: 'cardio', messageKey: 'progression.msgHiit' };
 }
 
 /**

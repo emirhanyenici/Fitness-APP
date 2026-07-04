@@ -6,6 +6,9 @@ import { useUserStore } from '../../stores/userStore';
 import { useWorkoutStore, CompletedWorkout } from '../../stores/workoutStore';
 import { useAISuggestionsStore } from '../../stores/aiSuggestionsStore';
 import { useExerciseWeightStore, suggestWeight } from '../../stores/exerciseWeightStore';
+import { useWeightLogStore } from '../../stores/weightLogStore';
+import { useRecoveryStore } from '../../stores/recoveryStore';
+import { detectPlateau, suggestAdjustment, computeFatigueScore } from '../../services/progressUtils';
 import { WorkoutExercise } from '../../services/exercisedb';
 import { computeTargets, GOAL_LABELS } from '../../services/recommendations';
 import { getTodayPlan, recommendProgram, PROGRAMS, ProgramType } from '../../services/workoutPrograms';
@@ -22,7 +25,7 @@ import { useCustomProgramStore } from '../../stores/customProgramStore';
 import { useT } from '../../constants/i18n';
 import {
   Icon, workoutIcon, X, NotebookPen, Bed, Sparkles, Timer, Flame, Dumbbell,
-  Check, ChevronRight,
+  Check, ChevronRight, Lock, TrendingUp, Battery, Activity, CircleCheck,
 } from '../../components/ui/Icon';
 
 function formatWorkoutDate(dateStr: string): string {
@@ -120,6 +123,20 @@ export default function WorkoutScreen() {
 
   // Custom program store
   const customDays = useCustomProgramStore((s) => s.days);
+
+  // ── Smart Progression (Pro) — plateau detection + next-step coaching ──
+  const bodyWeightEntries = useWeightLogStore((s) => s.entries);
+  const recoveryEntries   = useRecoveryStore((s) => s.entries);
+  const progression = useMemo(() => {
+    if (bodyWeightEntries.length < 2) return null; // not enough data — hide card
+    const plateau = detectPlateau(bodyWeightEntries);
+    const fatigue = computeFatigueScore(recoveryEntries);
+    return suggestAdjustment(primaryGoal, plateau, targets.calories, fatigue);
+  }, [bodyWeightEntries, recoveryEntries, primaryGoal, targets.calories]);
+  const progressionIcon =
+    progression?.action === 'deload' ? Battery :
+    progression?.action === 'cut'    ? TrendingUp :
+    progression?.action === 'cardio' ? Activity : CircleCheck;
 
   // Get today's plan based on program, day of week, and user's equipment environment
   const dayOfWeek = new Date().getDay();
@@ -279,6 +296,40 @@ export default function WorkoutScreen() {
 
       {/* ── AI Coach Banner ── */}
       <AICoachBanner subtitle={t('workout.aiCoachSubtitle')} />
+
+      {/* ── Smart Progression (Pro) — hidden until 2+ weight entries exist ── */}
+      {progression && (
+        isPro ? (
+          <View style={styles.progressionCard}>
+            <View style={styles.progressionIconWrap}>
+              <Icon icon={progressionIcon} size="md" color={colors.accent.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.progressionTitle}>{t('progression.title')}</Text>
+              <Text style={styles.progressionMsg}>{t(progression.messageKey, progression.params)}</Text>
+            </View>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.progressionCard}
+            onPress={() => router.push('/paywall')}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={`${t('progression.title')}. ${t('common.proFeature')}`}
+          >
+            <View style={styles.progressionIconWrap}>
+              <Icon icon={Lock} size="md" color={colors.text.tertiary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.progressionTitle}>{t('progression.title')}</Text>
+              <Text style={styles.progressionMsg}>{t('progression.teaser')}</Text>
+            </View>
+            <View style={styles.progressionProBadge}>
+              <Text style={styles.progressionProText}>{t('common.pro')}</Text>
+            </View>
+          </TouchableOpacity>
+        )
+      )}
 
       {/* ── AI Workout Suggestion ── */}
       {todayAISuggestion && (
@@ -617,6 +668,13 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', paddingVertical: spacing['2xl'], gap: spacing.sm },
   emptyTitle: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.secondary },
   emptySub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.tertiary, textAlign: 'center' },
+
+  progressionCard:     { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.19), borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, ...elevation.card },
+  progressionIconWrap: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.accent.dim, alignItems: 'center', justifyContent: 'center' },
+  progressionTitle:    { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.primary },
+  progressionMsg:      { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, marginTop: 2, lineHeight: 19 },
+  progressionProBadge: { backgroundColor: colors.accent.dim, borderRadius: radius.full, paddingHorizontal: 10, paddingVertical: 4 },
+  progressionProText:  { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.accent.primary },
 
   aiSuggestCard:   { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.19), borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base, ...elevation.card },
   aiSuggestHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },

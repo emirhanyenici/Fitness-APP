@@ -10,7 +10,7 @@ import { spacing, radius } from '../constants/spacing';
 import { elevation } from '../constants/elevation';
 import { useT } from '../constants/i18n';
 import { Button } from '../components/ui/Button';
-import { Icon, X, Crown, Brain, Camera, ChartColumn, TrendingUp } from '../components/ui/Icon';
+import { Icon, X, Crown, Brain, Camera, ChartColumn, TrendingUp, NotebookPen } from '../components/ui/Icon';
 
 export default function PaywallScreen() {
   const [loading, setLoading] = useState(false);
@@ -18,10 +18,12 @@ export default function PaywallScreen() {
   const t = useT();
 
   const FEATURES = [
-    { icon: Brain,       title: t('paywall.featAiTitle'),     sub: t('paywall.featAiSub') },
-    { icon: Camera,      title: t('paywall.featSnapTitle'),   sub: t('paywall.featSnapSub') },
-    { icon: ChartColumn, title: t('paywall.featReportTitle'), sub: t('paywall.featReportSub') },
-    { icon: TrendingUp,  title: t('paywall.featTrendTitle'),  sub: t('paywall.featTrendSub') },
+    { icon: Brain,       title: t('paywall.featAiTitle'),          sub: t('paywall.featAiSub') },
+    { icon: Camera,      title: t('paywall.featSnapTitle'),        sub: t('paywall.featSnapSub') },
+    { icon: ChartColumn, title: t('paywall.featReportTitle'),      sub: t('paywall.featReportSub') },
+    { icon: TrendingUp,  title: t('paywall.featTrendTitle'),       sub: t('paywall.featTrendSub') },
+    { icon: NotebookPen, title: t('paywall.featProgramsTitle'),    sub: t('paywall.featProgramsSub') },
+    { icon: Crown,       title: t('paywall.featProgressionTitle'), sub: t('paywall.featProgressionSub') },
   ];
 
   const handlePurchase = async (productId: string) => {

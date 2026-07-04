@@ -2,9 +2,12 @@ import { useState, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, Platform, TextInput } from 'react-native';
 
 const HEALTH_APP = Platform.OS === 'ios' ? 'Apple Health' : 'Health Connect';
+import { router } from 'expo-router';
 import { useRecoveryStore } from '../../stores/recoveryStore';
 import { useUserStore } from '../../stores/userStore';
+import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { computeTargets } from '../../services/recommendations';
+import { computeFatigueScore } from '../../services/progressUtils';
 import { daysAgoStr } from '../../services/dateUtils';
 import { colors, withAlpha } from '../../constants/colors';
 import { typography } from '../../constants/typography';
@@ -18,7 +21,7 @@ import { useAnalytics } from '../../services/analytics';
 import { useT } from '../../constants/i18n';
 import {
   Icon, IconComponent, MoonStar, Moon, HeartPulse, Frown, Smile, Battery, Zap,
-  Leaf, Angry,
+  Leaf, Angry, Lock,
 } from '../../components/ui/Icon';
 
 type RatingKey = 'mood' | 'energy' | 'stress';
@@ -38,6 +41,17 @@ export default function RecoveryScreen() {
   const targets         = useMemo(() => computeTargets(profile), [profile]);
   const todayStr        = daysAgoStr(0);
   const todayEntry      = recoveryEntries.find((e) => e.date === todayStr);
+  const isPro           = useSubscriptionStore((s) => s.isPro);
+
+  // ── Fatigue score (Pro) — needs a few days of check-ins to be meaningful ──
+  const fatigue = useMemo(
+    () => (recoveryEntries.length >= 3 ? computeFatigueScore(recoveryEntries) : null),
+    [recoveryEntries],
+  );
+  const fatigueLevel = fatigue === null ? null : fatigue <= 2 ? 'low' : fatigue <= 3.5 ? 'moderate' : 'high';
+  const fatigueColor =
+    fatigueLevel === 'low' ? colors.status.success :
+    fatigueLevel === 'moderate' ? colors.status.warning : colors.status.danger;
 
   const [ratings, setRatings] = useState<Record<RatingKey, number>>(
     todayEntry
@@ -114,6 +128,42 @@ export default function RecoveryScreen() {
           {t('recovery.insightWorkout', { minutes: targets.workoutMinutes, days: targets.workoutDaysPerWeek })}
         </Text>
       </View>
+
+      {/* ── Fatigue Score (Pro) — hidden until 3+ check-ins exist ── */}
+      {fatigue !== null && (
+        isPro ? (
+          <View style={styles.fatigueCard}>
+            <View style={[styles.fatigueScoreWrap, { backgroundColor: withAlpha(fatigueColor, 0.12) }]}>
+              <Text style={[styles.fatigueScore, { color: fatigueColor }]}>{fatigue}</Text>
+              <Text style={styles.fatigueOutOf}>/5</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.fatigueTitle}>{t('recovery.fatigueTitle')}</Text>
+              <Text style={[styles.fatigueLevel, { color: fatigueColor }]}>{t(`recovery.fatigue_${fatigueLevel}`)}</Text>
+              <Text style={styles.fatigueTip}>{t(`recovery.fatigueTip_${fatigueLevel}`)}</Text>
+            </View>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.fatigueCard}
+            onPress={() => router.push('/paywall')}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={`${t('recovery.fatigueTitle')}. ${t('common.proFeature')}`}
+          >
+            <View style={styles.fatigueScoreWrap}>
+              <Icon icon={Lock} size="md" color={colors.text.tertiary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.fatigueTitle}>{t('recovery.fatigueTitle')}</Text>
+              <Text style={styles.fatigueTip}>{t('recovery.fatigueTeaser')}</Text>
+            </View>
+            <View style={styles.fatigueProBadge}>
+              <Text style={styles.fatigueProText}>{t('common.pro')}</Text>
+            </View>
+          </TouchableOpacity>
+        )
+      )}
 
       {/* ── Daily Check-in ── */}
       <View style={styles.checkinCard}>
@@ -282,6 +332,16 @@ const styles = StyleSheet.create({
   insightCard: { backgroundColor: colors.accent.dim, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.19), borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base },
   insightText: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, lineHeight: 20, marginBottom: 6 },
   insightBold: { fontFamily: typography.fonts.bodyMed, color: colors.accent.primary },
+
+  fatigueCard:      { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: withAlpha(colors.violet.primary, 0.19), borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, ...elevation.card },
+  fatigueScoreWrap: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.bg.elevated, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
+  fatigueScore:     { fontFamily: typography.fonts.mono, fontSize: typography.sizes.lg },
+  fatigueOutOf:     { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary },
+  fatigueTitle:     { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.primary },
+  fatigueLevel:     { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, marginTop: 1 },
+  fatigueTip:       { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, marginTop: 2, lineHeight: 19 },
+  fatigueProBadge:  { backgroundColor: colors.accent.dim, borderRadius: radius.full, paddingHorizontal: 10, paddingVertical: 4 },
+  fatigueProText:   { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.accent.primary },
 
   checkinCard:  { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius['2xl'], padding: spacing.base, marginBottom: spacing.base, ...elevation.raised },
   checkinTitle: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.md, color: colors.text.primary, marginBottom: 4 },
