@@ -44,3 +44,6 @@ SECURITY_REPORT.md
 # generated native folders
 /ios
 /android
+
+# Supabase CLI link artifacts
+supabase/.temp/
