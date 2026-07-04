@@ -1071,6 +1071,51 @@ describe('store logic — state management', () => {
     } catch (e) { logResult('workoutStore: history capped at 50', false, e); throw e; }
   });
 
+  test('workoutStore updateWorkout replaces entry in place (F10 no double-count)', () => {
+    try {
+      type W = { id: string; date: string; name: string; calories: number; timestamp: number };
+      const today = todayStr();
+      let history: W[] = [
+        { id: 'a1', date: today, name: 'Full Body — Day 1', calories: 300, timestamp: 1 },
+        { id: 'b2', date: '2026-01-01', name: 'Full Body — Day 1', calories: 250, timestamp: 0 },
+      ];
+
+      // Simulate handleFinish dedupe: same day + same plan name → existing found
+      const entry = { name: 'Full Body — Day 1', calories: 420 };
+      const existing = history.find((w) => w.date === today && w.name === entry.name);
+      expect(existing?.id).toBe('a1');
+
+      // Simulate updateWorkout: replace fields, keep id + date, fresh timestamp
+      history = history.map((w) =>
+        w.id === existing!.id ? { ...w, ...entry, id: w.id, date: w.date, timestamp: 999 } : w
+      );
+
+      expect(history).toHaveLength(2); // no new entry added
+      const todayEntries = history.filter((w) => w.date === today);
+      expect(todayEntries).toHaveLength(1);
+      expect(todayEntries[0].calories).toBe(420); // replaced, not 300+420
+      expect(todayEntries[0].id).toBe('a1');
+      logResult('workoutStore: updateWorkout replaces in place (F10)', true);
+    } catch (e) { logResult('workoutStore: updateWorkout replaces in place (F10)', false, e); throw e; }
+  });
+
+  test('activeMins prefers numeric durationMinutes over parsing duration string (F4)', () => {
+    try {
+      type W = { date: string; duration: string; durationMinutes?: number };
+      const today = todayStr();
+      const history: W[] = [
+        { date: today, duration: '~45 min', durationMinutes: 45 }, // new record: parse would give 0
+        { date: today, duration: '30 min' },                       // legacy record: string parse
+        { date: '2026-01-01', duration: '60 min', durationMinutes: 60 }, // other day: excluded
+      ];
+      const activeMins = history
+        .filter((w) => w.date === today)
+        .reduce((sum, w) => sum + (w.durationMinutes ?? (parseInt(w.duration) || 0)), 0);
+      expect(activeMins).toBe(75);
+      logResult('activeMins: durationMinutes preferred over string parse (F4)', true);
+    } catch (e) { logResult('activeMins: durationMinutes preferred (F4)', false, e); throw e; }
+  });
+
   test('aiChatStore caps messages at 50 per user', () => {
     try {
       type ChatMessage = { id: string; role: string; text: string };

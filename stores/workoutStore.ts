@@ -14,6 +14,8 @@ export interface CompletedWorkout {
   icon: string;
   bodyPart: string;
   duration: string;
+  /** Duration in minutes as a number; older records only have the `duration` string */
+  durationMinutes?: number;
   calories: number;
   exercisesDone: number;
   exercisesTotal: number;
@@ -35,6 +37,8 @@ interface WorkoutStore {
   /** Completed workout history */
   history: CompletedWorkout[];
   addWorkout: (workout: Omit<CompletedWorkout, 'id' | 'date' | 'timestamp'>) => void;
+  /** Replace an existing entry's data in place (same id + date, fresh timestamp) */
+  updateWorkout: (id: string, workout: Omit<CompletedWorkout, 'id' | 'date' | 'timestamp'>) => void;
   clearHistory: () => void;
 }
 
@@ -59,6 +63,12 @@ export const useWorkoutStore = create<WorkoutStore>()(
             },
             ...state.history,
           ].slice(0, 50), // keep last 50 workouts
+        })),
+      updateWorkout: (id, workout) =>
+        set((state) => ({
+          history: state.history.map((w) =>
+            w.id === id ? { ...workout, id: w.id, date: w.date, timestamp: Date.now() } : w
+          ),
         })),
       clearHistory: () => set({ history: [], selectedType: null, selectedProgram: null }),
     }),

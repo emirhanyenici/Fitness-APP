@@ -73,6 +73,7 @@ export default function WorkoutScreen() {
   const selectedProgram = useWorkoutStore((s) => s.selectedProgram);
   const history = useWorkoutStore((s) => s.history);
   const addWorkout = useWorkoutStore((s) => s.addWorkout);
+  const updateWorkout = useWorkoutStore((s) => s.updateWorkout);
   const aiWorkout  = useAISuggestionsStore((s) => s.workout);
   const clearAI    = useAISuggestionsStore((s) => s.clear);
   const analytics = useAnalytics();
@@ -180,33 +181,54 @@ export default function WorkoutScreen() {
     const met         = MET_BY_PROGRAM[programType] ?? 5;
     const ratio       = exercises.length > 0 ? checked.size / exercises.length : 0;
     const estCals     = Math.round(met * weight * (durationMin / 60) * ratio);
-    // Persist exercise weights (always stored as kg)
+    // Collect exercise weights (always stored as kg); persisted only on commit
     const exerciseWeights: Record<string, number> = {};
     exercises.forEach((ex) => {
       const raw = parseFloat(weights[ex.name] ?? '');
       const kg  = isNaN(raw) ? 0 : fromDisplay(raw);
       if (kg > 0) exerciseWeights[ex.name] = kg;
-      if (kg > 0) logWeight(ex.name, kg);
     });
 
-    addWorkout({
+    const entry = {
       name: `${programInfo.name} — ${todayPlan.dayLabel}`,
       programName: programInfo.name,
       dayLabel: todayPlan.dayLabel,
       icon: programInfo.icon,
       bodyPart: todayPlan.muscleGroup,
       duration: todayPlan.duration,
+      durationMinutes: durationMin,
       calories: estCals,
       exercisesDone: checked.size,
       exercisesTotal: exercises.length,
       exerciseWeights,
-    });
+    };
 
-    setStarted(false);
-    setChecked(new Set());
-    setWeights({});
-    hapticSuccess();
-    Alert.alert(t('workout.completeTitle'), t('workout.completeBody', { done: checked.size, total: exercises.length }));
+    const commit = (existingId: string | null) => {
+      Object.entries(exerciseWeights).forEach(([name, kg]) => logWeight(name, kg));
+      if (existingId) updateWorkout(existingId, entry);
+      else addWorkout(entry);
+      setStarted(false);
+      setChecked(new Set());
+      setWeights({});
+      hapticSuccess();
+      Alert.alert(t('workout.completeTitle'), t('workout.completeBody', { done: checked.size, total: exercises.length }));
+    };
+
+    // Same plan already finished today? Update the record instead of
+    // double-counting calories/active minutes (F10).
+    const existing = history.find((w) => w.date === today && w.name === entry.name);
+    if (existing) {
+      Alert.alert(
+        t('workout.alreadyFinishedTitle'),
+        t('workout.alreadyFinishedBody'),
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          { text: t('workout.updateRecord'), onPress: () => commit(existing.id) },
+        ],
+      );
+      return;
+    }
+    commit(null);
   };
 
   const showStickyBtn = !isRestDay && !(programType === 'custom' && exercises.length === 0);

@@ -165,6 +165,9 @@ export const tr: Translations = {
     startedBody: 'Tamamladıkça egzersizleri işaretle.',
     completeTitle: 'Antrenman Tamamlandı! 🎉',
     completeBody: '{total} egzersizden {done} tanesini tamamladın. Harika iş!',
+    alreadyFinishedTitle: 'Bugün zaten tamamlandı',
+    alreadyFinishedBody: 'Bu antrenmanı bugün zaten bitirdin. Mevcut kayıt güncellensin mi? (Kalori ve dakikalar iki kez sayılmaz.)',
+    updateRecord: 'Güncelle',
   },
 
   recovery: {

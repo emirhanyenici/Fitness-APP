@@ -165,6 +165,9 @@ export const en = {
     startedBody: 'Check off exercises as you complete them.',
     completeTitle: 'Workout Complete! 🎉',
     completeBody: 'Great job! You completed {done} of {total} exercises.',
+    alreadyFinishedTitle: 'Already finished today',
+    alreadyFinishedBody: "You've already finished this workout today. Update the existing record? (Calories and minutes won't be counted twice.)",
+    updateRecord: 'Update',
   },
 
   recovery: {

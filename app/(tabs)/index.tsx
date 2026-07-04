@@ -110,12 +110,13 @@ export default function HomeScreen() {
   const sleepTarget     = targets.sleepHours;
   const sleepPct        = sleepH > 0 ? Math.min(sleepH / sleepTarget, 1) : 0;
 
-  // Active minutes: from today's completed workouts (parse duration string)
+  // Active minutes: from today's completed workouts. New records carry a
+  // numeric durationMinutes; legacy records fall back to parsing the string.
   const activeMins = useMemo(() => {
     return workoutHistory
       .filter((w) => w.date === todayStr)
       .reduce((sum, w) => {
-        const m = parseInt(w.duration) || 0;
+        const m = w.durationMinutes ?? (parseInt(w.duration) || 0);
         return sum + m;
       }, 0);
   }, [workoutHistory, todayStr]);
