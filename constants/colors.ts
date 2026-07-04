@@ -1,3 +1,13 @@
+/**
+ * Derive a translucent version of a #RRGGBB token (borders, tints).
+ * Replaces the ad-hoc `color + '50'` hex-suffix concatenations (finding T8)
+ * with one explicit, clamped helper.
+ */
+export function withAlpha(hex: string, alpha: number): string {
+  const a = Math.round(Math.min(1, Math.max(0, alpha)) * 255);
+  return hex + a.toString(16).padStart(2, '0').toUpperCase();
+}
+
 export const colors = {
   bg: {
     primary:   '#F2F6F3',   // Soft sage-tinted off-white — calm & natural
@@ -50,3 +60,24 @@ export const colors = {
     accent:    'rgba(5, 150, 105, 0.18)',
   },
 };
+
+/**
+ * The ONE BMI color scale (finding T8 — onboarding and profile each had their
+ * own off-token variant). Underweight blue is intentionally off-palette:
+ * a clinical category color, not UI chrome.
+ */
+export const bmiColors = {
+  underweight: '#3B82F6',
+  normal:      colors.status.success,
+  overweight:  colors.status.warning,
+  obese1:      '#F97316',   // 30-35 — between warning and danger
+  obese2:      colors.status.danger,
+} as const;
+
+export function bmiColor(bmi: number): string {
+  if (bmi < 18.5) return bmiColors.underweight;
+  if (bmi < 25)   return bmiColors.normal;
+  if (bmi < 30)   return bmiColors.overweight;
+  if (bmi < 35)   return bmiColors.obese1;
+  return bmiColors.obese2;
+}

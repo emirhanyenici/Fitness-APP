@@ -75,7 +75,7 @@ export {
   ScanBarcode, Eye, EyeOff,
   // Profile / settings
   Ruler, Globe, Bell, ChartColumn, Heart, CreditCard, Stethoscope, Lock,
-  FileText, Crown,
+  FileText, Crown, Settings,
   // Nutrition
   Droplets, Coffee, Sun, UtensilsCrossed, Cookie,
   // Workout / recovery

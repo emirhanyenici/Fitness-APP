@@ -6,9 +6,11 @@ import { router } from 'expo-router';
 import { useAuthStore } from '../../stores/authStore';
 import { useUserStore } from '../../stores/userStore';
 import { supabase } from '../../services/supabase';
-import { colors } from '../../constants/colors';
+import { colors, withAlpha } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
+import { elevation } from '../../constants/elevation';
+import { Button } from '../../components/ui/Button';
 import { useAnalytics } from '../../services/analytics';
 import { useT } from '../../constants/i18n';
 
@@ -249,21 +251,12 @@ export default function LoginScreen() {
 
       <View style={{ height: spacing.xl }} />
 
-      <TouchableOpacity
-        style={styles.btn}
+      <Button
+        label={isSignUp ? t('auth.createAccountBtn') : t('auth.signInBtn')}
         onPress={handleSubmit}
-        disabled={isLoading}
-        activeOpacity={0.85}
-        accessibilityRole="button"
-        accessibilityState={{ disabled: isLoading, busy: isLoading }}
+        loading={isLoading}
         accessibilityLabel={isSignUp ? t('auth.createAccount') : t('auth.signIn')}
-      >
-        <Text style={styles.btnText}>
-          {isLoading
-            ? (isSignUp ? t('auth.creatingAccount') : t('auth.signingIn'))
-            : (isSignUp ? t('auth.createAccountBtn') : t('auth.signInBtn'))}
-        </Text>
-      </TouchableOpacity>
+      />
 
       <View style={{ height: spacing.base }} />
 
@@ -289,7 +282,7 @@ const styles = StyleSheet.create({
 
   modeToggle: { flexDirection: 'row', backgroundColor: colors.bg.tertiary, borderRadius: radius.full, padding: 3, marginBottom: spacing.base },
   modeBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: radius.full },
-  modeBtnActive: { backgroundColor: colors.bg.secondary, shadowColor: 'rgba(15,23,42,1)', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  modeBtnActive: { backgroundColor: colors.bg.secondary, ...elevation.card },
   modeBtnText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.tertiary },
   modeBtnTextActive: { color: colors.text.primary },
 
@@ -318,11 +311,9 @@ const styles = StyleSheet.create({
   rememberText: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary },
   forgotText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.accent.primary },
 
-  btn: { backgroundColor: colors.accent.primary, borderRadius: radius.full, paddingVertical: 16, alignItems: 'center' },
-  btnText: { fontFamily: typography.fonts.display, fontSize: typography.sizes.base, color: colors.text.inverse },
   back: { fontFamily: typography.fonts.body, fontSize: typography.sizes.base, color: colors.text.tertiary, textAlign: 'center' },
-  inputError:      { borderColor: colors.status.danger + '80' },
+  inputError:      { borderColor: withAlpha(colors.status.danger, 0.5) },
   inlineError:     { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.status.danger, marginTop: 4, marginLeft: 4 },
-  generalErrorBox: { backgroundColor: colors.status.danger + '10', borderWidth: 1, borderColor: colors.status.danger + '40', borderRadius: radius.lg, padding: spacing.sm, marginTop: spacing.sm },
+  generalErrorBox: { backgroundColor: withAlpha(colors.status.danger, 0.06), borderWidth: 1, borderColor: withAlpha(colors.status.danger, 0.25), borderRadius: radius.lg, padding: spacing.sm, marginTop: spacing.sm },
   generalErrorText:{ fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.status.danger, textAlign: 'center' },
 });

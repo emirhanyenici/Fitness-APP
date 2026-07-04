@@ -10,11 +10,13 @@ import { WorkoutExercise } from '../../services/exercisedb';
 import { computeTargets, GOAL_LABELS } from '../../services/recommendations';
 import { getTodayPlan, recommendProgram, PROGRAMS, ProgramType } from '../../services/workoutPrograms';
 import { todayStr, daysAgoStr } from '../../services/dateUtils';
-import { colors } from '../../constants/colors';
+import { colors, withAlpha } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
+import { elevation } from '../../constants/elevation';
 import { useAnalytics } from '../../services/analytics';
 import { AICoachBanner } from '../../components/ui/AICoachBanner';
+import { Button } from '../../components/ui/Button';
 import { useCustomProgramStore } from '../../stores/customProgramStore';
 import { useT } from '../../constants/i18n';
 import {
@@ -280,15 +282,12 @@ export default function WorkoutScreen() {
           <Icon icon={NotebookPen} size={48} color={colors.accent.primary} strokeWidth={1.5} />
           <Text style={styles.restTitle}>{t('workout.customProgram')}</Text>
           <Text style={styles.restSub}>{t('workout.customEmpty', { day: DAY_SHORT[dayOfWeek] })}</Text>
-          <TouchableOpacity
-            style={styles.startBtn}
+          <Button
+            label={t('workout.setUpTodayBtn')}
             onPress={() => router.push('/modals/custom-program')}
-            activeOpacity={0.85}
-            accessibilityRole="button"
             accessibilityLabel={t('workout.setUpToday')}
-          >
-            <Text style={styles.startBtnText}>{t('workout.setUpTodayBtn')}</Text>
-          </TouchableOpacity>
+            style={styles.restCardBtn}
+          />
         </View>
       )}
 
@@ -298,15 +297,12 @@ export default function WorkoutScreen() {
           <Icon icon={Bed} size={48} color={colors.violet.primary} strokeWidth={1.5} />
           <Text style={styles.restTitle}>{t('workout.restDay')}</Text>
           <Text style={styles.restSub}>{t('workout.restDaySub')}</Text>
-          <TouchableOpacity
-            style={styles.startBtn}
+          <Button
+            label={t('workout.chooseWorkoutInsteadBtn')}
             onPress={() => router.push('/modals/log-workout')}
-            activeOpacity={0.85}
-            accessibilityRole="button"
             accessibilityLabel={t('workout.chooseWorkoutInstead')}
-          >
-            <Text style={styles.startBtnText}>{t('workout.chooseWorkoutInsteadBtn')}</Text>
-          </TouchableOpacity>
+            style={styles.restCardBtn}
+          />
         </View>
       ) : programType === 'custom' && exercises.length === 0 ? null : (
         /* ── Today's Plan ── */
@@ -487,27 +483,18 @@ export default function WorkoutScreen() {
     {showStickyBtn && (
       <View style={styles.stickyFooter}>
         {!started ? (
-          <TouchableOpacity
-            style={styles.startBtn}
+          <Button
+            label={t('workout.startWorkoutBtn')}
             onPress={handleStart}
-            activeOpacity={0.85}
-            accessibilityRole="button"
             accessibilityLabel={t('workout.startWorkout')}
-          >
-            <Text style={styles.startBtnText}>{t('workout.startWorkoutBtn')}</Text>
-          </TouchableOpacity>
+          />
         ) : (
-          <TouchableOpacity
-            style={styles.finishBtn}
+          <Button
+            variant="success"
+            label={t('workout.finishBtn', { done: checked.size, total: exercises.length })}
             onPress={handleFinish}
-            activeOpacity={0.85}
-            accessibilityRole="button"
             accessibilityLabel={t('workout.finishWorkoutA11y', { done: checked.size, total: exercises.length })}
-          >
-            <Text style={styles.finishBtnText}>
-              {t('workout.finishBtn', { done: checked.size, total: exercises.length })}
-            </Text>
-          </TouchableOpacity>
+          />
         )}
       </View>
     )}
@@ -523,20 +510,21 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: 52, marginBottom: spacing.xl },
   pageTitle: { fontFamily: typography.fonts.display, fontSize: typography.sizes['2xl'], color: colors.text.primary },
   pageSub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, marginTop: 2 },
-  logBtn: { backgroundColor: colors.accent.dim, borderWidth: 1, borderColor: colors.accent.primary + '40', borderRadius: radius.full, paddingHorizontal: 16, paddingVertical: 8 },
+  logBtn: { backgroundColor: colors.accent.dim, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.25), borderRadius: radius.full, paddingHorizontal: 16, paddingVertical: 8 },
   logBtnText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.accent.primary },
 
-  insightStrip: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.accent.primary + '20', borderRadius: radius.xl, padding: spacing.base, flexDirection: 'row', alignItems: 'center', marginBottom: spacing.base },
+  insightStrip: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.13), borderRadius: radius.xl, padding: spacing.base, flexDirection: 'row', alignItems: 'center', marginBottom: spacing.base, ...elevation.card },
   insightChip: { flex: 1, alignItems: 'center', gap: 2 },
   insightVal: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.md, color: colors.accent.primary },
   insightLbl: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary },
   insightDiv: { width: 1, height: 28, backgroundColor: colors.border.subtle },
 
-  restCard: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius['2xl'], padding: spacing['2xl'], alignItems: 'center', gap: spacing.base, marginBottom: spacing.sm },
+  restCard: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius['2xl'], padding: spacing['2xl'], alignItems: 'center', gap: spacing.base, marginBottom: spacing.sm, ...elevation.card },
+  restCardBtn: { alignSelf: 'stretch' },
   restTitle: { fontFamily: typography.fonts.display, fontSize: typography.sizes['2xl'], color: colors.text.primary },
   restSub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.base, color: colors.text.secondary, textAlign: 'center', lineHeight: 22 },
 
-  aiCard: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.accent.primary + '20', borderRadius: radius['2xl'], padding: spacing.base, marginBottom: spacing.sm, shadowColor: 'rgba(15,23,42,1)', shadowOpacity: 0.07, shadowRadius: 12, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
+  aiCard: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.13), borderRadius: radius['2xl'], padding: spacing.base, marginBottom: spacing.sm, ...elevation.raised },
   aiCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
   aiBadge: { backgroundColor: colors.accent.dim, borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 5 },
   aiBadgeText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.accent.primary },
@@ -568,7 +556,7 @@ const styles = StyleSheet.create({
   weightInput: {
     backgroundColor: colors.bg.tertiary,
     borderWidth: 1,
-    borderColor: colors.accent.primary + '50',
+    borderColor: withAlpha(colors.accent.primary, 0.3),
     borderRadius: radius.md,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -579,16 +567,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   weightUnit: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary },
-  aiWeightBtn: { backgroundColor: colors.accent.dim, borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: colors.accent.primary + '40' },
+  aiWeightBtn: { backgroundColor: colors.accent.dim, borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.25) },
   aiWeightBtnText: { fontFamily: typography.fonts.bodyMed, fontSize: 10, color: colors.accent.primary },
   prBadge: { backgroundColor: colors.bg.elevated, borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 2 },
   prBadgeText: { fontFamily: typography.fonts.body, fontSize: 10, color: colors.text.tertiary },
   bodywt: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, fontStyle: 'italic' },
-
-  startBtn: { backgroundColor: colors.accent.primary, borderRadius: radius.full, paddingVertical: 14, alignItems: 'center' },
-  startBtnText: { fontFamily: typography.fonts.display, fontSize: typography.sizes.base, color: colors.text.inverse },
-  finishBtn: { backgroundColor: colors.status.success, borderRadius: radius.full, paddingVertical: 14, alignItems: 'center' },
-  finishBtnText: { fontFamily: typography.fonts.display, fontSize: typography.sizes.base, color: colors.text.inverse },
 
   logDiffRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.base, marginBottom: spacing.sm },
   logDiffText: { fontFamily: typography.fonts.body, fontSize: typography.sizes.base, color: colors.text.secondary },
@@ -611,7 +594,7 @@ const styles = StyleSheet.create({
   emptyTitle: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.secondary },
   emptySub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.tertiary, textAlign: 'center' },
 
-  aiSuggestCard:   { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.accent.primary + '30', borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base },
+  aiSuggestCard:   { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.19), borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base, ...elevation.card },
   aiSuggestHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
   aiSuggestText:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.primary, lineHeight: 20 },
 });

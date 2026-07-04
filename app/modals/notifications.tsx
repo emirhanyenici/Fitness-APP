@@ -1,7 +1,7 @@
 import { View, Text, ScrollView, StyleSheet, Switch, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { useUserStore } from '../../stores/userStore';
-import { colors } from '../../constants/colors';
+import { colors, withAlpha } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { useT } from '../../constants/i18n';
@@ -71,7 +71,7 @@ export default function NotificationsModal() {
               <Switch
                 value={enabled}
                 onValueChange={(val) => updateProfile({ [row.key]: val })}
-                trackColor={{ false: colors.border.subtle, true: colors.accent.primary + '80' }}
+                trackColor={{ false: colors.border.subtle, true: withAlpha(colors.accent.primary, 0.5) }}
                 thumbColor={enabled ? colors.accent.primary : colors.text.tertiary}
                 accessibilityRole="switch"
                 accessibilityLabel={t('notifications.rowA11y', { label: t(row.labelKey), sub: t(row.subKey) })}

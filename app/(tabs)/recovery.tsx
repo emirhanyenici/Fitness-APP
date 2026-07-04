@@ -6,10 +6,12 @@ import { useRecoveryStore } from '../../stores/recoveryStore';
 import { useUserStore } from '../../stores/userStore';
 import { computeTargets } from '../../services/recommendations';
 import { daysAgoStr } from '../../services/dateUtils';
-import { colors } from '../../constants/colors';
+import { colors, withAlpha } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
+import { elevation } from '../../constants/elevation';
 import { AICoachBanner } from '../../components/ui/AICoachBanner';
+import { Button } from '../../components/ui/Button';
 import { useAnalytics } from '../../services/analytics';
 import { useT } from '../../constants/i18n';
 import {
@@ -204,15 +206,13 @@ export default function RecoveryScreen() {
           ) : null}
         </View>
 
-        <TouchableOpacity
-          style={[styles.saveBtn, saved && styles.saveBtnDone]}
+        <Button
+          variant={saved ? 'success' : 'primary'}
+          label={saved ? t('recovery.saved') : t('recovery.saveCheckin')}
           onPress={handleSave}
-          activeOpacity={0.85}
-          accessibilityRole="button"
           accessibilityLabel={saved ? t('recovery.checkinSaved') : t('recovery.saveCheckin')}
-        >
-          <Text style={styles.saveBtnText}>{saved ? t('recovery.saved') : t('recovery.saveCheckin')}</Text>
-        </TouchableOpacity>
+          style={{ marginTop: spacing.xl }}
+        />
       </View>
 
       {/* ── Recovery Score (derived from today's ratings) ── */}
@@ -265,22 +265,22 @@ const styles = StyleSheet.create({
   pageTitle: { fontFamily: typography.fonts.display, fontSize: typography.sizes['2xl'], color: colors.text.primary },
   pageSub:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, marginTop: 2 },
 
-  sleepCard: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.violet.primary + '25', borderRadius: radius['2xl'], padding: spacing.base, marginBottom: spacing.base },
+  sleepCard: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: withAlpha(colors.violet.primary, 0.15), borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base, ...elevation.card },
   sleepNoDataRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.base, marginBottom: spacing.base },
   sleepNoDataTitle: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.md, color: colors.text.primary, marginBottom: 4 },
   sleepNoDataSub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, lineHeight: 20 },
   sleepTargetRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.base },
   sleepTargetLabel: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary },
-  sleepTargetBadge: { backgroundColor: colors.violet.primary + '15', borderRadius: radius.full, paddingHorizontal: 14, paddingVertical: 6 },
+  sleepTargetBadge: { backgroundColor: withAlpha(colors.violet.primary, 0.08), borderRadius: radius.full, paddingHorizontal: 14, paddingVertical: 6 },
   sleepTargetVal: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.violet.primary },
-  connectBtn: { backgroundColor: colors.violet.primary + '15', borderWidth: 1, borderColor: colors.violet.primary + '40', borderRadius: radius.full, paddingVertical: 12, alignItems: 'center' },
+  connectBtn: { backgroundColor: withAlpha(colors.violet.primary, 0.08), borderWidth: 1, borderColor: withAlpha(colors.violet.primary, 0.25), borderRadius: radius.full, paddingVertical: 12, alignItems: 'center' },
   connectBtnText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.violet.primary },
 
-  insightCard: { backgroundColor: colors.accent.dim, borderWidth: 1, borderColor: colors.accent.primary + '30', borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base },
+  insightCard: { backgroundColor: colors.accent.dim, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.19), borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base },
   insightText: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, lineHeight: 20, marginBottom: 6 },
   insightBold: { fontFamily: typography.fonts.bodyMed, color: colors.accent.primary },
 
-  checkinCard:  { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius['2xl'], padding: spacing.base, marginBottom: spacing.base },
+  checkinCard:  { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius['2xl'], padding: spacing.base, marginBottom: spacing.base, ...elevation.raised },
   checkinTitle: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.md, color: colors.text.primary, marginBottom: 4 },
   checkinSub:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginBottom: spacing.xl },
 
@@ -297,22 +297,18 @@ const styles = StyleSheet.create({
   sleepInputRow:   { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   sleepInputLabel: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.primary },
   sleepInputSub:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 2 },
-  sleepInputField: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: colors.accent.primary + '40', borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: 6, gap: 4 },
-  sleepInputText:  { fontFamily: typography.fonts.display, fontSize: typography.sizes.lg, color: colors.text.primary, minWidth: 36, textAlign: 'center' },
+  sleepInputField: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.25), borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: 6, gap: 4 },
+  sleepInputText:  { fontFamily: typography.fonts.mono, fontSize: typography.sizes.lg, color: colors.text.primary, minWidth: 36, textAlign: 'center' },
   sleepInputUnit:  { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary },
   sleepBar:        { height: 6, backgroundColor: colors.bg.elevated, borderRadius: 3, marginTop: spacing.sm, overflow: 'hidden' },
   sleepBarFill:    { height: 6, borderRadius: 3 },
   sleepBarLabel:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 4 },
 
-  saveBtn:     { backgroundColor: colors.accent.primary, borderRadius: radius.full, paddingVertical: 14, alignItems: 'center', marginTop: spacing.xl },
-  saveBtnDone: { backgroundColor: colors.status.success },
-  saveBtnText: { fontFamily: typography.fonts.display, fontSize: typography.sizes.base, color: colors.text.inverse },
-
-  recoveryCard:  { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.status.success + '25', borderRadius: radius.xl, padding: spacing.base, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.base },
+  recoveryCard:  { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: withAlpha(colors.status.success, 0.15), borderRadius: radius.xl, padding: spacing.base, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.base, ...elevation.card },
   recoveryLeft:  { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   recoveryTitle: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.primary },
   recoverySub:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 2 },
   recoveryScore: { flexDirection: 'row', alignItems: 'baseline', gap: 2 },
-  recoveryNum:   { fontFamily: typography.fonts.display, fontSize: typography.sizes['2xl'] },
+  recoveryNum:   { fontFamily: typography.fonts.mono, fontSize: typography.sizes['2xl'] },
   recoveryMax:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.tertiary },
 });

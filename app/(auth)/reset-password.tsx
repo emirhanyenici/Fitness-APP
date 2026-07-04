@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Alert, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { supabase } from '../../services/supabase';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
+import { Button } from '../../components/ui/Button';
 
 export default function ResetPasswordScreen() {
   const [password,  setPassword]  = useState('');
@@ -83,9 +84,7 @@ export default function ResetPasswordScreen() {
 
       <View style={{ height: spacing.xl }} />
 
-      <TouchableOpacity style={styles.btn} onPress={handleReset} disabled={loading} activeOpacity={0.85}>
-        <Text style={styles.btnText}>{loading ? 'Updating...' : 'Update Password →'}</Text>
-      </TouchableOpacity>
+      <Button label="Update Password" onPress={handleReset} loading={loading} />
     </ScrollView>
   );
 }
@@ -112,6 +111,4 @@ const styles = StyleSheet.create({
     fontFamily: typography.fonts.body,
     fontSize: typography.sizes.base,
   },
-  btn:     { backgroundColor: colors.accent.primary, borderRadius: radius.full, paddingVertical: 16, alignItems: 'center' },
-  btnText: { fontFamily: typography.fonts.display, fontSize: typography.sizes.base, color: colors.text.inverse },
 });

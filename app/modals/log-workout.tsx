@@ -5,7 +5,7 @@ import { useUserStore } from '../../stores/userStore';
 import { computeTargets } from '../../services/recommendations';
 import { getAvailablePrograms, recommendProgram, PROGRAMS, ProgramType } from '../../services/workoutPrograms';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
-import { colors } from '../../constants/colors';
+import { colors, withAlpha } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { useT } from '../../constants/i18n';
@@ -164,19 +164,19 @@ const styles = StyleSheet.create({
   list: { gap: spacing.sm, paddingBottom: spacing.base },
 
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, gap: spacing.sm },
-  rowRecommended: { borderColor: colors.accent.primary + '60', backgroundColor: colors.accent.dim },
-  rowCurrent: { borderColor: colors.status.success + '60' },
+  rowRecommended: { borderColor: withAlpha(colors.accent.primary, 0.38), backgroundColor: colors.accent.dim },
+  rowCurrent: { borderColor: withAlpha(colors.status.success, 0.38) },
   rowIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.bg.tertiary, alignItems: 'center', justifyContent: 'center' },
-  rowIconRecommended: { backgroundColor: colors.accent.primary + '15' },
+  rowIconRecommended: { backgroundColor: withAlpha(colors.accent.primary, 0.08) },
   rowInfo: { flex: 1 },
   rowLabelRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap' },
   rowLabel: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.primary },
   rowSub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 2 },
   rowDays: { fontFamily: typography.fonts.mono, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 3 },
 
-  recBadge: { backgroundColor: colors.accent.primary + '20', borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 2 },
+  recBadge: { backgroundColor: withAlpha(colors.accent.primary, 0.13), borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 2 },
   recBadgeText: { fontFamily: typography.fonts.bodyMed, fontSize: 10, color: colors.accent.primary },
-  currentBadge: { backgroundColor: colors.status.success + '20', borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 2 },
+  currentBadge: { backgroundColor: withAlpha(colors.status.success, 0.13), borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 2 },
   currentBadgeText: { fontFamily: typography.fonts.bodyMed, fontSize: 10, color: colors.status.success },
 
   editCustomText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.accent.primary },

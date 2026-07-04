@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { fetchExerciseDemo, ExerciseDemo } from '../../services/exercisedb';
-import { colors } from '../../constants/colors';
+import { colors, withAlpha } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { useT } from '../../constants/i18n';
@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
   sectionTitle:    { fontFamily: typography.fonts.heading, fontSize: typography.sizes.md, color: colors.text.primary },
   stepList:        { gap: spacing.sm },
   stepRow:         { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
-  stepNum:         { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.accent.dim, borderWidth: 1, borderColor: colors.accent.primary + '50', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 },
+  stepNum:         { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.accent.dim, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.3), alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 },
   stepNumText:     { fontFamily: typography.fonts.display, fontSize: typography.sizes.xs, color: colors.accent.primary },
   stepText:        { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, lineHeight: 20, flex: 1 },
   noInstructions:  { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.tertiary, lineHeight: 20 },

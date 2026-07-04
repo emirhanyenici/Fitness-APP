@@ -9,14 +9,15 @@ import { useUserStore } from '../../stores/userStore';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { useWeightLogStore } from '../../stores/weightLogStore';
 import { useZenovaScore, formatDeltaLabel } from '../../hooks/useNovraScore';
-import { colors } from '../../constants/colors';
+import { colors, withAlpha, bmiColor } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
+import { elevation } from '../../constants/elevation';
 import { MEDICAL_DISCLAIMER } from '../../constants/legal';
 import { isValidHeightCm, isValidWeightKg } from '../../services/recommendations';
 import {
   Icon, Bell, ChartColumn, Heart, CreditCard, Stethoscope, Lock, FileText,
-  Ruler, Globe, ChevronRight, CircleUserRound, Pencil,
+  Ruler, Globe, ChevronRight, CircleUserRound, Pencil, Settings,
 } from '../../components/ui/Icon';
 import { useT } from '../../constants/i18n';
 import { useLocaleStore } from '../../stores/localeStore';
@@ -223,7 +224,7 @@ export default function ProfileScreen() {
           )}
 
           <TouchableOpacity
-            style={[styles.planBadge, { borderColor: planColor + '40' }]}
+            style={[styles.planBadge, { borderColor: withAlpha(planColor, 0.25) }]}
             onPress={() => !isPro && router.push('/paywall')}
             accessibilityRole="button"
             accessibilityLabel={isPro ? t('profile.currentPlan', { plan: planLabel }) : t('profile.currentPlanUpgrade', { plan: planLabel })}
@@ -290,11 +291,7 @@ export default function ProfileScreen() {
             <View style={styles.statCard}>
               {(() => {
                 const bmi = profile?.bmi;
-                const bmiColor = !bmi ? colors.text.primary
-                  : bmi < 18.5 ? '#60A5FA'
-                  : bmi < 25   ? colors.status.success
-                  : bmi < 30   ? colors.status.warning
-                  : colors.status.danger;
+                const color = bmi ? bmiColor(bmi) : colors.text.primary;
                 const bmiLabel = !bmi ? null
                   : bmi < 18.5 ? t('profile.bmiUnderweight')
                   : bmi < 25   ? t('profile.bmiNormal')
@@ -302,9 +299,9 @@ export default function ProfileScreen() {
                   : t('profile.bmiObese');
                 return (
                   <>
-                    <Text style={[styles.statVal, { color: bmiColor }]}>{bmi ? String(bmi) : '—'}</Text>
+                    <Text style={[styles.statVal, { color }]}>{bmi ? String(bmi) : '—'}</Text>
                     <Text style={styles.statLabel}>{t('profile.bmi')}</Text>
-                    {bmiLabel && <Text style={[styles.bmiTag, { color: bmiColor, borderColor: bmiColor + '40' }]}>{bmiLabel}</Text>}
+                    {bmiLabel && <Text style={[styles.bmiTag, { color, borderColor: withAlpha(color, 0.25) }]}>{bmiLabel}</Text>}
                   </>
                 );
               })()}
@@ -358,7 +355,7 @@ export default function ProfileScreen() {
                 <Switch
                   value={units === 'imperial'}
                   onValueChange={(val) => updateProfile({ units: val ? 'imperial' : 'metric' })}
-                  trackColor={{ false: colors.border.subtle, true: colors.accent.primary + '80' }}
+                  trackColor={{ false: colors.border.subtle, true: withAlpha(colors.accent.primary, 0.5) }}
                   thumbColor={units === 'imperial' ? colors.accent.primary : colors.text.tertiary}
                 />
               </View>
@@ -378,7 +375,7 @@ export default function ProfileScreen() {
                 <Switch
                   value={lang === 'tr'}
                   onValueChange={(val) => setLang(val ? 'tr' : 'en')}
-                  trackColor={{ false: colors.border.subtle, true: colors.accent.primary + '80' }}
+                  trackColor={{ false: colors.border.subtle, true: withAlpha(colors.accent.primary, 0.5) }}
                   thumbColor={lang === 'tr' ? colors.accent.primary : colors.text.tertiary}
                   accessibilityLabel={t('profile.language')}
                 />
@@ -432,7 +429,10 @@ export default function ProfileScreen() {
             }}
             activeOpacity={0.7}
           >
-            <Text style={styles.devToggleText}>⚙️  DEV: {plan.toUpperCase()} → tap to cycle</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Icon icon={Settings} size="sm" color={colors.text.secondary} />
+              <Text style={styles.devToggleText}>DEV: {plan.toUpperCase()} → tap to cycle</Text>
+            </View>
           </TouchableOpacity>
         )}
 
@@ -449,12 +449,12 @@ const styles = StyleSheet.create({
 
   header:    { paddingTop: 52, marginBottom: spacing.xl, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   pageTitle: { fontFamily: typography.fonts.display, fontSize: typography.sizes['2xl'], color: colors.text.primary },
-  editBtn:   { backgroundColor: colors.accent.dim, borderWidth: 1, borderColor: colors.accent.primary + '40', borderRadius: radius.full, paddingHorizontal: 18, paddingVertical: 8 },
+  editBtn:   { backgroundColor: colors.accent.dim, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.25), borderRadius: radius.full, paddingHorizontal: 18, paddingVertical: 8 },
   editBtnText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.accent.primary },
 
   profileHeader: { alignItems: 'center', marginBottom: spacing.xl },
   avatarWrap:    { position: 'relative', marginBottom: spacing.sm },
-  avatar:        { width: 84, height: 84, borderRadius: 42, backgroundColor: colors.bg.elevated, borderWidth: 2, borderColor: colors.accent.primary + '60', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  avatar:        { width: 84, height: 84, borderRadius: 42, backgroundColor: colors.bg.elevated, borderWidth: 2, borderColor: withAlpha(colors.accent.primary, 0.38), alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   avatarImage:   { width: 84, height: 84, borderRadius: 42 },
   editBadge:     { position: 'absolute', bottom: 0, right: 0, width: 26, height: 26, borderRadius: 13, backgroundColor: colors.bg.tertiary, borderWidth: 1, borderColor: colors.border.default, alignItems: 'center', justifyContent: 'center' },
   name:          { fontFamily: typography.fonts.heading, fontSize: typography.sizes.xl, color: colors.text.primary, marginBottom: spacing.xs },
@@ -463,15 +463,15 @@ const styles = StyleSheet.create({
   planBadgeText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs },
 
   statsRow:  { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.base },
-  statCard:  { flex: 1, backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.lg, padding: spacing.base, alignItems: 'center', gap: 3 },
-  statVal:   { fontFamily: typography.fonts.display, fontSize: typography.sizes.xl, color: colors.text.primary },
+  statCard:  { flex: 1, backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, alignItems: 'center', gap: 3, ...elevation.card },
+  statVal:   { fontFamily: typography.fonts.mono, fontSize: typography.sizes.lg, color: colors.text.primary },
   statLabel: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.secondary },
   bmiTag:    { fontFamily: typography.fonts.body, fontSize: 9, borderWidth: 1, borderRadius: radius.full, paddingHorizontal: 6, paddingVertical: 1, marginTop: 2 },
 
   editStatsRow:  { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
-  editStatField: { flex: 1, backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.accent.primary + '30', borderRadius: radius.lg, padding: spacing.sm, alignItems: 'center', gap: 4 },
+  editStatField: { flex: 1, backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.19), borderRadius: radius.xl, padding: spacing.sm, alignItems: 'center', gap: 4 },
   editStatLabel: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.secondary },
-  editStatInput: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.md, color: colors.text.primary, borderBottomWidth: 1, borderBottomColor: colors.accent.primary + '60', textAlign: 'center', width: '100%', paddingVertical: 2 },
+  editStatInput: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.md, color: colors.text.primary, borderBottomWidth: 1, borderBottomColor: withAlpha(colors.accent.primary, 0.38), textAlign: 'center', width: '100%', paddingVertical: 2 },
   editStatReadonly: { borderBottomWidth: 0, alignItems: 'center', justifyContent: 'center' },
   editStatReadonlyText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.md, color: colors.text.tertiary },
   autoTag:     { backgroundColor: colors.bg.elevated, borderRadius: radius.sm, paddingHorizontal: 5, paddingVertical: 1 },
@@ -480,15 +480,15 @@ const styles = StyleSheet.create({
   cancelBtn:     { alignItems: 'center', paddingVertical: spacing.sm, marginBottom: spacing.base },
   cancelBtnText: { fontFamily: typography.fonts.body, fontSize: typography.sizes.base, color: colors.text.tertiary },
 
-  scoreCard:    { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.accent.primary + '20', borderRadius: radius.xl, padding: spacing.base, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.base },
+  scoreCard:    { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.13), borderRadius: radius.xl, padding: spacing.base, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.base, ...elevation.card },
   scoreLeft:    { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  scoreNum:     { fontFamily: typography.fonts.display, fontSize: typography.sizes['3xl'] },
+  scoreNum:     { fontFamily: typography.fonts.mono, fontSize: typography.sizes['3xl'] },
   scoreTitle:   { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.primary },
   scoreSub:     { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 2 },
   scoreRing:    { width: 54, height: 54, borderRadius: 27, borderWidth: 5, alignItems: 'center', justifyContent: 'center' },
-  scoreRingNum: { fontFamily: typography.fonts.display, fontSize: typography.sizes.md },
+  scoreRingNum: { fontFamily: typography.fonts.mono, fontSize: typography.sizes.md },
 
-  settingsCard: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, marginBottom: spacing.base, overflow: 'hidden' },
+  settingsCard: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, marginBottom: spacing.base, overflow: 'hidden', ...elevation.card },
   settingRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15, paddingHorizontal: spacing.base, borderBottomWidth: 1, borderBottomColor: colors.border.subtle },
   settingLeft:  { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   settingLabel: { fontFamily: typography.fonts.body, fontSize: typography.sizes.base, color: colors.text.primary },

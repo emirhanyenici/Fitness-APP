@@ -6,7 +6,7 @@ import { router } from 'expo-router';
 import { useCustomProgramStore } from '../../stores/customProgramStore';
 import { useWorkoutStore } from '../../stores/workoutStore';
 import { WorkoutExercise } from '../../services/exercisedb';
-import { colors } from '../../constants/colors';
+import { colors, withAlpha } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { useT } from '../../constants/i18n';
@@ -361,7 +361,7 @@ const styles = StyleSheet.create({
 
   dayRow:        { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, gap: spacing.sm },
   dayBadge:      { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.bg.tertiary, borderWidth: 1, borderColor: colors.border.subtle, alignItems: 'center', justifyContent: 'center' },
-  dayBadgeActive:{ backgroundColor: colors.accent.dim, borderColor: colors.accent.primary + '60' },
+  dayBadgeActive:{ backgroundColor: colors.accent.dim, borderColor: withAlpha(colors.accent.primary, 0.38) },
   dayShort:      { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.text.tertiary },
   dayShortActive:{ color: colors.accent.primary },
   dayInfo:       { flex: 1 },
@@ -391,7 +391,7 @@ const styles = StyleSheet.create({
   groupTabsScroll: { marginBottom: spacing.sm },
   groupTabs:       { flexDirection: 'row', gap: spacing.xs, paddingBottom: 2 },
   groupTab:        { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 7 },
-  groupTabActive:  { backgroundColor: colors.accent.dim, borderColor: colors.accent.primary + '60' },
+  groupTabActive:  { backgroundColor: colors.accent.dim, borderColor: withAlpha(colors.accent.primary, 0.38) },
   groupTabLabel:   { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.text.secondary },
   groupTabLabelActive: { color: colors.accent.primary },
 

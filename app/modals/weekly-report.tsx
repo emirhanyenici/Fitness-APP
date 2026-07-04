@@ -12,7 +12,7 @@ import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { computeTargets } from '../../services/recommendations';
 import { buildLocalWeeklyReport } from '../../services/weeklyReport';
 import { daysAgoStr } from '../../services/dateUtils';
-import { colors } from '../../constants/colors';
+import { colors, withAlpha } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { supabase } from '../../services/supabase';
@@ -244,7 +244,7 @@ const styles = StyleSheet.create({
   loadingBox:  { alignItems: 'center', gap: spacing.base, paddingVertical: spacing['2xl'] },
   loadingText: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary },
 
-  reportCard:      { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.accent.primary + '30', borderRadius: radius['2xl'], padding: spacing.xl, gap: spacing.xl },
+  reportCard:      { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.19), borderRadius: radius['2xl'], padding: spacing.xl, gap: spacing.xl },
   localNote:       { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textAlign: 'center', marginTop: -spacing.sm },
   reportText:      { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.primary, lineHeight: 22 },
   regenerateBtn:   { alignSelf: 'center', paddingVertical: spacing.sm, paddingHorizontal: spacing.xl },

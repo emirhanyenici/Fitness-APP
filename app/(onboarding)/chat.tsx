@@ -5,7 +5,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useUserStore } from '../../stores/userStore';
 import { supabase } from '../../services/supabase';
 import { isValidHeightCm, isValidWeightKg } from '../../services/recommendations';
-import { colors } from '../../constants/colors';
+import { colors, withAlpha, bmiColors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { useT } from '../../constants/i18n';
@@ -21,11 +21,11 @@ type BmiCat = { labelKey: string; color: string; commentKey: string };
 
 function bmiCategory(bmi: number | null): BmiCat | null {
   if (bmi === null) return null;
-  if (bmi < 18.5) return { labelKey: 'onboarding.bmiUnderweight', color: '#3B82F6', commentKey: 'onboarding.bmiUnderweightComment' };
-  if (bmi < 25)   return { labelKey: 'onboarding.bmiNormal',      color: '#10B981', commentKey: 'onboarding.bmiNormalComment' };
-  if (bmi < 30)   return { labelKey: 'onboarding.bmiOverweight',  color: '#F59E0B', commentKey: 'onboarding.bmiOverweightComment' };
-  if (bmi < 35)   return { labelKey: 'onboarding.bmiObese1',      color: '#F97316', commentKey: 'onboarding.bmiObese1Comment' };
-  return           { labelKey: 'onboarding.bmiObese2',            color: '#EF4444', commentKey: 'onboarding.bmiObese2Comment' };
+  if (bmi < 18.5) return { labelKey: 'onboarding.bmiUnderweight', color: bmiColors.underweight, commentKey: 'onboarding.bmiUnderweightComment' };
+  if (bmi < 25)   return { labelKey: 'onboarding.bmiNormal',      color: bmiColors.normal,      commentKey: 'onboarding.bmiNormalComment' };
+  if (bmi < 30)   return { labelKey: 'onboarding.bmiOverweight',  color: bmiColors.overweight,  commentKey: 'onboarding.bmiOverweightComment' };
+  if (bmi < 35)   return { labelKey: 'onboarding.bmiObese1',      color: bmiColors.obese1,      commentKey: 'onboarding.bmiObese1Comment' };
+  return           { labelKey: 'onboarding.bmiObese2',            color: bmiColors.obese2,      commentKey: 'onboarding.bmiObese2Comment' };
 }
 
 const STEPS = [
@@ -257,7 +257,7 @@ export default function OnboardingChat() {
                     <Text style={[styles.bmiPreviewNum, { color: liveCat.color }]}>{liveBmi}</Text>
                     <Text style={styles.bmiPreviewUnit}>{t('onboarding.bmiUnit')}</Text>
                   </View>
-                  <View style={[styles.bmiPreviewBadge, { backgroundColor: liveCat.color + '18', borderColor: liveCat.color + '40' }]}>
+                  <View style={[styles.bmiPreviewBadge, { backgroundColor: withAlpha(liveCat.color, 0.09), borderColor: withAlpha(liveCat.color, 0.25) }]}>
                     <Text style={[styles.bmiPreviewLabel, { color: liveCat.color }]}>{t(liveCat.labelKey)}</Text>
                   </View>
                 </View>
@@ -267,10 +267,10 @@ export default function OnboardingChat() {
               {liveBmi !== null && (
                 <View style={styles.bmiScaleRow}>
                   {[
-                    { label: t('onboarding.scaleUnder'), range: '<18.5', color: '#3B82F6', threshold: 18.5 },
-                    { label: t('onboarding.scaleNormal'), range: '18.5–25', color: '#10B981', threshold: 25 },
-                    { label: t('onboarding.scaleOver'), range: '25–30', color: '#F59E0B', threshold: 30 },
-                    { label: t('onboarding.scaleObese'), range: '30+', color: '#EF4444', threshold: Infinity },
+                    { label: t('onboarding.scaleUnder'), range: '<18.5', color: bmiColors.underweight, threshold: 18.5 },
+                    { label: t('onboarding.scaleNormal'), range: '18.5–25', color: bmiColors.normal, threshold: 25 },
+                    { label: t('onboarding.scaleOver'), range: '25–30', color: bmiColors.overweight, threshold: 30 },
+                    { label: t('onboarding.scaleObese'), range: '30+', color: bmiColors.obese2, threshold: Infinity },
                   ].map((r) => {
                     const active = liveBmi !== null && (
                       r.threshold === 18.5 ? liveBmi < 18.5 :
@@ -279,7 +279,7 @@ export default function OnboardingChat() {
                       liveBmi >= 30
                     );
                     return (
-                      <View key={r.label} style={[styles.bmiScaleSeg, active && { borderColor: r.color + '80', backgroundColor: r.color + '12' }]}>
+                      <View key={r.label} style={[styles.bmiScaleSeg, active && { borderColor: withAlpha(r.color, 0.5), backgroundColor: withAlpha(r.color, 0.07) }]}>
                         <View style={[styles.bmiScaleDot, { backgroundColor: r.color }]} />
                         <Text style={[styles.bmiScaleLabel, active && { color: r.color, fontFamily: typography.fonts.bodyMed }]}>{r.label}</Text>
                       </View>
@@ -373,12 +373,12 @@ const styles = StyleSheet.create({
   inputGroup:      { gap: spacing.xs },
   inputLabel:      { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.secondary },
   input:           { backgroundColor: colors.bg.tertiary, borderWidth: 1, borderColor: colors.border.default, borderRadius: radius.lg, padding: 14, fontFamily: typography.fonts.body, fontSize: typography.sizes.lg, color: colors.text.primary },
-  calcBtn:         { backgroundColor: colors.accent.primary, borderRadius: radius.full, paddingVertical: 14, alignItems: 'center', marginTop: spacing.sm },
+  calcBtn:         { backgroundColor: colors.accent.primary, borderRadius: radius.full, paddingVertical: spacing.base, alignItems: 'center', marginTop: spacing.sm },
   calcBtnDisabled: { backgroundColor: colors.border.default },
   calcBtnText:     { fontFamily: typography.fonts.display, fontSize: typography.sizes.base, color: colors.text.inverse },
   bmiPreview:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.bg.tertiary, borderRadius: radius.lg, padding: spacing.base },
   bmiPreviewLeft:  { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },
-  bmiPreviewNum:   { fontFamily: typography.fonts.display, fontSize: typography.sizes['2xl'] },
+  bmiPreviewNum:   { fontFamily: typography.fonts.mono, fontSize: typography.sizes['2xl'] },
   bmiPreviewUnit:  { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, letterSpacing: 2 },
   bmiPreviewBadge: { borderWidth: 1, borderRadius: radius.full, paddingHorizontal: 14, paddingVertical: 5 },
   bmiPreviewLabel: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.sm },
@@ -386,7 +386,7 @@ const styles = StyleSheet.create({
   bmiScaleSeg:     { flex: 1, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.md, paddingVertical: 6, paddingHorizontal: 4, alignItems: 'center', gap: 3 },
   bmiScaleDot:     { width: 6, height: 6, borderRadius: 3 },
   bmiScaleLabel:   { fontFamily: typography.fonts.body, fontSize: 9, color: colors.text.tertiary, textAlign: 'center' },
-  commentBox:      { backgroundColor: colors.accent.dim, borderRadius: radius.xl, padding: spacing.base, width: '100%', borderWidth: 1, borderColor: colors.accent.primary + '30' },
+  commentBox:      { backgroundColor: colors.accent.dim, borderRadius: radius.xl, padding: spacing.base, width: '100%', borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.19) },
   commentText:     { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.accent.primary, lineHeight: 20 },
   rangeError:      { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.status.danger, lineHeight: 20, marginTop: spacing.sm },
 });

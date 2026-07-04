@@ -1,6 +1,6 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
-import { colors } from '../../constants/colors';
+import { colors, withAlpha } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { Icon, Sparkles, ChevronRight } from './Icon';
@@ -38,13 +38,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: colors.accent.dim,
     borderWidth: 1,
-    borderColor: colors.accent.primary + '40',
+    borderColor: withAlpha(colors.accent.primary, 0.25),
     borderRadius: radius.xl,
     padding: spacing.base,
     marginBottom: spacing.base,
   },
   left:  { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  icon:  { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.accent.primary + '20', alignItems: 'center', justifyContent: 'center' },
+  icon:  { width: 38, height: 38, borderRadius: 19, backgroundColor: withAlpha(colors.accent.primary, 0.13), alignItems: 'center', justifyContent: 'center' },
   title: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.accent.primary },
-  sub:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.accent.primary + 'BB', marginTop: 1 },
+  sub:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: withAlpha(colors.accent.primary, 0.73), marginTop: 1 },
 });

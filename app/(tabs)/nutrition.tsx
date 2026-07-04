@@ -6,9 +6,10 @@ import { useAISuggestionsStore } from '../../stores/aiSuggestionsStore';
 import { useUserStore } from '../../stores/userStore';
 import { computeTargets } from '../../services/recommendations';
 import { todayStr } from '../../services/dateUtils';
-import { colors } from '../../constants/colors';
+import { colors, withAlpha } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
+import { elevation } from '../../constants/elevation';
 import { useAnalytics } from '../../services/analytics';
 import { AICoachBanner } from '../../components/ui/AICoachBanner';
 import { useT } from '../../constants/i18n';
@@ -302,24 +303,24 @@ const styles = StyleSheet.create({
   pageTitle: { fontFamily: typography.fonts.display, fontSize: typography.sizes['2xl'], color: colors.text.primary },
   pageSub:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, marginTop: 2 },
 
-  waterCard:     { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.status.info + '30', borderRadius: radius['2xl'], padding: spacing.base, marginBottom: spacing.base, gap: spacing.sm },
+  waterCard:     { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: withAlpha(colors.status.info, 0.19), borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base, gap: spacing.sm, ...elevation.card },
   waterCardTop:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   waterTitle:    { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.primary },
   waterMl:       { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.status.info, marginTop: 2 },
   waterControls: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  waterCtrlBtn:  { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: colors.status.info + '40', alignItems: 'center', justifyContent: 'center' },
+  waterCtrlBtn:  { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: withAlpha(colors.status.info, 0.25), alignItems: 'center', justifyContent: 'center' },
   waterCtrlText: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.status.info },
   waterCountText:{ fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.primary, minWidth: 36, textAlign: 'center' },
   waterDropRow:    { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: spacing.xs },
-  waterCircle:     { flex: 1, height: 32, borderRadius: radius.sm, borderWidth: 1.5, borderColor: colors.status.info + '40', backgroundColor: colors.bg.elevated, marginHorizontal: 2, alignItems: 'center', justifyContent: 'center' },
-  waterCircleFilled: { backgroundColor: colors.status.info + '20', borderColor: colors.status.info },
+  waterCircle:     { flex: 1, height: 32, borderRadius: radius.sm, borderWidth: 1.5, borderColor: withAlpha(colors.status.info, 0.25), backgroundColor: colors.bg.elevated, marginHorizontal: 2, alignItems: 'center', justifyContent: 'center' },
+  waterCircleFilled: { backgroundColor: withAlpha(colors.status.info, 0.13), borderColor: colors.status.info },
   waterBarBg:    { width: '100%', height: 4, backgroundColor: colors.bg.elevated, borderRadius: 2, overflow: 'hidden' },
   waterBarFill:  { height: '100%', backgroundColor: colors.status.info, borderRadius: 2 },
   waterHint:     { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textAlign: 'center' },
 
-  calorieCard:  { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.accent.primary + '20', borderRadius: radius['2xl'], padding: spacing.base, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.base, gap: spacing.base },
+  calorieCard:  { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.13), borderRadius: radius['2xl'], padding: spacing.base, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.base, gap: spacing.base, ...elevation.raised },
   calorieLeft:  { flex: 1 },
-  calsNum:      { fontFamily: typography.fonts.display, fontSize: typography.sizes['3xl'], color: colors.text.primary },
+  calsNum:      { fontFamily: typography.fonts.mono, fontSize: typography.sizes['3xl'], color: colors.text.primary },
   calsSub:      { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, marginBottom: spacing.sm },
   calBarBg:     { width: '100%', height: 5, backgroundColor: colors.bg.elevated, borderRadius: 3, overflow: 'hidden', marginBottom: spacing.xs },
   calBarFill:   { height: '100%', backgroundColor: colors.accent.primary, borderRadius: 3 },
@@ -331,21 +332,21 @@ const styles = StyleSheet.create({
   macroBarFill: { height: '100%', borderRadius: 2 },
   macroLabel:   { fontFamily: typography.fonts.mono, fontSize: typography.sizes.xs },
 
-  aiCard:        { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.accent.primary + '30', borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base },
+  aiCard:        { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.19), borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base, ...elevation.card },
   aiCardHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
   aiBadge:       { backgroundColor: colors.accent.dim, borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 5 },
   aiBadgeText:   { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.accent.primary },
   aiText:        { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.primary, lineHeight: 20, marginBottom: spacing.base },
-  aiCoachBtn:    { alignSelf: 'flex-end', backgroundColor: colors.accent.dim, borderWidth: 1, borderColor: colors.accent.primary + '50', borderRadius: radius.full, paddingHorizontal: 14, paddingVertical: 7 },
+  aiCoachBtn:    { alignSelf: 'flex-end', backgroundColor: colors.accent.dim, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.3), borderRadius: radius.full, paddingHorizontal: 14, paddingVertical: 7 },
   aiCoachBtnText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.accent.primary },
 
-  mealCard:   { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, marginBottom: spacing.sm, overflow: 'hidden' },
+  mealCard:   { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, marginBottom: spacing.sm, overflow: 'hidden', ...elevation.card },
   mealHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.base },
   mealLeft:   { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   mealTitle:  { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.primary },
   mealCals:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 2 },
   mealRight:  { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  addBtn:     { borderWidth: 1, borderColor: colors.accent.primary + '60', borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 5 },
+  addBtn:     { borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.38), borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 5 },
   addBtnText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.accent.primary },
 
   mealItems:  { borderTopWidth: 1, borderTopColor: colors.border.subtle, paddingHorizontal: spacing.base, paddingBottom: spacing.base },

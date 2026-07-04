@@ -10,7 +10,7 @@ import { useNutritionStore, MealType } from '../../stores/nutritionStore';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { searchFoods, searchFoodsOFF, lookupBarcode, scaleFood, FoodItem } from '../../services/usda';
 import { analyzeFood, SnapResult } from '../../services/foodSnap';
-import { colors } from '../../constants/colors';
+import { colors, withAlpha } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { useT } from '../../constants/i18n';
@@ -483,6 +483,9 @@ function BarcodeScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onB
   }
 
   return (
+    // Intentional raw #000/#fff (like the BMI blue / YouTube red exceptions):
+    // the camera viewport must stay true black with white chrome regardless of
+    // the app palette.
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       <CameraView
         style={{ flex: 1 }}
@@ -732,7 +735,7 @@ const styles = StyleSheet.create({
 
   gramRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, marginBottom: 4 },
   gramLabel: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.base, color: colors.text.secondary },
-  gramInput: { backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: colors.accent.primary + '60', borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 8, color: colors.text.primary, fontFamily: typography.fonts.display, fontSize: typography.sizes.xl, textAlign: 'center', minWidth: 80 },
+  gramInput: { backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.38), borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 8, color: colors.text.primary, fontFamily: typography.fonts.display, fontSize: typography.sizes.xl, textAlign: 'center', minWidth: 80 },
   gramUnit:  { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.base, color: colors.text.secondary },
   gramHint:  { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textAlign: 'center', marginBottom: spacing.base },
 

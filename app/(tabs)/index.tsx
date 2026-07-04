@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { router, type Href } from 'expo-router';
-import { colors } from '../../constants/colors';
+import { colors, withAlpha } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
+import { elevation } from '../../constants/elevation';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { useUserStore } from '../../stores/userStore';
 import { useNutritionStore } from '../../stores/nutritionStore';
@@ -14,6 +15,8 @@ import { computeTargets, GOAL_LABELS } from '../../services/recommendations';
 import { dateStr, daysAgoStr } from '../../services/dateUtils';
 import { useZenovaScore, computeDayScore, formatDeltaLabel } from '../../hooks/useNovraScore';
 import { AICoachBanner } from '../../components/ui/AICoachBanner';
+import { Card } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
 import { SparklineChart } from '../../components/ui/SparklineChart';
 import { useT } from '../../constants/i18n';
 import {
@@ -162,7 +165,7 @@ export default function HomeScreen() {
       </View>
 
       {/* ── Novra Score Hero ── */}
-      <View style={styles.heroCard}>
+      <Card variant="hero" style={styles.heroCard}>
         <View style={[styles.ring, { borderColor: scoreColor, shadowColor: scoreColor }]}>
           <Text style={[styles.scoreNum, { color: scoreColor }]}>{score}</Text>
           <Text style={styles.scoreLabel}>LIFESCORE</Text>
@@ -173,7 +176,7 @@ export default function HomeScreen() {
           {pillars.map((p) => (
             <View
               key={p.labelKey}
-              style={[styles.pill, { borderColor: p.color + '50' }]}
+              style={[styles.pill, { borderColor: withAlpha(p.color, 0.3) }]}
             >
               <View style={[styles.pillDot, { backgroundColor: p.color }]} />
               <Text style={styles.pillLabel}>{t(p.labelKey)}</Text>
@@ -181,10 +184,10 @@ export default function HomeScreen() {
             </View>
           ))}
         </View>
-      </View>
+      </Card>
 
       {/* ── Daily Targets ── */}
-      <View style={styles.targetsCard}>
+      <Card style={styles.targetsCard}>
         <View style={styles.targetsGoalRow}>
           <Icon icon={Target} size="sm" color={colors.accent.primary} />
           <Text style={styles.targetsGoalLabel}>
@@ -212,10 +215,10 @@ export default function HomeScreen() {
             <Text style={styles.targetLbl}>{t('home.workout')}</Text>
           </View>
         </View>
-      </View>
+      </Card>
 
       {/* ── Daily AI Plan ── */}
-      <View style={styles.planCard}>
+      <Card variant="raised" style={styles.planCard}>
         <View style={styles.planHeader}>
           <View>
             <Text style={styles.planTitle}>{t('home.todaysPlan')}</Text>
@@ -270,20 +273,17 @@ export default function HomeScreen() {
                 <Icon icon={Moon} size="md" color={colors.violet.primary} />
                 <View style={styles.blurBar} />
               </View>
-              <TouchableOpacity
-                style={styles.unlockBtn}
+              <Button
+                label={t('home.unlockFullPlan')}
+                subLabel={t('home.unlockSub')}
                 onPress={() => router.push('/paywall')}
-                activeOpacity={0.85}
-                accessibilityRole="button"
                 accessibilityLabel={t('home.unlockWithPro')}
-              >
-                <Text style={styles.unlockText}>{t('home.unlockFullPlan')}</Text>
-                <Text style={styles.unlockSub}>{t('home.unlockSub')}</Text>
-              </TouchableOpacity>
+                style={{ marginTop: spacing.base }}
+              />
             </>
           )}
         </View>
-      </View>
+      </Card>
 
       {/* ── First-use welcome banner ── */}
       {streak === 0 && todayCalories === 0 && (
@@ -345,7 +345,7 @@ export default function HomeScreen() {
       {/* ── This Week Trend ── */}
       <Text style={styles.sectionTitle}>{t('home.thisWeek')}</Text>
       {isPro ? (
-        <View style={styles.trendCard}>
+        <Card variant="raised" style={styles.trendCard}>
           <View style={styles.trendHeader}>
             <Text style={styles.trendTitle}>{t('home.lifeScoreTrend')}</Text>
             <Text style={[styles.trendCurrent, { color: scoreColor }]}>{t('home.scoreToday', { score })}</Text>
@@ -357,7 +357,7 @@ export default function HomeScreen() {
             width={320}
             height={72}
           />
-        </View>
+        </Card>
       ) : (
         <TouchableOpacity
           style={styles.trendLocked}
@@ -381,7 +381,7 @@ export default function HomeScreen() {
       <AICoachBanner subtitle={t('home.aiCoachSubtitle')} />
 
       {/* ── Streak ── */}
-      <View style={styles.streakCard}>
+      <Card style={styles.streakCard}>
         <View style={styles.streakLeft}>
           <Icon icon={Flame} size={30} color={colors.status.warning} strokeWidth={2} />
           <View>
@@ -394,14 +394,12 @@ export default function HomeScreen() {
             const dateStr = weekDates[i];
             const active  = activeDates.has(dateStr);
             const isToday = dateStr === todayStr;
-            const future  = dateStr > todayStr;
             return (
               <View key={i} style={styles.dotCol}>
                 <View style={[
                   styles.dot,
                   active  ? styles.dotFilled :
                   isToday ? styles.dotToday  :
-                  future  ? styles.dotEmpty  :
                   styles.dotEmpty,
                 ]} />
                 <Text style={[styles.dotLabel, isToday && { color: colors.accent.primary, fontFamily: typography.fonts.bodyMed }]}>{day}</Text>
@@ -409,7 +407,7 @@ export default function HomeScreen() {
             );
           })}
         </View>
-      </View>
+      </Card>
 
       <View style={{ height: 110 }} />
     </ScrollView>
@@ -426,9 +424,9 @@ const styles = StyleSheet.create({
   dateChip: { backgroundColor: colors.bg.secondary, borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: colors.border.subtle },
   dateText: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.secondary },
 
-  heroCard:   { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.accent.primary + '35', borderRadius: radius['2xl'], padding: spacing.xl, alignItems: 'center', marginBottom: spacing.base, shadowColor: 'rgba(15,23,42,1)', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 16, elevation: 4 },
+  heroCard:   { padding: spacing.xl, alignItems: 'center', marginBottom: spacing.base },
   ring:       { width: 180, height: 180, borderRadius: 90, borderWidth: 14, alignItems: 'center', justifyContent: 'center', shadowOpacity: 0.18, shadowRadius: 22, shadowOffset: { width: 0, height: 0 }, marginBottom: spacing.sm },
-  scoreNum:   { fontFamily: typography.fonts.display, fontSize: typography.sizes['5xl'] },
+  scoreNum:   { fontFamily: typography.fonts.mono, fontSize: typography.sizes['5xl'] },
   scoreLabel: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, letterSpacing: 4 },
   delta:      { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, marginBottom: spacing.base },
   pillsRow:   { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap', justifyContent: 'center' },
@@ -438,7 +436,7 @@ const styles = StyleSheet.create({
   pillScore:  { fontFamily: typography.fonts.mono, fontSize: typography.sizes.xs },
   pillLock:   { fontSize: 9 },
 
-  targetsCard:      { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base },
+  targetsCard:      { marginBottom: spacing.base },
   targetsGoalRow:   { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: spacing.sm },
   targetsGoalLabel: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.text.secondary },
   targetsRow:       { flexDirection: 'row', alignItems: 'center' },
@@ -447,7 +445,7 @@ const styles = StyleSheet.create({
   targetLbl:        { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary },
   targetDiv:        { width: 1, height: 32, backgroundColor: colors.border.subtle },
 
-  planCard:      { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius['2xl'], padding: spacing.base, marginBottom: spacing.base },
+  planCard:      { marginBottom: spacing.base },
   planHeader:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.base },
   planTitle:     { fontFamily: typography.fonts.heading, fontSize: typography.sizes.md, color: colors.text.primary },
   planTime:      { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 3 },
@@ -459,22 +457,19 @@ const styles = StyleSheet.create({
   planRow:       { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   planRowText:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.primary, flex: 1 },
   blurBar:       { flex: 1, height: 14, backgroundColor: colors.bg.elevated, borderRadius: radius.full },
-  unlockBtn:     { backgroundColor: colors.accent.primary, borderRadius: radius.full, paddingVertical: 14, alignItems: 'center', marginTop: spacing.base },
-  unlockText:    { fontFamily: typography.fonts.display, fontSize: typography.sizes.base, color: colors.text.inverse },
-  unlockSub:     { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.inverse, opacity: 0.75, marginTop: 3 },
 
   sectionTitle: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.primary, marginBottom: spacing.sm, marginTop: spacing.xs },
   quickRow:     { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.base },
-  quickBtn:     { flex: 1, backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.lg, paddingVertical: spacing.base, alignItems: 'center', gap: 6 },
+  quickBtn:     { flex: 1, backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, paddingVertical: spacing.base, alignItems: 'center', gap: 6, ...elevation.card },
   quickLabel:   { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.text.secondary },
 
-  statCard:    { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, width: 108, marginRight: spacing.sm, alignItems: 'center', gap: 4 },
+  statCard:    { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, width: 108, marginRight: spacing.sm, alignItems: 'center', gap: 4, ...elevation.card },
   statVal:     { fontFamily: typography.fonts.mono, fontSize: typography.sizes.lg },
   statLabel:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.secondary },
   statBarBg:   { width: '100%', height: 3, backgroundColor: colors.bg.elevated, borderRadius: 2, marginTop: 2, overflow: 'hidden' },
   statBarFill: { height: '100%', borderRadius: 2 },
 
-  welcomeBanner:       { backgroundColor: colors.accent.dim, borderWidth: 1, borderColor: colors.accent.primary + '35', borderRadius: radius['2xl'], padding: spacing.base, marginBottom: spacing.base, gap: spacing.sm },
+  welcomeBanner:       { backgroundColor: colors.accent.dim, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.21), borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base, gap: spacing.sm },
   welcomeTitle:        { fontFamily: typography.fonts.heading, fontSize: typography.sizes.md, color: colors.text.primary },
   welcomeSub:          { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, lineHeight: 20 },
   welcomeSteps:        { gap: spacing.sm, marginTop: spacing.xs },
@@ -483,9 +478,9 @@ const styles = StyleSheet.create({
   welcomeStepNumText:  { fontFamily: typography.fonts.display, fontSize: typography.sizes.xs, color: colors.text.inverse },
   welcomeStepText:     { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary },
 
-  streakCard:  { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  streakCard:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   streakLeft:  { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  streakNum:   { fontFamily: typography.fonts.display, fontSize: typography.sizes['2xl'], color: colors.accent.primary },
+  streakNum:   { fontFamily: typography.fonts.mono, fontSize: typography.sizes['2xl'], color: colors.accent.primary },
   streakLabel: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary },
   streakDots:  { flexDirection: 'row', gap: 8 },
   dotCol:      { alignItems: 'center', gap: 4 },
@@ -495,11 +490,11 @@ const styles = StyleSheet.create({
   dotEmpty:    { backgroundColor: colors.bg.elevated },
   dotLabel:    { fontFamily: typography.fonts.body, fontSize: 9, color: colors.text.tertiary },
 
-  trendCard:        { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.accent.primary + '30', borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base },
+  trendCard:        { marginBottom: spacing.base },
   trendHeader:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
   trendTitle:       { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.secondary },
   trendCurrent:     { fontFamily: typography.fonts.display, fontSize: typography.sizes.sm },
-  trendLocked:      { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  trendLocked:      { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', ...elevation.card },
   trendLockedInner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   trendLockedTitle: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.primary },
   trendLockedSub:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 2 },

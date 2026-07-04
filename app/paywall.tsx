@@ -1,13 +1,15 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { router } from 'expo-router';
 import Purchases from 'react-native-purchases';
 import { isPurchasesConfigured, planFromCustomerInfo } from '../services/purchases';
 import { useSubscriptionStore } from '../stores/subscriptionStore';
-import { colors } from '../constants/colors';
+import { colors, withAlpha } from '../constants/colors';
 import { typography } from '../constants/typography';
 import { spacing, radius } from '../constants/spacing';
+import { elevation } from '../constants/elevation';
 import { useT } from '../constants/i18n';
+import { Button } from '../components/ui/Button';
 import { Icon, X, Crown, Brain, Camera, ChartColumn, TrendingUp } from '../components/ui/Icon';
 
 export default function PaywallScreen() {
@@ -125,23 +127,14 @@ export default function PaywallScreen() {
           <Text style={styles.priceSub}>{t('paywall.bestValue')}</Text>
         </View>
 
-        <TouchableOpacity
-          style={[styles.ctaBtn, loading && { opacity: 0.6 }]}
-          activeOpacity={0.85}
-          disabled={loading}
+        <Button
+          label={t('paywall.startTrial')}
+          subLabel={t('paywall.thenPrice')}
           onPress={() => handlePurchase('novra_pro_yearly')}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: loading, busy: loading }}
+          loading={loading}
           accessibilityLabel={t('paywall.trialA11y')}
-        >
-          {loading
-            ? <ActivityIndicator color={colors.text.inverse} />
-            : <>
-                <Text style={styles.ctaBtnText}>{t('paywall.startTrial')}</Text>
-                <Text style={styles.ctaSub}>{t('paywall.thenPrice')}</Text>
-              </>
-          }
-        </TouchableOpacity>
+          style={{ width: '100%', marginBottom: spacing.sm }}
+        />
 
         <Text
           style={styles.monthly}
@@ -174,20 +167,17 @@ const styles = StyleSheet.create({
   title: { fontFamily: typography.fonts.display, fontSize: typography.sizes['2xl'], color: colors.text.primary, textAlign: 'center' },
   sub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.base, color: colors.text.secondary, textAlign: 'center', marginTop: spacing.sm, marginBottom: spacing.xl },
   features: { width: '100%', gap: spacing.sm, marginBottom: spacing.xl },
-  featureRow: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, flexDirection: 'row', alignItems: 'center', gap: spacing.base },
+  featureRow: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, flexDirection: 'row', alignItems: 'center', gap: spacing.base, ...elevation.card },
   featureTitle: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.primary },
   featureSub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, marginTop: 2 },
-  priceCard: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.accent.primary + '40', borderRadius: radius.xl, padding: spacing.xl, width: '100%', alignItems: 'center', marginBottom: spacing.base },
+  priceCard: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.25), borderRadius: radius.xl, padding: spacing.xl, width: '100%', alignItems: 'center', marginBottom: spacing.base, ...elevation.raised },
   priceTopRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: spacing.sm },
   saveBadge:     { backgroundColor: colors.status.success, borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 4 },
   saveBadgeText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.text.inverse },
   priceRef:      { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textDecorationLine: 'line-through' },
-  price: { fontFamily: typography.fonts.display, fontSize: typography.sizes['3xl'], color: colors.text.primary },
+  price: { fontFamily: typography.fonts.mono, fontSize: typography.sizes['3xl'], color: colors.text.primary },
   pricePer: { fontFamily: typography.fonts.body, fontSize: typography.sizes.lg, color: colors.text.secondary },
   priceSub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, marginTop: spacing.xs },
-  ctaBtn: { backgroundColor: colors.accent.primary, borderRadius: radius.full, paddingVertical: 18, paddingHorizontal: 32, width: '100%', alignItems: 'center', marginBottom: spacing.sm },
-  ctaBtnText: { fontFamily: typography.fonts.display, fontSize: typography.sizes.md, color: colors.text.inverse },
-  ctaSub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.inverse, opacity: 0.7, marginTop: 4 },
   monthly: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.base, color: colors.accent.primary, marginVertical: spacing.base },
   footer: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textAlign: 'center', marginTop: spacing.sm },
 });

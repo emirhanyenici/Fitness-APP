@@ -12,7 +12,7 @@ import { useAIChatStore, ChatMessage, WELCOME_MESSAGE } from '../../stores/aiCha
 import { useAuthStore } from '../../stores/authStore';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { getTodayMsgCount } from '../../stores/aiChatStore';
-import { colors } from '../../constants/colors';
+import { colors, withAlpha } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { supabase } from '../../services/supabase';
@@ -318,7 +318,7 @@ const styles = StyleSheet.create({
   typingBubble: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, paddingHorizontal: 16, paddingVertical: 10 },
 
   quickRow:  { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingHorizontal: spacing.base, paddingBottom: spacing.sm },
-  quickChip: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.accent.primary + '40', borderRadius: radius.full, paddingHorizontal: 14, paddingVertical: 8 },
+  quickChip: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.25), borderRadius: radius.full, paddingHorizontal: 14, paddingVertical: 8 },
   quickText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.accent.primary },
 
   inputRow:       { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, padding: spacing.base, paddingBottom: Platform.OS === 'ios' ? 32 : spacing.base, backgroundColor: colors.bg.secondary, borderTopWidth: 1, borderTopColor: colors.border.subtle },
@@ -326,13 +326,13 @@ const styles = StyleSheet.create({
   sendBtn:        { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.accent.primary, alignItems: 'center', justifyContent: 'center' },
   sendBtnDisabled:{ backgroundColor: colors.border.default },
 
-  viewTabBtn:  { marginTop: 6, backgroundColor: colors.accent.dim, borderWidth: 1, borderColor: colors.accent.primary + '50', borderRadius: radius.full, paddingHorizontal: 14, paddingVertical: 7, alignSelf: 'flex-start' },
+  viewTabBtn:  { marginTop: 6, backgroundColor: colors.accent.dim, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.3), borderRadius: radius.full, paddingHorizontal: 14, paddingVertical: 7, alignSelf: 'flex-start' },
   viewTabText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.accent.primary },
 
   clearRow:     { alignItems: 'center', paddingVertical: 6, paddingHorizontal: spacing.base },
   clearRowText: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary },
 
-  limitBanner: { backgroundColor: colors.bg.secondary, borderTopWidth: 1, borderTopColor: colors.accent.primary + '40', paddingVertical: spacing.base, paddingHorizontal: spacing.base, alignItems: 'center', gap: spacing.sm },
+  limitBanner: { backgroundColor: colors.bg.secondary, borderTopWidth: 1, borderTopColor: withAlpha(colors.accent.primary, 0.25), paddingVertical: spacing.base, paddingHorizontal: spacing.base, alignItems: 'center', gap: spacing.sm },
   limitText:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, textAlign: 'center' },
   limitBtn:    { backgroundColor: colors.accent.primary, borderRadius: radius.full, paddingHorizontal: 24, paddingVertical: 9 },
   limitBtnText:{ fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.inverse },
