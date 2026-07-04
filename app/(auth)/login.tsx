@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, Pressable } from 'react-native';
 import { Icon, Eye, EyeOff, Check } from '../../components/ui/Icon';
 import { secureStorage } from '../../services/secureStorage';
-import { router } from 'expo-router';
+import { router, useRootNavigationState } from 'expo-router';
 import { useAuthStore } from '../../stores/authStore';
 import { useUserStore } from '../../stores/userStore';
 import { supabase } from '../../services/supabase';
@@ -44,14 +44,19 @@ export default function LoginScreen() {
     });
   }, []);
 
+  // Navigating before the root navigator mounts (hot reload / error-boundary
+  // remount) throws "Attempted to navigate before mounting the Root Layout".
+  // Gate the auto-redirect on navigation readiness; the effect re-runs once ready.
+  const navState = useRootNavigationState();
+
   // F9 recovery path: if a restored session appears while this screen is up
   // (late hydration, or the index gate timed out before storage answered),
   // route the user back in instead of stranding them on the login form.
   useEffect(() => {
-    if (!session || interactiveAuth.current) return;
+    if (!navState?.key || !session || interactiveAuth.current) return;
     const serverOnboarded = session.user?.user_metadata?.onboarding_completed === true;
     router.replace(serverOnboarded || isOnboarded ? '/(tabs)' : '/(onboarding)/welcome');
-  }, [session, isOnboarded]);
+  }, [navState?.key, session, isOnboarded]);
 
   const handleSubmit = async () => {
     interactiveAuth.current = true;
