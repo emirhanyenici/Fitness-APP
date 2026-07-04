@@ -24,7 +24,7 @@ function corsHeaders(origin: string | null): Record<string, string> {
 
 // xAI (Grok) — OpenAI-compatible API; model must be vision-capable.
 const XAI_KEY        = Deno.env.get('XAI_API_KEY') ?? '';
-const XAI_MODEL      = Deno.env.get('XAI_VISION_MODEL') ?? 'grok-4-1-fast-non-reasoning';
+const XAI_MODEL      = Deno.env.get('XAI_VISION_MODEL') ?? 'grok-4.20-non-reasoning';
 const SUPABASE_URL   = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_ANON  = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 
