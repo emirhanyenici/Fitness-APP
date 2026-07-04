@@ -11,7 +11,7 @@ import { useAISuggestionsStore, SuggestionType } from '../../stores/aiSuggestion
 import { useAIChatStore, ChatMessage, WELCOME_MESSAGE } from '../../stores/aiChatStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
-import { getTodayMsgCount } from '../../stores/aiChatStore';
+import { getTodayUsage } from '../../stores/aiChatStore';
 import { colors, withAlpha } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
@@ -62,7 +62,6 @@ export default function AICoachModal() {
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const userId          = useAuthStore((s) => s.user?.id ?? 'anonymous');
   const isPro           = useSubscriptionStore((s) => s.isPro);
-  const chats           = useAIChatStore((s) => s.chats);
   const profile         = useUserStore((s) => s.profile);
   const recoveryEntries = useRecoveryStore((s) => s.entries);
   const saveSuggestion  = useAISuggestionsStore((s) => s.save);
@@ -83,13 +82,14 @@ export default function AICoachModal() {
   }, []);
 
   const FREE_LIMIT = 10;
-  const todayCount = getTodayMsgCount(chats, userId);
+  // Date-keyed counter (survives "Clear conversation") + legacy message count
+  const todayCount = useAIChatStore((s) => getTodayUsage(s, userId));
   const limitReached = !isPro && todayCount >= FREE_LIMIT;
 
   const send = useCallback(async (text: string) => {
     const clean = sanitizeInput(text);
     if (!clean || loading) return;
-    if (!isPro && getTodayMsgCount(chats, userId) >= FREE_LIMIT) return;
+    if (!isPro && getTodayUsage(useAIChatStore.getState(), userId) >= FREE_LIMIT) return;
 
     const userMsg: Message = { id: Date.now().toString(), role: 'user', text: clean };
     const history = [...messages, userMsg].slice(-10).map((m) => ({ role: m.role, content: m.text }));

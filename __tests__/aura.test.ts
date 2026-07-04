@@ -1116,6 +1116,50 @@ describe('store logic — state management', () => {
     } catch (e) { logResult('activeMins: durationMinutes preferred (F4)', false, e); throw e; }
   });
 
+  test('aiChatStore daily limit survives clearHistory (F12)', () => {
+    try {
+      type DailyCount = { date: string; count: number };
+      type Msg = { role: string; createdAt?: string };
+      const today = todayStr();
+      const userId = 'u1';
+
+      // Simulate getTodayUsage: max(date-keyed counter, message-derived count)
+      const usage = (
+        chats: Record<string, Msg[]>,
+        dailyCounts: Record<string, DailyCount>,
+      ) => {
+        const dc = dailyCounts[userId];
+        const counted = dc?.date === today ? dc.count : 0;
+        const fromMsgs = (chats[userId] ?? []).filter(
+          (m) => m.role === 'user' && !!m.createdAt && m.createdAt.startsWith(today)
+        ).length;
+        return Math.max(counted, fromMsgs);
+      };
+
+      // 10 user messages sent → counter at 10
+      let chats: Record<string, Msg[]> = {
+        [userId]: Array.from({ length: 10 }, () => ({ role: 'user', createdAt: `${today}T10:00:00.000Z` })),
+      };
+      let dailyCounts: Record<string, DailyCount> = { [userId]: { date: today, count: 10 } };
+      expect(usage(chats, dailyCounts)).toBe(10);
+
+      // "Clear conversation" wipes messages but NOT the counter → still gated
+      chats = { [userId]: [] };
+      expect(usage(chats, dailyCounts)).toBe(10);
+
+      // Next calendar day → counter stale, usage resets to 0
+      dailyCounts = { [userId]: { date: '2020-01-01', count: 10 } };
+      expect(usage(chats, dailyCounts)).toBe(0);
+
+      // Legacy path: counter absent but old messages persisted → message count wins
+      chats = { [userId]: [{ role: 'user', createdAt: `${today}T09:00:00.000Z` }] };
+      dailyCounts = {};
+      expect(usage(chats, dailyCounts)).toBe(1);
+
+      logResult('aiChatStore: daily limit survives clearHistory (F12)', true);
+    } catch (e) { logResult('aiChatStore: daily limit survives clearHistory (F12)', false, e); throw e; }
+  });
+
   test('aiChatStore caps messages at 50 per user', () => {
     try {
       type ChatMessage = { id: string; role: string; text: string };

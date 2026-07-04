@@ -46,7 +46,7 @@ const ADAPTERS: Adapter[] = [
   { store: 'exerciseWeight',  hook: useExerciseWeightStore as AnyStore, keys: ['logs'] },
   { store: 'customProgram',   hook: useCustomProgramStore as AnyStore,  keys: ['days'] },
   { store: 'aiSuggestions',   hook: useAISuggestionsStore as AnyStore,  keys: ['nutrition', 'workout'] },
-  { store: 'aiChat',          hook: useAIChatStore as AnyStore,         keys: ['chats'] },
+  { store: 'aiChat',          hook: useAIChatStore as AnyStore,         keys: ['chats', 'dailyCounts'] },
 ];
 
 /** True while applying remote data, so change-subscriptions don't echo it back. */
