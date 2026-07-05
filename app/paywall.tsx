@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Linking } from 'react-native';
 import { router } from 'expo-router';
 import Purchases from 'react-native-purchases';
 import { isPurchasesConfigured, planFromCustomerInfo } from '../services/purchases';
@@ -155,6 +155,27 @@ export default function PaywallScreen() {
         >
           {t('paywall.restoreFooter')}
         </Text>
+
+        {/* App Store 3.1.2: subscription screens must state auto-renew terms and
+            link to the privacy policy + terms of use. */}
+        <Text style={styles.autoRenewNote}>{t('paywall.autoRenewNote')}</Text>
+        <View style={styles.legalRow}>
+          <Text
+            style={styles.legalLink}
+            onPress={() => Linking.openURL('https://zenovaapp.com/terms')}
+            accessibilityRole="link"
+          >
+            {t('profile.termsOfService')}
+          </Text>
+          <Text style={styles.legalDot}>·</Text>
+          <Text
+            style={styles.legalLink}
+            onPress={() => Linking.openURL('https://zenovaapp.com/privacy')}
+            accessibilityRole="link"
+          >
+            {t('profile.privacyPolicy')}
+          </Text>
+        </View>
         <View style={{ height: 40 }} />
       </ScrollView>
     </View>
@@ -182,4 +203,8 @@ const styles = StyleSheet.create({
   priceSub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, marginTop: spacing.xs },
   monthly: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.base, color: colors.accent.primary, marginVertical: spacing.base },
   footer: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textAlign: 'center', marginTop: spacing.sm },
+  autoRenewNote: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textAlign: 'center', marginTop: spacing.base, paddingHorizontal: spacing.sm },
+  legalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, marginTop: spacing.xs },
+  legalLink: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.text.secondary, textDecorationLine: 'underline' },
+  legalDot: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary },
 });

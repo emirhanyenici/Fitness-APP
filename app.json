@@ -17,7 +17,14 @@
       "backgroundColor": "#0D1526"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.zenova.lifescore",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Zenova uses the camera to snap photos of your meals so the AI can estimate their nutrition.",
+        "NSPhotoLibraryUsageDescription": "Zenova needs access to your photo library so you can pick an existing meal photo for nutrition analysis or set a profile picture.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
