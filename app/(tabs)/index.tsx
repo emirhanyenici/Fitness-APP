@@ -14,7 +14,7 @@ import { useRecoveryStore } from '../../stores/recoveryStore';
 import { GOAL_TO_BODY_PART, TYPE_TO_BODY_PART, BODY_PART_LABEL } from '../../services/exercisedb';
 import { computeTargets, GOAL_LABELS } from '../../services/recommendations';
 import { dateStr, daysAgoStr } from '../../services/dateUtils';
-import { useZenovaScore, computeDayScore, formatDeltaLabel } from '../../hooks/useNovraScore';
+import { useZenovaScore, computeDayScore, formatDeltaLabel } from '../../hooks/useZenovaScore';
 import { AICoachBanner } from '../../components/ui/AICoachBanner';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -178,7 +178,7 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* ── Novra Score Hero ── */}
+      {/* ── Zenova Score Hero ── */}
       <Card variant="hero" style={styles.heroCard}>
         <View style={styles.ringWrap}>
           <ProgressRing progress={score / 100} size={180} strokeWidth={14} color={scoreColor}>

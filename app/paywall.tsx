@@ -132,7 +132,7 @@ export default function PaywallScreen() {
         <Button
           label={t('paywall.startTrial')}
           subLabel={t('paywall.thenPrice')}
-          onPress={() => handlePurchase('novra_pro_yearly')}
+          onPress={() => handlePurchase('zenova_pro_yearly')}
           loading={loading}
           accessibilityLabel={t('paywall.trialA11y')}
           style={{ width: '100%', marginBottom: spacing.sm }}
@@ -140,7 +140,7 @@ export default function PaywallScreen() {
 
         <Text
           style={styles.monthly}
-          onPress={() => !loading && handlePurchase('novra_pro_monthly')}
+          onPress={() => !loading && handlePurchase('zenova_pro_monthly')}
           accessibilityRole="button"
           accessibilityLabel={t('paywall.monthlyA11y')}
         >

@@ -16,7 +16,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   removeItem: jest.fn().mockResolvedValue(undefined),
 }));
 
-import { computeDayScore, formatDeltaLabel, DayScoreInputs } from '../hooks/useNovraScore';
+import { computeDayScore, formatDeltaLabel, DayScoreInputs } from '../hooks/useZenovaScore';
 import { translate } from '../constants/i18n';
 
 const D = '2026-07-03';

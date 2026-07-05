@@ -9,7 +9,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useUserStore } from '../../stores/userStore';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { useWeightLogStore } from '../../stores/weightLogStore';
-import { useZenovaScore, formatDeltaLabel } from '../../hooks/useNovraScore';
+import { useZenovaScore, formatDeltaLabel } from '../../hooks/useZenovaScore';
 import { colors, withAlpha, bmiColor } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
@@ -379,7 +379,7 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         )}
 
-        {/* ── Novra Score ── */}
+        {/* ── Zenova Score ── */}
         {!editing && (
           <View style={styles.scoreCard}>
             <View style={styles.scoreLeft}>

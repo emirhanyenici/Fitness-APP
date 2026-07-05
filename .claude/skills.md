@@ -243,7 +243,7 @@ Identifies error-prone APIs, dangerous function calls, and footgun designs that 
 Systematically identifies all state-changing entry points in the application (API calls, deep links, user inputs, auth events) to create a comprehensive attack surface map.
 
 **Relevance to AURA Health:**
-- Deep link scheme `novra-health://` — attack surface for URL hijacking
+- Deep link scheme `zenova-lifescore://` — attack surface for URL hijacking
 - Supabase Edge Function `/functions/v1/ai-coach` — unauthenticated POST endpoint
 - Auth state change listener — processes session events from external sources
 - AsyncStorage keys — readable by other apps on rooted devices
