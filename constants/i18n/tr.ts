@@ -73,7 +73,7 @@ export const tr: Translations = {
     checkin: 'Kontrol',
     logItem: '{item} kaydet',
     todaysStats: 'Bugünün İstatistikleri',
-    steps: 'Adım',
+    water: 'Su',
     calories: 'Kalori',
     sleepStat: 'Uyku',
     active: 'Aktif',

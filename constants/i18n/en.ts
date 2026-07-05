@@ -73,7 +73,7 @@ export const en = {
     checkin: 'Check-in',
     logItem: 'Log {item}',
     todaysStats: "Today's Stats",
-    steps: 'Steps',
+    water: 'Water',
     calories: 'Calories',
     sleepStat: 'Sleep',
     active: 'Active',

@@ -13,7 +13,6 @@ export interface UserProfile {
   primary_goal?: string;
   activity_level?: string;
   target_calories?: number;
-  target_steps?: number;
   target_sleep_hours?: number;
   onboarding_completed?: boolean;
   plan?: 'free' | 'pro' | 'elite';

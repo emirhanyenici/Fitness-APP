@@ -24,7 +24,7 @@ import { hapticTap } from '../../services/haptics';
 import { SparklineChart } from '../../components/ui/SparklineChart';
 import { useT } from '../../constants/i18n';
 import {
-  Icon, Footprints, Flame, MoonStar, Zap, Target, Dumbbell, Salad, Moon,
+  Icon, Droplets, Flame, MoonStar, Zap, Target, Dumbbell, Salad, Moon,
   MessageCircle, ChevronRight, Apple, ClipboardCheck, TrendingUp,
 } from '../../components/ui/Icon';
 
@@ -42,6 +42,7 @@ export default function HomeScreen() {
   const isPro            = useSubscriptionStore((s) => s.isPro);
   const profile          = useUserStore((s) => s.profile);
   const entries          = useNutritionStore((s) => s.entries);
+  const waterByDate      = useNutritionStore((s) => s.waterByDate);
   const selectedType     = useWorkoutStore((s) => s.selectedType);
   const workoutHistory   = useWorkoutStore((s) => s.history);
   const recoveryEntries  = useRecoveryStore((s) => s.entries);
@@ -125,6 +126,11 @@ export default function HomeScreen() {
   }, [workoutHistory, todayStr]);
   const workoutTarget = targets.workoutMinutes;
 
+  // Water: shares the nutrition tab's per-day glass count (T6 — replaced the
+  // dead hardcoded Steps stat; no pedometer integration exists).
+  const waterGlasses = waterByDate[todayStr] ?? 0;
+  const waterPct     = targets.waterGlasses > 0 ? Math.min(waterGlasses / targets.waterGlasses, 1) : 0;
+
   // ── 7-day LifeScore history (for trend chart) ──
   // Same computeDayScore as the hero score/delta, so today's trend point
   // always matches the hero number.
@@ -146,7 +152,7 @@ export default function HomeScreen() {
   );
 
   const stats = [
-    { icon: Footprints, value: '0',                                          label: t('home.steps'),    color: colors.accent.primary, pct: 0 },
+    { icon: Droplets,   value: `${waterGlasses}/${targets.waterGlasses}`,    label: t('home.water'),    color: colors.status.info,    pct: waterPct },
     { icon: Flame,      value: todayCalories > 0 ? `${todayCalories}` : '0', label: t('home.calories'), color: colors.status.warning, pct: calPct },
     { icon: MoonStar,   value: sleepH > 0 ? `${sleepH}h` : '0h',            label: t('home.sleepStat'), color: colors.violet.primary, pct: sleepPct },
     { icon: Zap,        value: activeMins > 0 ? `${activeMins}m` : '0m',    label: t('home.active'),   color: colors.status.success, pct: workoutTarget > 0 ? Math.min(activeMins / workoutTarget, 1) : 0 },
