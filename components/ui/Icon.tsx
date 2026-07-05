@@ -74,7 +74,7 @@ export {
   Check, Plus, Minus, Pencil, Send, Trash2, Search, Camera, Keyboard,
   ScanBarcode, Eye, EyeOff,
   // Profile / settings
-  Ruler, Globe, Bell, ChartColumn, Heart, CreditCard, Stethoscope, Lock,
+  Ruler, Bell, ChartColumn, Heart, CreditCard, Stethoscope, Lock,
   FileText, Crown, Settings,
   // Nutrition
   Droplets, Coffee, Sun, UtensilsCrossed, Cookie,

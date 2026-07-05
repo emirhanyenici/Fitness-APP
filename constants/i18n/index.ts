@@ -6,18 +6,13 @@
  *   <Text>{t('home.greeting')}</Text>
  *   <Text>{t('common.glassesOf', { count: 3 })}</Text>
  *
- * The active language lives in `useLocaleStore` (persisted + synced), so calling
- * `useT()` re-renders the component when the user switches language in Profile.
- * Missing keys fall back to English, then to the raw key (never crashes).
+ * The app ships English-only (Turkish was removed 2026-07-05); the key-based
+ * indirection stays so copy lives in one file and future languages only need
+ * a new dictionary. Missing keys fall back to the raw key (never crashes).
  */
-import { useCallback } from 'react';
-import { useLocaleStore } from '../../stores/localeStore';
 import { en } from './en';
-import { tr } from './tr';
 
 export type Translations = typeof en;
-
-const DICTS: Record<string, unknown> = { en, tr };
 
 function resolve(dict: unknown, key: string): unknown {
   return key.split('.').reduce<unknown>(
@@ -27,11 +22,10 @@ function resolve(dict: unknown, key: string): unknown {
 }
 
 export function translate(
-  lang: string,
   key: string,
   params?: Record<string, string | number>,
 ): string {
-  const val = resolve(DICTS[lang], key) ?? resolve(DICTS.en, key) ?? key;
+  const val = resolve(en, key) ?? key;
   if (typeof val !== 'string') return key;
   if (!params) return val;
   return val.replace(/\{(\w+)\}/g, (_, p) => (params[p] != null ? String(params[p]) : `{${p}}`));
@@ -39,8 +33,7 @@ export function translate(
 
 export type TFunction = (key: string, params?: Record<string, string | number>) => string;
 
-/** Returns a `t` function bound to the current language; re-renders on change. */
+/** Returns the `t` function (stable reference — single-language app). */
 export function useT(): TFunction {
-  const lang = useLocaleStore((s) => s.lang);
-  return useCallback<TFunction>((key, params) => translate(lang, key, params), [lang]);
+  return translate;
 }

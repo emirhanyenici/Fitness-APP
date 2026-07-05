@@ -82,16 +82,15 @@ describe('computeDayScore', () => {
   });
 });
 
-describe('pillar labelKeys resolve in both languages', () => {
+describe('pillar labelKeys resolve', () => {
   // tsc can't catch a labelKey typo — translate() would silently render the
   // raw key string on the Home hero card. Pin every key used by the hook.
   const KEYS = [
     'score.pillarSleep', 'score.pillarFood', 'score.pillarMove', 'score.pillarMood',
     'score.sameAsYesterday',
   ];
-  it.each(KEYS)('%s exists in en and tr', (key) => {
-    expect(translate('en', key)).not.toBe(key);
-    expect(translate('tr', key)).not.toBe(key);
+  it.each(KEYS)('%s exists in the dictionary', (key) => {
+    expect(translate(key)).not.toBe(key);
   });
 });
 

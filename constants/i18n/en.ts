@@ -1,6 +1,6 @@
 /**
  * English translations (source of truth for the key shape).
- * `tr.ts` must mirror this structure. Missing keys fall back to English.
+ * Single dictionary (English-only app). Missing keys fall back to the raw key.
  * Interpolation uses {placeholder} tokens filled by t(key, params).
  */
 export const en = {
@@ -637,9 +637,6 @@ export const en = {
     unitsImperial: 'Imperial (lbs, ft)',
     metric: 'Metric',
     imperial: 'Imperial',
-    language: 'Language',
-    languageEnglish: 'English',
-    languageTurkish: 'Türkçe',
     notifications: 'Notifications',
     weeklyReport: 'Weekly Report',
     aiPowered: 'AI-powered',

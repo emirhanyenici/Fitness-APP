@@ -313,10 +313,9 @@ describe('services/progressUtils.ts', () => {
     } catch (e) { logResult('suggestAdjustment: 7.5% cut = 150 kcal on 2000 kcal', false, e); throw e; }
   });
 
-  test('suggestAdjustment: every messageKey exists in en AND tr (i18n)', () => {
+  test('suggestAdjustment: every messageKey exists in the dictionary (i18n)', () => {
     try {
       const { en } = require('../constants/i18n/en');
-      const { tr } = require('../constants/i18n/tr');
       const cases = [
         suggestAdjustment('lose_weight', true, 2000, 4.0),  // deload
         suggestAdjustment('lose_weight', false, 2000, 1.0), // onTrack
@@ -327,13 +326,12 @@ describe('services/progressUtils.ts', () => {
       for (const c of cases) {
         const [section, key] = c.messageKey.split('.');
         expect(typeof (en as any)[section]?.[key]).toBe('string');
-        expect(typeof (tr as any)[section]?.[key]).toBe('string');
       }
       // The cut message interpolates {cut} and {target}
       const cut = cases[2];
       expect(cut.params).toEqual({ cut: 150, target: 1850 });
-      logResult('suggestAdjustment: messageKeys exist in en+tr', true);
-    } catch (e) { logResult('suggestAdjustment: messageKeys exist in en+tr', false, e); throw e; }
+      logResult('suggestAdjustment: messageKeys exist in en', true);
+    } catch (e) { logResult('suggestAdjustment: messageKeys exist in en', false, e); throw e; }
   });
 
   test('free snap taste: 3 analyses then paywall (F-pro tiering)', () => {

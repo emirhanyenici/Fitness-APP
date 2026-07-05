@@ -18,12 +18,11 @@ import { MEDICAL_DISCLAIMER } from '../../constants/legal';
 import { isValidHeightCm, isValidWeightKg } from '../../services/recommendations';
 import {
   Icon, Bell, ChartColumn, Heart, CreditCard, Stethoscope, Lock, FileText,
-  Ruler, Globe, ChevronRight, CircleUserRound, Pencil, Settings, Trash2,
+  Ruler, ChevronRight, CircleUserRound, Pencil, Settings, Trash2,
 } from '../../components/ui/Icon';
 import { supabase } from '../../services/supabase';
 import { logError } from '../../services/monitoring';
 import { useT } from '../../constants/i18n';
-import { useLocaleStore } from '../../stores/localeStore';
 import { ProgressRing } from '../../components/ui/ProgressRing';
 
 const DELETE_ACCOUNT_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-account`;
@@ -49,8 +48,6 @@ export default function ProfileScreen() {
   const { plan, isPro, setPlan } = useSubscriptionStore();
   const units = profile?.units ?? 'metric';
   const t = useT();
-  const lang = useLocaleStore((s) => s.lang);
-  const setLang = useLocaleStore((s) => s.setLang);
   const [deleting, setDeleting] = useState(false);
 
   const SETTINGS = [
@@ -417,27 +414,6 @@ export default function ProfileScreen() {
                   onValueChange={(val) => updateProfile({ units: val ? 'imperial' : 'metric' })}
                   trackColor={{ false: colors.border.subtle, true: withAlpha(colors.accent.primary, 0.5) }}
                   thumbColor={units === 'imperial' ? colors.accent.primary : colors.text.tertiary}
-                />
-              </View>
-            </View>
-
-            {/* Language toggle row */}
-            <View style={styles.settingRow}>
-              <View style={styles.settingLeft}>
-                <Icon icon={Globe} size="md" color={colors.text.secondary} />
-                <View>
-                  <Text style={styles.settingLabel}>{t('profile.language')}</Text>
-                  <Text style={styles.settingSubSmall}>{lang === 'tr' ? t('profile.languageTurkish') : t('profile.languageEnglish')}</Text>
-                </View>
-              </View>
-              <View style={styles.settingRight}>
-                <Text style={styles.settingSub}>{lang === 'tr' ? 'TR' : 'EN'}</Text>
-                <Switch
-                  value={lang === 'tr'}
-                  onValueChange={(val) => setLang(val ? 'tr' : 'en')}
-                  trackColor={{ false: colors.border.subtle, true: withAlpha(colors.accent.primary, 0.5) }}
-                  thumbColor={lang === 'tr' ? colors.accent.primary : colors.text.tertiary}
-                  accessibilityLabel={t('profile.language')}
                 />
               </View>
             </View>

@@ -1,7 +1,7 @@
 import { buildLocalWeeklyReport, type WeekStats } from '../services/weeklyReport';
 import { translate } from '../constants/i18n';
 
-const t = (key: string, params?: Record<string, string | number>) => translate('en', key, params);
+const t = translate;
 const targets = { calories: 2000, sleepHours: 8 };
 
 const stats = (partial: Partial<WeekStats>): WeekStats => ({
