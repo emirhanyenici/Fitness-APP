@@ -1,5 +1,6 @@
 import { View, Text, ScrollView, StyleSheet, Switch, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useUserStore } from '../../stores/userStore';
 import { colors, withAlpha } from '../../constants/colors';
 import { typography } from '../../constants/typography';
@@ -25,6 +26,7 @@ const NOTIF_ROWS: {
 ];
 
 export default function NotificationsModal() {
+  const insets        = useSafeAreaInsets();
   const profile       = useUserStore((s) => s.profile);
   const updateProfile = useUserStore((s) => s.updateProfile);
   const t             = useT();
@@ -33,7 +35,7 @@ export default function NotificationsModal() {
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + spacing.lg }]}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={10} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t('notifications.goBack')}>
           <Icon icon={ArrowLeft} size="lg" color={colors.text.primary} />
         </TouchableOpacity>
@@ -97,7 +99,7 @@ const styles = StyleSheet.create({
   screen:  { flex: 1, backgroundColor: colors.bg.primary },
   content: { padding: spacing.base },
 
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 52, marginBottom: spacing.xl },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.xl },
   title:  { fontFamily: typography.fonts.display, fontSize: typography.sizes.xl, color: colors.text.primary },
 
   sectionSub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, lineHeight: 20, marginBottom: spacing.base },

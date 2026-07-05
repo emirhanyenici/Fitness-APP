@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, Pressable, TextInput } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { useUserStore } from '../../stores/userStore';
 import { useWorkoutStore, CompletedWorkout } from '../../stores/workoutStore';
@@ -69,6 +70,7 @@ function groupByDate(history: CompletedWorkout[]): CompletedWorkout[] {
 }
 
 export default function WorkoutScreen() {
+  const insets = useSafeAreaInsets();
   const isPro = useSubscriptionStore((s) => s.isPro);
   const profile = useUserStore((s) => s.profile);
   const primaryGoal = profile?.primary_goal ?? 'general_health';
@@ -255,7 +257,7 @@ export default function WorkoutScreen() {
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
       {/* ── Header ── */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + spacing.lg }]}>
         <View>
           <Text style={styles.pageTitle}>{t('workout.title')}</Text>
           <Text style={styles.pageSub}>{t('workout.subtitle', { goal: GOAL_LABELS[primaryGoal] ?? t('home.healthyLifestyle'), days: targets.workoutDaysPerWeek })}</Text>
@@ -582,7 +584,7 @@ const styles = StyleSheet.create({
   content: { padding: spacing.base },
   stickyFooter: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: colors.bg.primary, paddingHorizontal: spacing.base, paddingTop: spacing.sm, paddingBottom: 26, borderTopWidth: 1, borderTopColor: colors.border.subtle },
 
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: 52, marginBottom: spacing.xl },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.xl },
   pageTitle: { fontFamily: typography.fonts.display, fontSize: typography.sizes['2xl'], color: colors.text.primary },
   pageSub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, marginTop: 2 },
   logBtn: { backgroundColor: colors.accent.dim, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.25), borderRadius: radius.full, paddingHorizontal: 16, paddingVertical: 8 },

@@ -4,6 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 
 const HEALTH_APP = Platform.OS === 'ios' ? 'Apple Health' : 'Health Connect';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../stores/authStore';
 import { useUserStore } from '../../stores/userStore';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
@@ -40,6 +41,7 @@ function cmToFtIn(cm: number) {
 }
 
 export default function ProfileScreen() {
+  const insets = useSafeAreaInsets();
   const { signOut, user } = useAuthStore();
   const profile        = useUserStore((s) => s.profile);
   const updateProfile  = useUserStore((s) => s.updateProfile);
@@ -220,7 +222,7 @@ export default function ProfileScreen() {
       <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
         {/* ── Header ── */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top + spacing.lg }]}>
           <Text style={styles.pageTitle}>{t('profile.title')}</Text>
           <TouchableOpacity
             style={styles.editBtn}
@@ -522,7 +524,7 @@ const styles = StyleSheet.create({
   screen:  { flex: 1, backgroundColor: colors.bg.primary },
   content: { padding: spacing.base },
 
-  header:    { paddingTop: 52, marginBottom: spacing.xl, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  header:    { marginBottom: spacing.xl, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   pageTitle: { fontFamily: typography.fonts.display, fontSize: typography.sizes['2xl'], color: colors.text.primary },
   editBtn:   { backgroundColor: colors.accent.dim, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.25), borderRadius: radius.full, paddingHorizontal: 18, paddingVertical: 8 },
   editBtnText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.accent.primary },

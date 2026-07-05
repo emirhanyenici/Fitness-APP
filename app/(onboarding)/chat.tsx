@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../stores/authStore';
 import { useUserStore } from '../../stores/userStore';
 import { supabase } from '../../services/supabase';
@@ -97,6 +98,7 @@ const STEPS = [
 ];
 
 export default function OnboardingChat() {
+  const insets = useSafeAreaInsets();
   const session = useAuthStore((s) => s.session);
   const t = useT();
 
@@ -172,7 +174,7 @@ export default function OnboardingChat() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.container}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top + spacing.base }]}>
           {step > 0 && !done && (
             <TouchableOpacity onPress={() => setStep((s) => Math.max(0, s - 1))} accessibilityRole="button" accessibilityLabel={t('onboarding.goBackStep')} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
               <Text style={styles.back}>&#8592;</Text>
@@ -354,7 +356,7 @@ export default function OnboardingChat() {
 
 const styles = StyleSheet.create({
   container:       { flex: 1, backgroundColor: colors.bg.primary },
-  header:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.base, paddingTop: 60 },
+  header:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.base },
   back:            { fontSize: 22, color: colors.text.secondary, paddingRight: spacing.sm },
   dots:            { flexDirection: 'row', gap: 8 },
   dot:             { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.border.default },

@@ -3,6 +3,7 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, Platform, 
 
 const HEALTH_APP = Platform.OS === 'ios' ? 'Apple Health' : 'Health Connect';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRecoveryStore } from '../../stores/recoveryStore';
 import { useUserStore } from '../../stores/userStore';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
@@ -33,6 +34,7 @@ const METRICS: { key: RatingKey; labelKey: string; low: IconComponent; high: Ico
 ];
 
 export default function RecoveryScreen() {
+  const insets          = useSafeAreaInsets();
   const saveEntry       = useRecoveryStore((s) => s.saveEntry);
   const recoveryEntries = useRecoveryStore((s) => s.entries);
   const profile         = useUserStore((s) => s.profile);
@@ -88,7 +90,7 @@ export default function RecoveryScreen() {
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
       {/* ── Header ── */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + spacing.lg }]}>
         <Text style={styles.pageTitle}>{t('recovery.title')}</Text>
         <Text style={styles.pageSub}>{t('recovery.subtitle')}</Text>
       </View>
@@ -314,7 +316,7 @@ const styles = StyleSheet.create({
   screen:  { flex: 1, backgroundColor: colors.bg.primary },
   content: { padding: spacing.base },
 
-  header:   { paddingTop: 52, marginBottom: spacing.xl },
+  header:   { marginBottom: spacing.xl },
   pageTitle: { fontFamily: typography.fonts.display, fontSize: typography.sizes['2xl'], color: colors.text.primary },
   pageSub:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, marginTop: 2 },
 

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { router, type Href } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, withAlpha } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
@@ -35,6 +36,8 @@ function greetingKey(): string {
 }
 
 export default function HomeScreen() {
+  const insets           = useSafeAreaInsets();
+  const { width: winW }  = useWindowDimensions();
   const t                = useT();
   const isPro            = useSubscriptionStore((s) => s.isPro);
   const profile          = useUserStore((s) => s.profile);
@@ -153,7 +156,7 @@ export default function HomeScreen() {
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
       {/* ── Header ── */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + spacing.lg }]}>
         <View>
           <Text style={styles.greeting}>{t(greetingKey())}</Text>
           <Text style={styles.name}>{profile?.name ?? t('home.defaultUser')}</Text>
@@ -358,7 +361,9 @@ export default function HomeScreen() {
             data={weekScores}
             color={colors.accent.primary}
             labels={weekLabels}
-            width={320}
+            // Fill the trend card: window − screen padding (16×2) − card padding
+            // and border (17×2). Fixed 320 overflowed on narrow screens (T5).
+            width={winW - spacing.base * 2 - (spacing.base + 1) * 2}
             height={72}
           />
         </Card>
@@ -422,7 +427,7 @@ const styles = StyleSheet.create({
   screen:  { flex: 1, backgroundColor: colors.bg.primary },
   content: { padding: spacing.base },
 
-  header:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.xl, paddingTop: 52 },
+  header:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.xl },
   greeting: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary },
   name:     { fontFamily: typography.fonts.display, fontSize: typography.sizes['2xl'], color: colors.text.primary },
   dateChip: { backgroundColor: colors.bg.secondary, borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: colors.border.subtle },

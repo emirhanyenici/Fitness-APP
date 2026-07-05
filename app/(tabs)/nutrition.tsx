@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, LayoutAnimation } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNutritionStore, FoodEntry } from '../../stores/nutritionStore';
 import { useAISuggestionsStore } from '../../stores/aiSuggestionsStore';
 import { useUserStore } from '../../stores/userStore';
@@ -27,6 +28,7 @@ const MEAL_META = [
 ];
 
 export default function NutritionScreen() {
+  const insets = useSafeAreaInsets();
   const [expanded, setExpanded] = useState<string | null>('breakfast');
 
   const allEntries   = useNutritionStore((s) => s.entries);
@@ -100,7 +102,7 @@ export default function NutritionScreen() {
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
       {/* ── Header ── */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + spacing.lg }]}>
         <View>
           <Text style={styles.pageTitle}>{t('nutrition.title')}</Text>
           <Text style={styles.pageSub}>{t('nutrition.todaysIntake')}</Text>
@@ -303,7 +305,7 @@ const styles = StyleSheet.create({
   screen:  { flex: 1, backgroundColor: colors.bg.primary },
   content: { padding: spacing.base },
 
-  header:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: 52, marginBottom: spacing.xl },
+  header:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.xl },
   pageTitle: { fontFamily: typography.fonts.display, fontSize: typography.sizes['2xl'], color: colors.text.primary },
   pageSub:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, marginTop: 2 },
 
