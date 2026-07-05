@@ -81,11 +81,26 @@ export default function LoginScreen() {
     }
     try {
       if (isSignUp) {
-        await signUp(email.trim(), password);
+        const hasSession = await signUp(email.trim(), password);
         analytics.signedUp('email');
-        Alert.alert(t('auth.accountCreated'), t('auth.accountCreatedBody'), [
-          { text: t('common.ok'), onPress: () => setMode('signin') },
-        ]);
+        if (hasSession) {
+          // Email confirmation is disabled — the account is live, go straight
+          // to onboarding like a fresh sign-in would. Read the session from
+          // supabase directly: the store's onAuthStateChange listener may not
+          // have fired yet.
+          const { data: { session: freshSession } } = await supabase.auth.getSession();
+          const userId = freshSession?.user?.id;
+          if (userId) analytics.identify(userId, email.trim());
+          if (rememberMe) {
+            await secureStorage.setItem(SAVED_EMAIL_KEY, email.trim());
+          }
+          router.replace('/(onboarding)/welcome');
+        } else {
+          // Confirmation still enabled server-side — keep the legacy flow.
+          Alert.alert(t('auth.accountCreated'), t('auth.accountCreatedBody'), [
+            { text: t('common.ok'), onPress: () => setMode('signin') },
+          ]);
+        }
       } else {
         await signIn(email.trim(), password);
         analytics.signedIn('email');

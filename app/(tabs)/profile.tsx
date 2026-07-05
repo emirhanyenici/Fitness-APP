@@ -17,11 +17,15 @@ import { MEDICAL_DISCLAIMER } from '../../constants/legal';
 import { isValidHeightCm, isValidWeightKg } from '../../services/recommendations';
 import {
   Icon, Bell, ChartColumn, Heart, CreditCard, Stethoscope, Lock, FileText,
-  Ruler, Globe, ChevronRight, CircleUserRound, Pencil, Settings,
+  Ruler, Globe, ChevronRight, CircleUserRound, Pencil, Settings, Trash2,
 } from '../../components/ui/Icon';
+import { supabase } from '../../services/supabase';
+import { logError } from '../../services/monitoring';
 import { useT } from '../../constants/i18n';
 import { useLocaleStore } from '../../stores/localeStore';
 import { ProgressRing } from '../../components/ui/ProgressRing';
+
+const DELETE_ACCOUNT_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-account`;
 
 // ── Unit helpers ──────────────────────────────────────────────────────────────
 function kgToLbs(kg: number)  { return Math.round(kg * 2.20462); }
@@ -45,6 +49,7 @@ export default function ProfileScreen() {
   const t = useT();
   const lang = useLocaleStore((s) => s.lang);
   const setLang = useLocaleStore((s) => s.setLang);
+  const [deleting, setDeleting] = useState(false);
 
   const SETTINGS = [
     { icon: Bell,        label: t('profile.notifications'), sub: '',                                                        action: 'notifications', pro: false },
@@ -139,6 +144,58 @@ export default function ProfileScreen() {
             // signOut() clears all persisted stores internally (authStore.ts).
             await signOut();
             router.replace('/(auth)/login');
+          },
+        },
+      ],
+    );
+  };
+
+  // Store-mandated account deletion (Apple 5.1.1(v), Google Play policy):
+  // double confirm, then the delete-account edge fn removes the auth user —
+  // all user tables cascade from auth.users, so server data goes with it.
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      t('profile.deleteAccount'),
+      t('profile.deleteAccountConfirmBody'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.continue'),
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              t('profile.deleteAccountFinalTitle'),
+              t('profile.deleteAccountFinalBody'),
+              [
+                { text: t('common.cancel'), style: 'cancel' },
+                {
+                  text: t('profile.deleteAccount'),
+                  style: 'destructive',
+                  onPress: async () => {
+                    if (deleting) return;
+                    setDeleting(true);
+                    try {
+                      const { data: { session } } = await supabase.auth.getSession();
+                      if (!session) throw new Error('no session');
+                      const res = await fetch(DELETE_ACCOUNT_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+                      });
+                      if (!res.ok) throw new Error(`delete-account HTTP ${res.status}`);
+                      // The auth user is gone server-side; signOut's own server
+                      // call may 4xx — the local store cleanup is what matters.
+                      await signOut().catch(() => {});
+                      router.replace('/(auth)/login');
+                    } catch (e) {
+                      logError(e, { where: 'profile.deleteAccount' });
+                      Alert.alert(t('common.error'), t('profile.deleteAccountError'));
+                    } finally {
+                      setDeleting(false);
+                    }
+                  },
+                },
+              ],
+            );
           },
         },
       ],
@@ -421,6 +478,23 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         )}
 
+        {/* ── Delete Account (store-mandated) ── */}
+        {!editing && (
+          <TouchableOpacity
+            style={styles.deleteAccountBtn}
+            onPress={handleDeleteAccount}
+            disabled={deleting}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel={t('profile.deleteAccount')}
+          >
+            <Icon icon={Trash2} size="sm" color={colors.status.danger} />
+            <Text style={styles.deleteAccountText}>
+              {deleting ? t('profile.deletingAccount') : t('profile.deleteAccount')}
+            </Text>
+          </TouchableOpacity>
+        )}
+
         {__DEV__ && (
           <TouchableOpacity
             style={styles.devToggle}
@@ -500,6 +574,8 @@ const styles = StyleSheet.create({
 
   signOutBtn:  { paddingVertical: 14, alignItems: 'center', marginTop: spacing.sm },
   signOutText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.base, color: colors.status.danger },
+  deleteAccountBtn:  { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, paddingVertical: 14 },
+  deleteAccountText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.status.danger },
   version:       { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textAlign: 'center', marginTop: spacing.sm },
   devToggle:     { backgroundColor: colors.bg.elevated, borderRadius: radius.full, paddingVertical: 8, paddingHorizontal: spacing.xl, alignSelf: 'center', marginTop: spacing.sm, borderWidth: 1, borderColor: colors.border.default },
   devToggleText: { fontFamily: typography.fonts.mono, fontSize: typography.sizes.xs, color: colors.text.secondary },

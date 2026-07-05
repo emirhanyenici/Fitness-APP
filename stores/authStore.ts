@@ -18,7 +18,12 @@ interface AuthStore {
   markSessionResolved: () => void;
   setSession: (session: Session | null) => void;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
+  /**
+   * Returns true when Supabase issued a session right away (email
+   * confirmation disabled) — the caller can route straight into the app.
+   * False means a confirmation email is pending and sign-in must wait.
+   */
+  signUp: (email: string, password: string) => Promise<boolean>;
   /** Signs out and clears all user data from every persisted store. */
   signOut: () => Promise<void>;
 }
@@ -42,9 +47,10 @@ export const useAuthStore = create<AuthStore>((set) => ({
 
   signUp: async (email, password) => {
     set({ isLoading: true });
-    const { error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({ email, password });
     set({ isLoading: false });
     if (error) throw error;
+    return data.session !== null;
   },
 
   signOut: async () => {

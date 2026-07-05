@@ -29,7 +29,7 @@ jest.mock('@supabase/supabase-js', () => ({
       getSession:           jest.fn().mockResolvedValue({ data: { session: null } }),
       getUser:              jest.fn().mockResolvedValue({ data: { user: { id: 'test-uid', email: 'test@novra.app' } } }),
       signInWithPassword:   jest.fn().mockResolvedValue({ error: null }),
-      signUp:               jest.fn().mockResolvedValue({ error: null }),
+      signUp:               jest.fn().mockResolvedValue({ data: { session: null }, error: null }),
       signOut:              jest.fn().mockResolvedValue({ error: null }),
       onAuthStateChange:    jest.fn().mockReturnValue({ data: { subscription: { unsubscribe: jest.fn() } } }),
       resetPasswordForEmail: jest.fn().mockResolvedValue({ error: null }),
