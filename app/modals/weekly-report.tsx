@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator,
+  StyleSheet,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useNutritionStore } from '../../stores/nutritionStore';
@@ -18,6 +18,7 @@ import { spacing, radius } from '../../constants/spacing';
 import { supabase } from '../../services/supabase';
 import { useT } from '../../constants/i18n';
 import { Icon, ChartColumn, X } from '../../components/ui/Icon';
+import { SkeletonParagraph } from '../../components/ui/Skeleton';
 
 const EDGE_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/ai-coach`;
 
@@ -195,7 +196,8 @@ Keep it motivating, honest, and specific to their numbers. Be brief and direct.`
 
       {loading && (
         <View style={styles.loadingBox}>
-          <ActivityIndicator color={colors.accent.primary} size="large" />
+          <SkeletonParagraph style={{ width: '100%' }} />
+          <SkeletonParagraph style={{ width: '100%' }} />
           <Text style={styles.loadingText}>{t('weeklyReport.analyzing')}</Text>
         </View>
       )}

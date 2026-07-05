@@ -16,6 +16,7 @@ import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { useT } from '../../constants/i18n';
 import { Icon, Search, ScanBarcode, Keyboard, Camera, ImageIcon } from '../../components/ui/Icon';
+import { SkeletonRow } from '../../components/ui/Skeleton';
 
 type Screen = 'home' | 'search' | 'manual' | 'barcode' | 'snap';
 
@@ -175,7 +176,9 @@ function SearchScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBa
       </View>
 
       {loading ? (
-        <ActivityIndicator color={colors.accent.primary} style={{ marginTop: spacing.xl }} />
+        <View style={{ marginTop: spacing.sm }}>
+          {Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)}
+        </View>
       ) : (
         <FlatList
           data={results}
