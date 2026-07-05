@@ -38,6 +38,15 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "a127855a-7ce0-4bb5-9640-7626a81c16a3"
+      }
+    },
+    "owner": "emirhanync"
   }
 }
