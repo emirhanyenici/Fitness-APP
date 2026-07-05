@@ -14,10 +14,11 @@ import { elevation } from '../../constants/elevation';
 import { useAnalytics } from '../../services/analytics';
 import { AICoachBanner } from '../../components/ui/AICoachBanner';
 import { AnimatedBar } from '../../components/ui/AnimatedBar';
+import { SegmentMeter } from '../../components/ui/SegmentMeter';
 import { hapticTap } from '../../services/haptics';
 import { useT } from '../../constants/i18n';
 import {
-  Icon, Coffee, Sun, UtensilsCrossed, Cookie, Droplets, X, ChevronDown, ChevronUp,
+  Icon, Coffee, Sun, UtensilsCrossed, Cookie, X, ChevronDown, ChevronUp,
 } from '../../components/ui/Icon';
 
 const MEAL_META = [
@@ -166,31 +167,21 @@ export default function NutritionScreen() {
           </View>
         </View>
 
-        <View style={styles.waterDropRow}>
-          {Array.from({ length: targets.waterGlasses }).map((_, i) => {
-            const filled = i < water;
-            return (
-              <TouchableOpacity
-                key={i}
-                style={[styles.waterCircle, filled && styles.waterCircleFilled]}
-                onPress={() => {
-                  hapticTap();
-                  // tap filled = decrement to i, tap empty = fill to i+1
-                  const n = filled && i === water - 1 ? i : i + 1;
-                  setWater(n); analytics.waterUpdated(n);
-                }}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel={t('nutrition.glassOf', { i: i + 1, total: targets.waterGlasses, state: filled ? t('nutrition.filled') : t('nutrition.empty') })}
-                hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-              >
-                {filled && <Icon icon={Droplets} size="sm" color={colors.bg.secondary} strokeWidth={2} />}
-              </TouchableOpacity>
-            );
+        <SegmentMeter
+          count={targets.waterGlasses}
+          filled={water}
+          color={colors.status.info}
+          height={16}
+          onPressSegment={(i) => {
+            hapticTap();
+            // tap last filled = decrement to i, tap any other = fill to i+1
+            const n = i === water - 1 ? i : i + 1;
+            setWater(n); analytics.waterUpdated(n);
+          }}
+          segmentA11y={(i, filled) => ({
+            label: t('nutrition.glassOf', { i: i + 1, total: targets.waterGlasses, state: filled ? t('nutrition.filled') : t('nutrition.empty') }),
           })}
-        </View>
-
-        <AnimatedBar pct={water / targets.waterGlasses} color={colors.status.info} height={4} />
+        />
 
         <Text style={styles.waterHint}>{t('nutrition.waterHint', { glasses: targets.waterGlasses, liters: targets.waterGlasses * 250 / 1000 })}</Text>
       </View>
@@ -317,9 +308,6 @@ const styles = StyleSheet.create({
   waterCtrlBtn:  { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: withAlpha(colors.status.info, 0.25), alignItems: 'center', justifyContent: 'center' },
   waterCtrlText: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.status.info },
   waterCountText:{ fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.primary, minWidth: 36, textAlign: 'center' },
-  waterDropRow:    { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: spacing.xs },
-  waterCircle:     { flex: 1, height: 32, borderRadius: radius.sm, borderWidth: 1.5, borderColor: withAlpha(colors.status.info, 0.25), backgroundColor: colors.bg.elevated, marginHorizontal: 2, alignItems: 'center', justifyContent: 'center' },
-  waterCircleFilled: { backgroundColor: withAlpha(colors.status.info, 0.13), borderColor: colors.status.info },
   waterHint:     { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textAlign: 'center' },
 
   calorieCard:  { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.13), borderRadius: radius['2xl'], padding: spacing.base, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.base, gap: spacing.base, ...elevation.raised },

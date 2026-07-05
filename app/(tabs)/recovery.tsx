@@ -17,6 +17,7 @@ import { elevation } from '../../constants/elevation';
 import { AICoachBanner } from '../../components/ui/AICoachBanner';
 import { Button } from '../../components/ui/Button';
 import { AnimatedBar } from '../../components/ui/AnimatedBar';
+import { SegmentMeter } from '../../components/ui/SegmentMeter';
 import { hapticTap, hapticSuccess } from '../../services/haptics';
 import { useAnalytics } from '../../services/analytics';
 import { useT } from '../../constants/i18n';
@@ -182,28 +183,18 @@ export default function RecoveryScreen() {
               </View>
               <View style={styles.ratingRow}>
                 <Text style={styles.ratingScaleNum}>1</Text>
-                <View style={styles.ratingDots}>
-                  {[1, 2, 3, 4, 5].map((n) => {
-                    const active = ratings[m.key] >= n;
-                    return (
-                      <TouchableOpacity
-                        key={n}
-                        style={[
-                          styles.ratingDot,
-                          active
-                            ? { backgroundColor: m.color, borderColor: m.color }
-                            : { backgroundColor: 'transparent', borderColor: colors.border.default },
-                        ]}
-                        onPress={() => setRating(m.key, n)}
-                        activeOpacity={0.7}
-                        accessibilityRole="radio"
-                        accessibilityState={{ selected: ratings[m.key] === n }}
-                        accessibilityLabel={t('recovery.ratingA11y', { label: t(m.labelKey), n })}
-                        hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-                      />
-                    );
+                <SegmentMeter
+                  count={5}
+                  filled={ratings[m.key]}
+                  color={m.color}
+                  onPressSegment={(i) => setRating(m.key, i + 1)}
+                  segmentA11y={(i) => ({
+                    label: t('recovery.ratingA11y', { label: t(m.labelKey), n: i + 1 }),
+                    role: 'radio',
+                    selected: ratings[m.key] === i + 1,
                   })}
-                </View>
+                  style={styles.ratingDots}
+                />
                 <Text style={styles.ratingScaleNum}>5</Text>
               </View>
             </View>
@@ -355,8 +346,7 @@ const styles = StyleSheet.create({
   metricLabel: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.secondary },
   ratingRow:       { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   ratingScaleNum:  { fontFamily: typography.fonts.mono, fontSize: typography.sizes.xs, color: colors.text.tertiary, width: 14, textAlign: 'center' },
-  ratingDots:      { flex: 1, flexDirection: 'row', gap: spacing.sm },
-  ratingDot:       { flex: 1, height: 12, borderRadius: 6, borderWidth: 1.5 },
+  ratingDots:      { flex: 1 },
 
   sleepInputWrap:  { marginTop: spacing.xl, backgroundColor: colors.bg.tertiary, borderRadius: radius.lg, padding: spacing.base },
   sleepInputRow:   { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

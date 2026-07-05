@@ -22,6 +22,7 @@ import { ProgressRing, CountUpText } from '../../components/ui/ProgressRing';
 import { AnimatedBar } from '../../components/ui/AnimatedBar';
 import { hapticTap } from '../../services/haptics';
 import { SparklineChart } from '../../components/ui/SparklineChart';
+import { SegmentMeter } from '../../components/ui/SegmentMeter';
 import { useT } from '../../constants/i18n';
 import {
   Icon, Droplets, Flame, MoonStar, Zap, Target, Dumbbell, Salad, Moon,
@@ -404,24 +405,16 @@ export default function HomeScreen() {
             <Text style={styles.streakLabel}>{t('home.dayStreak')}</Text>
           </View>
         </View>
-        <View style={styles.streakDots}>
-          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, i) => {
-            const dateStr = weekDates[i];
-            const active  = activeDates.has(dateStr);
-            const isToday = dateStr === todayStr;
-            return (
-              <View key={i} style={styles.dotCol}>
-                <View style={[
-                  styles.dot,
-                  active  ? styles.dotFilled :
-                  isToday ? styles.dotToday  :
-                  styles.dotEmpty,
-                ]} />
-                <Text style={[styles.dotLabel, isToday && { color: colors.accent.primary, fontFamily: typography.fonts.bodyMed }]}>{day}</Text>
-              </View>
-            );
-          })}
-        </View>
+        <SegmentMeter
+          count={7}
+          filled={(i) => activeDates.has(weekDates[i])}
+          color={colors.accent.primary}
+          height={10}
+          outlineIndex={weekDates.indexOf(todayStr)}
+          labels={['M', 'T', 'W', 'T', 'F', 'S', 'S']}
+          highlightLabelIndex={weekDates.indexOf(todayStr)}
+          style={styles.streakDots}
+        />
       </Card>
 
       <View style={{ height: 110 }} />
@@ -495,13 +488,7 @@ const styles = StyleSheet.create({
   streakLeft:  { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   streakNum:   { fontFamily: typography.fonts.mono, fontSize: typography.sizes['2xl'], color: colors.accent.primary },
   streakLabel: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary },
-  streakDots:  { flexDirection: 'row', gap: 8 },
-  dotCol:      { alignItems: 'center', gap: 4 },
-  dot:         { width: 10, height: 10, borderRadius: 5 },
-  dotFilled:   { backgroundColor: colors.accent.primary },
-  dotToday:    { borderWidth: 2, borderColor: colors.accent.primary, backgroundColor: 'transparent' },
-  dotEmpty:    { backgroundColor: colors.bg.elevated },
-  dotLabel:    { fontFamily: typography.fonts.body, fontSize: 9, color: colors.text.tertiary },
+  streakDots:  { flex: 1, maxWidth: 200, marginLeft: spacing.base },
 
   trendCard:        { marginBottom: spacing.base },
   trendHeader:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
