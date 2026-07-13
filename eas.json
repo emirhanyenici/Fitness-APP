@@ -20,6 +20,9 @@
     "production": {
       "autoIncrement": true,
       "environment": "production",
+      "ios": {
+        "image": "latest"
+      },
       "env": {
         "EXPO_PUBLIC_APP_ENV": "production"
       }
