@@ -86,6 +86,8 @@ export {
   Frown, Smile, Angry, Leaf,
   // Exercise demo metadata
   MapPin, Wrench,
+  // Weekly report
+  Download,
   // Photo picker (renamed to avoid clashing with react-native's Image)
   Image as ImageIcon,
 } from 'lucide-react-native';

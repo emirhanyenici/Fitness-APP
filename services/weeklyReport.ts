@@ -1,13 +1,15 @@
 import type { TFunction } from '../constants/i18n';
+import { computeDayScore, DayScoreInputs } from '../hooks/useZenovaScore';
+import { daysAgoStr } from './dateUtils';
 
 /**
- * Rule-based weekly report, generated fully on-device.
+ * Weekly report data + rule-based text generation, fully on-device.
  *
- * The weekly-report modal first tries the ai-coach edge function; until that
- * is deployed — or whenever the network/server fails —
- * this local generator produces the report instead, so the feature always
- * works. Output is plain text (the screen renders it in a <Text>, so no
- * markdown syntax here).
+ * `computeWeekData` aggregates the last 7 days of store data into a structured
+ * `WeeklyReportData` that drives both the in-app card UI and the PDF export.
+ * Charts/stats are ALWAYS computed locally; the ai-coach edge function only
+ * contributes an optional narrative (`aiNarrative`) — when it fails, the
+ * rule-based sections below stand alone, so the feature always works.
  */
 
 export interface WeekStats {
@@ -27,15 +29,177 @@ export interface ReportTargets {
   sleepHours: number;
 }
 
-export function buildLocalWeeklyReport(
+// ── Structured week data (drives the card UI and the PDF) ────────────────────
+
+export interface WeekStatsExtended extends WeekStats {
+  /** Average LifeScore (0-100) across days with data; 0 when none. */
+  avgScore: number;
+  /** Average pillar values (0-25) across days with data. */
+  pillarAvgs: { food: number; move: number; mood: number; sleep: number };
+  /** Average grams/day across days that logged food. */
+  macroAvgs: { protein: number; carbs: number; fat: number };
+  workoutBreakdown: { bodyPart: string; count: number; minutes: number; calories: number }[];
+  /** Weight change (kg) across the week's entries; null when fewer than 2. */
+  weightDelta: number | null;
+}
+
+export interface DailyScorePoint {
+  date: string;      // YYYY-MM-DD
+  dayLabel: string;  // narrow weekday, e.g. "M"
+  score: number;     // 0-100
+  hasData: boolean;
+}
+
+export interface ReportSections {
+  wins: string[];
+  improvements: string[];
+  focus: string[];
+}
+
+export interface WeeklyReportData {
+  period: { start: string; end: string; label: string };
+  stats: WeekStatsExtended;
+  daily: DailyScorePoint[];
+  sections: ReportSections;
+  /** Raw AI coach text when the edge function succeeded; null on local path. */
+  aiNarrative: string | null;
+  source: 'ai' | 'local';
+}
+
+export interface WeekDataInputs {
+  entries: { date: string; calories: number; protein: number; carbs: number; fat: number }[];
+  workoutHistory: {
+    date: string; bodyPart: string; calories: number;
+    duration: string; durationMinutes?: number;
+  }[];
+  recoveryEntries: { date: string; mood: number; sleepHours?: number }[];
+  weightEntries: { date: string; weight_kg: number }[];
+  targets: { calories: number; sleepHours: number };
+  restDaySelected?: boolean;
+}
+
+/** Older records only have the "40 min" string form. */
+const workoutMinutes = (w: WeekDataInputs['workoutHistory'][number]): number =>
+  w.durationMinutes ?? (parseInt(w.duration, 10) || 0);
+
+const round1 = (n: number) => Math.round(n * 10) / 10;
+const avg = (nums: number[]) => (nums.length ? nums.reduce((s, n) => s + n, 0) / nums.length : 0);
+
+/**
+ * Pure aggregation of the last 7 calendar days (local time, via daysAgoStr).
+ * Scores come from computeDayScore — the single source of the LifeScore
+ * formula — so the report always matches the Home screen.
+ */
+export function computeWeekData(inp: WeekDataInputs): {
+  period: WeeklyReportData['period'];
+  stats: WeekStatsExtended;
+  daily: DailyScorePoint[];
+} {
+  const dayInputs: DayScoreInputs = {
+    entries: inp.entries,
+    workoutHistory: inp.workoutHistory,
+    recoveryEntries: inp.recoveryEntries,
+    targets: inp.targets,
+    restDaySelected: inp.restDaySelected,
+  };
+
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const offset = 6 - i;
+    const date = daysAgoStr(offset);
+    const jsDate = new Date(Date.now() - offset * 86_400_000);
+    const dayCalories = inp.entries.filter((e) => e.date === date).reduce((s, e) => s + e.calories, 0);
+    const dayWorkouts = inp.workoutHistory.filter((w) => w.date === date);
+    const recovery = inp.recoveryEntries.find((e) => e.date === date);
+    const dayScore = computeDayScore(date, dayInputs);
+    return {
+      date,
+      jsDate,
+      calories: dayCalories,
+      protein:  inp.entries.filter((e) => e.date === date).reduce((s, e) => s + e.protein, 0),
+      carbs:    inp.entries.filter((e) => e.date === date).reduce((s, e) => s + e.carbs, 0),
+      fat:      inp.entries.filter((e) => e.date === date).reduce((s, e) => s + e.fat, 0),
+      workouts: dayWorkouts,
+      recovery,
+      dayScore,
+      hasData: dayCalories > 0 || dayWorkouts.length > 0 || recovery != null,
+    };
+  });
+
+  const daily: DailyScorePoint[] = days.map((d) => ({
+    date: d.date,
+    dayLabel: d.jsDate.toLocaleDateString('en-US', { weekday: 'narrow' }),
+    score: d.dayScore.score,
+    hasData: d.hasData,
+  }));
+
+  const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const period = {
+    start: days[0].date,
+    end:   days[6].date,
+    label: `${fmt(days[0].jsDate)} – ${fmt(days[6].jsDate)}`,
+  };
+
+  const loggedDays   = days.filter((d) => d.calories > 0 || d.workouts.length > 0);
+  const foodDays     = days.filter((d) => d.calories > 0);
+  const recoveryDays = days.filter((d) => d.recovery != null);
+  const sleepDays    = days.filter((d) => d.recovery?.sleepHours != null);
+  const dataDays     = days.filter((d) => d.hasData);
+
+  const breakdown = new Map<string, { count: number; minutes: number; calories: number }>();
+  for (const d of days) {
+    for (const w of d.workouts) {
+      const row = breakdown.get(w.bodyPart) ?? { count: 0, minutes: 0, calories: 0 };
+      row.count    += 1;
+      row.minutes  += workoutMinutes(w);
+      row.calories += w.calories;
+      breakdown.set(w.bodyPart, row);
+    }
+  }
+
+  const weekWeights = inp.weightEntries
+    .filter((e) => e.date >= period.start && e.date <= period.end)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const stats: WeekStatsExtended = {
+    daysLogged:    loggedDays.length,
+    avgCalories:   Math.round(avg(foodDays.map((d) => d.calories))),
+    totalWorkouts: days.reduce((s, d) => s + d.workouts.length, 0),
+    avgMood:       round1(avg(recoveryDays.map((d) => d.recovery!.mood))),
+    avgSleep:      round1(avg(sleepDays.map((d) => d.recovery!.sleepHours!))),
+    avgScore:      Math.round(avg(dataDays.map((d) => d.dayScore.score))),
+    pillarAvgs: {
+      food:  round1(avg(dataDays.map((d) => d.dayScore.foodScore))),
+      move:  round1(avg(dataDays.map((d) => d.dayScore.moveScore))),
+      mood:  round1(avg(dataDays.map((d) => d.dayScore.moodScore))),
+      sleep: round1(avg(dataDays.map((d) => d.dayScore.sleepScore))),
+    },
+    macroAvgs: {
+      protein: Math.round(avg(foodDays.map((d) => d.protein))),
+      carbs:   Math.round(avg(foodDays.map((d) => d.carbs))),
+      fat:     Math.round(avg(foodDays.map((d) => d.fat))),
+    },
+    workoutBreakdown: [...breakdown.entries()]
+      .map(([bodyPart, row]) => ({ bodyPart, ...row }))
+      .sort((a, b) => b.count - a.count),
+    weightDelta: weekWeights.length >= 2
+      ? round1(weekWeights[weekWeights.length - 1].weight_kg - weekWeights[0].weight_kg)
+      : null,
+  };
+
+  return { period, stats, daily };
+}
+
+/**
+ * Rule-based Wins / Improvements / Focus lists (max 3 each). Extracted from
+ * the original text generator so the card UI and PDF can render structured
+ * sections; buildLocalWeeklyReport below joins them into the legacy string.
+ */
+export function buildLocalSections(
   stats: WeekStats,
   targets: ReportTargets,
   t: TFunction,
-): string {
+): ReportSections {
   const { daysLogged, avgCalories, totalWorkouts, avgMood, avgSleep } = stats;
-
-  if (daysLogged === 0) return t('weeklyReport.local.noData');
-
   const calRatio = targets.calories > 0 ? avgCalories / targets.calories : 0;
 
   // ── Wins (max 3, highest-signal first) ──
@@ -96,8 +260,24 @@ export function buildLocalWeeklyReport(
     if (!focuses.includes(f)) focuses.push(f);
   }
 
-  const bullets = (items: string[]) => items.slice(0, 3).map((s) => `•  ${s}`).join('\n');
-  const numbered = (items: string[]) => items.slice(0, 3).map((s, i) => `${i + 1}.  ${s}`).join('\n');
+  return {
+    wins: wins.slice(0, 3),
+    improvements: improvements.slice(0, 3),
+    focus: focuses.slice(0, 3),
+  };
+}
+
+export function buildLocalWeeklyReport(
+  stats: WeekStats,
+  targets: ReportTargets,
+  t: TFunction,
+): string {
+  if (stats.daysLogged === 0) return t('weeklyReport.local.noData');
+
+  const { wins, improvements, focus } = buildLocalSections(stats, targets, t);
+
+  const bullets = (items: string[]) => items.map((s) => `•  ${s}`).join('\n');
+  const numbered = (items: string[]) => items.map((s, i) => `${i + 1}.  ${s}`).join('\n');
 
   return [
     `🏆  ${t('weeklyReport.local.winsHeader')}`,
@@ -107,6 +287,6 @@ export function buildLocalWeeklyReport(
     bullets(improvements),
     '',
     `🚀  ${t('weeklyReport.local.focusHeader')}`,
-    numbered(focuses),
+    numbered(focus),
   ].join('\n');
 }

@@ -1,4 +1,8 @@
-import { buildLocalWeeklyReport, type WeekStats } from '../services/weeklyReport';
+import {
+  buildLocalWeeklyReport, buildLocalSections, computeWeekData,
+  type WeekStats, type WeekDataInputs,
+} from '../services/weeklyReport';
+import { daysAgoStr } from '../services/dateUtils';
 import { translate } from '../constants/i18n';
 
 const t = translate;
@@ -62,5 +66,90 @@ describe('buildLocalWeeklyReport', () => {
       .split(t('weeklyReport.local.focusHeader'))[0];
     const bulletCount = (improveSection.match(/•/g) ?? []).length;
     expect(bulletCount).toBe(3);
+  });
+});
+
+describe('buildLocalSections', () => {
+  it('returns arrays capped at three items each', () => {
+    const sections = buildLocalSections(
+      stats({ daysLogged: 1, avgCalories: 3000, totalWorkouts: 0, avgMood: 1, avgSleep: 0 }),
+      targets, t,
+    );
+    expect(sections.wins.length).toBeGreaterThanOrEqual(1);
+    expect(sections.wins.length).toBeLessThanOrEqual(3);
+    expect(sections.improvements).toHaveLength(3);
+    expect(sections.focus).toHaveLength(3);
+  });
+});
+
+describe('computeWeekData', () => {
+  const emptyInputs: WeekDataInputs = {
+    entries: [], workoutHistory: [], recoveryEntries: [], weightEntries: [],
+    targets: { calories: 2000, sleepHours: 8 },
+  };
+
+  it('returns zeros and no-data days for empty stores', () => {
+    const { stats, daily, period } = computeWeekData(emptyInputs);
+    expect(stats.daysLogged).toBe(0);
+    expect(stats.avgScore).toBe(0);
+    expect(stats.weightDelta).toBeNull();
+    expect(daily).toHaveLength(7);
+    expect(daily.every((d) => !d.hasData && d.score === 0)).toBe(true);
+    expect(period.start).toBe(daysAgoStr(6));
+    expect(period.end).toBe(daysAgoStr(0));
+  });
+
+  it('aggregates a synthetic week correctly', () => {
+    const today = daysAgoStr(0);
+    const yesterday = daysAgoStr(1);
+    const inputs: WeekDataInputs = {
+      entries: [
+        { date: today, calories: 2000, protein: 120, carbs: 200, fat: 60 },
+        { date: yesterday, calories: 1800, protein: 100, carbs: 180, fat: 50 },
+      ],
+      workoutHistory: [
+        { date: today, bodyPart: 'chest', calories: 300, duration: '40 min', durationMinutes: 42 },
+        { date: yesterday, bodyPart: 'chest', calories: 250, duration: '35 min' },
+        { date: yesterday, bodyPart: 'legs', calories: 400, duration: '50 min', durationMinutes: 50 },
+      ],
+      recoveryEntries: [{ date: today, mood: 4, sleepHours: 8 }],
+      weightEntries: [
+        { date: daysAgoStr(5), weight_kg: 81.2 },
+        { date: today, weight_kg: 80.4 },
+      ],
+      targets: { calories: 2000, sleepHours: 8 },
+    };
+
+    const { stats, daily } = computeWeekData(inputs);
+
+    expect(stats.daysLogged).toBe(2);
+    expect(stats.avgCalories).toBe(1900);
+    expect(stats.totalWorkouts).toBe(3);
+    expect(stats.avgMood).toBe(4);
+    expect(stats.avgSleep).toBe(8);
+    expect(stats.macroAvgs).toEqual({ protein: 110, carbs: 190, fat: 55 });
+    // chest first (2 sessions); "35 min" string parsed for the legacy record
+    expect(stats.workoutBreakdown[0]).toEqual({ bodyPart: 'chest', count: 2, minutes: 77, calories: 550 });
+    expect(stats.workoutBreakdown[1]).toEqual({ bodyPart: 'legs', count: 1, minutes: 50, calories: 400 });
+    expect(stats.weightDelta).toBe(-0.8);
+
+    // Today: food 25 + move 25 + mood 20 + sleep 25 = 95
+    expect(daily[6].score).toBe(95);
+    expect(daily[6].hasData).toBe(true);
+    expect(daily[0].hasData).toBe(false);
+    expect(stats.avgScore).toBe(Math.round((95 + daily[5].score) / 2));
+  });
+
+  it('ignores entries outside the 7-day window', () => {
+    const { stats } = computeWeekData({
+      ...emptyInputs,
+      entries: [{ date: daysAgoStr(8), calories: 2000, protein: 100, carbs: 200, fat: 60 }],
+      weightEntries: [
+        { date: daysAgoStr(30), weight_kg: 85 },
+        { date: daysAgoStr(9), weight_kg: 84 },
+      ],
+    });
+    expect(stats.daysLogged).toBe(0);
+    expect(stats.weightDelta).toBeNull();
   });
 });

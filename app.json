@@ -11,7 +11,9 @@
       "expo-router",
       "expo-secure-store",
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-apple-authentication",
+      "expo-sharing"
     ],
     "splash": {
       "image": "./assets/splash.png",
@@ -20,6 +22,7 @@
     },
     "ios": {
       "supportsTablet": true,
+      "usesAppleSignIn": true,
       "bundleIdentifier": "com.zenova.lifescore",
       "buildNumber": "1",
       "infoPlist": {

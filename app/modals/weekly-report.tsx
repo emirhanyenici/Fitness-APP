@@ -1,26 +1,36 @@
 import { useState, useMemo, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet,
+  StyleSheet, ActivityIndicator, Alert,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useNutritionStore } from '../../stores/nutritionStore';
 import { useRecoveryStore } from '../../stores/recoveryStore';
 import { useWorkoutStore } from '../../stores/workoutStore';
+import { useWeightLogStore } from '../../stores/weightLogStore';
 import { useUserStore } from '../../stores/userStore';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { computeTargets } from '../../services/recommendations';
-import { buildLocalWeeklyReport } from '../../services/weeklyReport';
-import { daysAgoStr } from '../../services/dateUtils';
+import {
+  computeWeekData, buildLocalSections, WeeklyReportData,
+} from '../../services/weeklyReport';
+import { exportReportPdf } from '../../services/reportPdf';
 import { colors, withAlpha } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { supabase } from '../../services/supabase';
 import { useT } from '../../constants/i18n';
-import { Icon, ChartColumn, X } from '../../components/ui/Icon';
+import { Icon, ChartColumn, X, Check, Target, Download } from '../../components/ui/Icon';
 import { SkeletonParagraph } from '../../components/ui/Skeleton';
+import { AnimatedBar } from '../../components/ui/AnimatedBar';
 
 const EDGE_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/ai-coach`;
+
+const scoreColor = (score: number) =>
+  score >= 70 ? colors.score.excellent :
+  score >= 50 ? colors.score.good :
+  score >= 30 ? colors.score.fair :
+  colors.score.poor;
 
 export default function WeeklyReportModal() {
   const isPro   = useSubscriptionStore((s) => s.isPro);
@@ -30,11 +40,13 @@ export default function WeeklyReportModal() {
   const entries         = useNutritionStore((s) => s.entries);
   const recoveryEntries = useRecoveryStore((s) => s.entries);
   const workoutHistory  = useWorkoutStore((s) => s.history);
+  const selectedType    = useWorkoutStore((s) => s.selectedType);
+  const weightEntries   = useWeightLogStore((s) => s.entries);
   const targets         = useMemo(() => computeTargets(profile), [profile]);
 
-  const [report,  setReport]  = useState<string | null>(null);
-  const [isLocal, setIsLocal] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [data,      setData]      = useState<WeeklyReportData | null>(null);
+  const [loading,   setLoading]   = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // Redirect free users to the paywall. Done in an effect (not during render):
   // navigating mid-render and returning before the hooks above run breaks the
@@ -43,45 +55,33 @@ export default function WeeklyReportModal() {
     if (!isPro) router.replace('/paywall');
   }, [isPro]);
 
-  // Build last 7 day summaries
-  const weekSummary = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = daysAgoStr(6 - i);
-      const dayLabel = new Date(Date.now() - (6 - i) * 86_400_000)
-        .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-
-      const dayCalories = entries
-        .filter((e) => e.date === d)
-        .reduce((s, e) => s + e.calories, 0);
-
-      const dayRecovery = recoveryEntries.find((e) => e.date === d);
-      const dayWorkouts = workoutHistory.filter((w) => w.date === d);
-
-      return {
-        date: dayLabel,
-        calories: dayCalories,
-        mood:      dayRecovery?.mood      ?? null,
-        energy:    dayRecovery?.energy    ?? null,
-        stress:    dayRecovery?.stress    ?? null,
-        sleepHours: dayRecovery?.sleepHours ?? null,
-        workoutsCompleted: dayWorkouts.length,
-      };
-    });
-  }, [entries, recoveryEntries, workoutHistory]);
+  // Structured week aggregation — single source for the snapshot row, the
+  // report cards AND the PDF. Charts never depend on the AI response.
+  const week = useMemo(() => computeWeekData({
+    entries,
+    workoutHistory,
+    recoveryEntries,
+    weightEntries,
+    targets: { calories: targets.calories, sleepHours: targets.sleepHours },
+    restDaySelected: selectedType === 'rest',
+  }), [entries, workoutHistory, recoveryEntries, weightEntries, targets, selectedType]);
 
   const generateReport = async () => {
     setLoading(true);
-    setIsLocal(false);
 
-    const daysLogged   = weekSummary.filter((d) => d.calories > 0 || d.workoutsCompleted > 0).length;
-    const avgCalories  = Math.round(weekSummary.filter((d) => d.calories > 0).reduce((s, d) => s + d.calories, 0) / Math.max(1, weekSummary.filter((d) => d.calories > 0).length));
-    const totalWorkouts = weekSummary.reduce((s, d) => s + d.workoutsCompleted, 0);
-    const avgMood      = weekSummary.filter((d) => d.mood).reduce((s, d) => s + (d.mood ?? 0), 0) / Math.max(1, weekSummary.filter((d) => d.mood).length);
-    const avgSleep     = weekSummary.filter((d) => d.sleepHours).reduce((s, d) => s + (d.sleepHours ?? 0), 0) / Math.max(1, weekSummary.filter((d) => d.sleepHours).length);
+    const { period, stats, daily } = week;
+    const sections = buildLocalSections(stats, targets, t);
+    const base: Omit<WeeklyReportData, 'aiNarrative' | 'source'> = { period, stats, daily, sections };
 
-    const dailyBreakdown = weekSummary.map((d) =>
-      `${d.date}: ${d.calories > 0 ? `${d.calories} kcal` : 'no food logged'}, ${d.workoutsCompleted > 0 ? `${d.workoutsCompleted} workout(s)` : 'no workout'}, mood ${d.mood ?? 'N/A'}/5, sleep ${d.sleepHours ? `${d.sleepHours}h` : 'N/A'}`
-    ).join('\n');
+    const dailyBreakdown = daily.map((d, i) => {
+      const dayEntries  = entries.filter((e) => e.date === d.date);
+      const dayCalories = dayEntries.reduce((s, e) => s + e.calories, 0);
+      const recovery    = recoveryEntries.find((e) => e.date === d.date);
+      const dayWorkouts = workoutHistory.filter((w) => w.date === d.date).length;
+      const label = new Date(Date.now() - (6 - i) * 86_400_000)
+        .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      return `${label}: ${dayCalories > 0 ? `${dayCalories} kcal` : 'no food logged'}, ${dayWorkouts > 0 ? `${dayWorkouts} workout(s)` : 'no workout'}, mood ${recovery?.mood ?? 'N/A'}/5, sleep ${recovery?.sleepHours ? `${recovery.sleepHours}h` : 'N/A'}`;
+    }).join('\n');
 
     const prompt = `Generate a concise weekly health & fitness report for the past 7 days.
 
@@ -91,18 +91,13 @@ PAST 7 DAYS:
 ${dailyBreakdown}
 
 SUMMARY STATS:
-- Days with data logged: ${daysLogged}/7
-- Average daily calories: ${avgCalories > 0 ? avgCalories : 'not logged'}
-- Total workouts completed: ${totalWorkouts}
-- Average mood: ${avgMood > 0 ? avgMood.toFixed(1) : 'not logged'}/5
-- Average sleep: ${avgSleep > 0 ? `${avgSleep.toFixed(1)}h` : 'not logged'}
+- Days with data logged: ${stats.daysLogged}/7
+- Average daily calories: ${stats.avgCalories > 0 ? stats.avgCalories : 'not logged'}
+- Total workouts completed: ${stats.totalWorkouts}
+- Average mood: ${stats.avgMood > 0 ? stats.avgMood.toFixed(1) : 'not logged'}/5
+- Average sleep: ${stats.avgSleep > 0 ? `${stats.avgSleep.toFixed(1)}h` : 'not logged'}
 
-Please structure the report as:
-1. **This Week's Wins** – 2-3 specific positives from their data
-2. **Areas to Improve** – 2-3 honest, actionable observations
-3. **Next Week Focus** – 3 concrete, personalized actions to take
-
-Keep it motivating, honest, and specific to their numbers. Be brief and direct.`;
+Write a short motivating coach's summary (5-8 sentences) of their week: call out what went well, what to watch, and the single most important thing to change next week. Be honest, specific to their numbers, and direct. Plain text only — no markdown, no headers, no bullet lists.`;
 
     try {
       // Send the user's session JWT so the edge function can authenticate and
@@ -123,25 +118,36 @@ Keep it motivating, honest, and specific to their numbers. Be brief and direct.`
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error ?? `Error ${res.status}`);
       }
-      const data = await res.json();
-      setReport(data?.content ?? t('weeklyReport.noReport'));
+      const resData = await res.json();
+      const narrative = typeof resData?.content === 'string' ? resData.content.trim() : '';
+      if (!narrative) throw new Error('empty AI response');
+      setData({ ...base, aiNarrative: narrative, source: 'ai' });
     } catch {
-      // AI path unavailable (edge function not deployed yet, offline, or
-      // server error) — build the report on-device from the same stats so
-      // the feature always produces a result.
-      setReport(buildLocalWeeklyReport(
-        { daysLogged, avgCalories, totalWorkouts, avgMood, avgSleep },
-        targets,
-        t,
-      ));
-      setIsLocal(true);
+      // AI path unavailable (offline or server error) — the rule-based
+      // sections computed above stand alone, so the report always renders.
+      setData({ ...base, aiNarrative: null, source: 'local' });
     } finally {
       setLoading(false);
     }
   };
 
+  const handleDownloadPdf = async () => {
+    if (!data || exporting) return;
+    setExporting(true);
+    try {
+      await exportReportPdf(data, t);
+    } catch {
+      Alert.alert(t('common.error'), t('weeklyReport.pdfError'));
+    } finally {
+      setExporting(false);
+    }
+  };
+
   // Render nothing while the paywall redirect (effect above) takes over.
   if (!isPro) return null;
+
+  const stats = week.stats;
+  const noData = data !== null && data.stats.daysLogged === 0;
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -162,23 +168,18 @@ Keep it motivating, honest, and specific to their numbers. Be brief and direct.`
       {/* This Week Snapshot */}
       <Text style={styles.sectionTitle}>{t('weeklyReport.thisWeek')}</Text>
       <View style={styles.snapshotGrid}>
-        {weekSummary.map((d, i) => {
-          const hasData = d.calories > 0 || d.workoutsCompleted > 0 || d.mood != null;
-          const dayShort = new Date(Date.now() - (6 - i) * 86_400_000)
-            .toLocaleDateString('en-US', { weekday: 'narrow' });
-          return (
-            <View key={i} style={[styles.dayDot, hasData && styles.dayDotActive]}>
-              <Text style={[styles.dayDotLabel, hasData && styles.dayDotLabelActive]}>{dayShort}</Text>
-            </View>
-          );
-        })}
+        {week.daily.map((d) => (
+          <View key={d.date} style={styles.dayDot}>
+            <Text style={[styles.dayDotLabel, d.hasData && styles.dayDotLabelActive]}>{d.dayLabel}</Text>
+          </View>
+        ))}
       </View>
 
       <View style={styles.statsRow}>
         {[
-          { label: t('weeklyReport.daysLogged'), value: `${weekSummary.filter((d) => d.calories > 0 || d.workoutsCompleted > 0).length}/7` },
-          { label: t('weeklyReport.workouts'), value: String(weekSummary.reduce((s, d) => s + d.workoutsCompleted, 0)) },
-          { label: t('weeklyReport.avgSleep'), value: (() => { const v = weekSummary.filter((d) => d.sleepHours); return v.length ? `${(v.reduce((s, d) => s + (d.sleepHours ?? 0), 0) / v.length).toFixed(1)}h` : '—'; })() },
+          { label: t('weeklyReport.daysLogged'), value: `${stats.daysLogged}/7` },
+          { label: t('weeklyReport.workouts'), value: String(stats.totalWorkouts) },
+          { label: t('weeklyReport.avgSleep'), value: stats.avgSleep > 0 ? `${stats.avgSleep.toFixed(1)}h` : '—' },
         ].map((s) => (
           <View key={s.label} style={styles.statChip}>
             <Text style={styles.statVal}>{s.value}</Text>
@@ -187,8 +188,8 @@ Keep it motivating, honest, and specific to their numbers. Be brief and direct.`
         ))}
       </View>
 
-      {/* Report content */}
-      {!report && !loading && (
+      {/* Generate */}
+      {!data && !loading && (
         <TouchableOpacity style={styles.generateBtn} onPress={generateReport} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel={t('weeklyReport.generateA11y')}>
           <Text style={styles.generateBtnText}>{t('weeklyReport.generate')}</Text>
         </TouchableOpacity>
@@ -202,14 +203,191 @@ Keep it motivating, honest, and specific to their numbers. Be brief and direct.`
         </View>
       )}
 
-      {report && (
-        <View style={styles.reportCard}>
-          <Text style={styles.reportText}>{report}</Text>
-          {isLocal && <Text style={styles.localNote}>{t('weeklyReport.localNote')}</Text>}
+      {/* No-data week */}
+      {noData && (
+        <View style={styles.card}>
+          <Text style={styles.bodyText}>{t('weeklyReport.local.noData')}</Text>
+        </View>
+      )}
+
+      {data && !noData && (
+        <>
+          {/* Score trend */}
+          <View style={styles.card}>
+            <View style={styles.cardHeaderRow}>
+              <Text style={styles.cardTitle}>{t('weeklyReport.scoreTrend')}</Text>
+              <View style={styles.avgScoreWrap}>
+                <Text style={[styles.avgScoreNum, { color: scoreColor(data.stats.avgScore) }]}>{data.stats.avgScore}</Text>
+                <Text style={styles.avgScoreLabel}>{t('weeklyReport.avgScore')}</Text>
+              </View>
+            </View>
+            <View style={styles.trendRow}>
+              {data.daily.map((d) => (
+                <View key={d.date} style={styles.trendCol}>
+                  <View style={styles.trendBarTrack}>
+                    <View style={[
+                      styles.trendBar,
+                      d.hasData
+                        ? { height: `${Math.max(d.score, 6)}%`, backgroundColor: scoreColor(d.score) }
+                        : { height: 4, backgroundColor: colors.border.subtle },
+                    ]} />
+                  </View>
+                  <Text style={styles.trendDay}>{d.dayLabel}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {/* Pillars */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>{t('weeklyReport.pillars')}</Text>
+            {[
+              { label: t('weeklyReport.pillarSleep'), value: data.stats.pillarAvgs.sleep, color: colors.accent.primary },
+              { label: t('weeklyReport.pillarFood'),  value: data.stats.pillarAvgs.food,  color: colors.status.success },
+              { label: t('weeklyReport.pillarMove'),  value: data.stats.pillarAvgs.move,  color: colors.status.warning },
+              { label: t('weeklyReport.pillarMood'),  value: data.stats.pillarAvgs.mood,  color: colors.violet.primary },
+            ].map((p) => (
+              <View key={p.label} style={styles.pillarRow}>
+                <Text style={styles.pillarLabel}>{p.label}</Text>
+                <AnimatedBar pct={p.value / 25} color={p.color} height={8} style={styles.pillarBar} />
+                <Text style={styles.pillarVal}>{p.value}/25</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Nutrition */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>{t('weeklyReport.nutrition')}</Text>
+            <View style={styles.nutritionRow}>
+              <View>
+                <Text style={styles.bigStat}>{data.stats.avgCalories > 0 ? `${data.stats.avgCalories}` : '—'}</Text>
+                <Text style={styles.bigStatLabel}>
+                  {t('weeklyReport.avgCaloriesLabel')} · {t('weeklyReport.ofTarget', { target: targets.calories })}
+                </Text>
+              </View>
+            </View>
+            {data.stats.avgCalories > 0 && (
+              <View style={styles.macroRow}>
+                {[
+                  { label: t('weeklyReport.protein'), value: data.stats.macroAvgs.protein },
+                  { label: t('weeklyReport.carbs'),   value: data.stats.macroAvgs.carbs },
+                  { label: t('weeklyReport.fat'),     value: data.stats.macroAvgs.fat },
+                ].map((m) => (
+                  <View key={m.label} style={styles.macroChip}>
+                    <Text style={styles.macroVal}>{m.value}g</Text>
+                    <Text style={styles.macroLabel}>{m.label}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* Workouts */}
+          {data.stats.totalWorkouts > 0 && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>{t('weeklyReport.workoutsSection')}</Text>
+              <View style={styles.macroRow}>
+                {[
+                  { label: t('weeklyReport.workouts'), value: String(data.stats.totalWorkouts) },
+                  { label: t('weeklyReport.totalTime'), value: `${data.stats.workoutBreakdown.reduce((s, w) => s + w.minutes, 0)}m` },
+                  { label: t('weeklyReport.burned'), value: `${data.stats.workoutBreakdown.reduce((s, w) => s + w.calories, 0)}` },
+                ].map((m) => (
+                  <View key={m.label} style={styles.macroChip}>
+                    <Text style={styles.macroVal}>{m.value}</Text>
+                    <Text style={styles.macroLabel}>{m.label}</Text>
+                  </View>
+                ))}
+              </View>
+              {data.stats.workoutBreakdown.map((w) => (
+                <View key={w.bodyPart} style={styles.breakdownRow}>
+                  <Text style={styles.breakdownName}>{w.bodyPart}</Text>
+                  <Text style={styles.breakdownMeta}>×{w.count} · {t('weeklyReport.minutes', { count: w.minutes })}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Weight */}
+          {data.stats.weightDelta !== null && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>{t('weeklyReport.weightChange')}</Text>
+              <Text style={[
+                styles.bigStat,
+                { color: data.stats.weightDelta > 0 ? colors.status.warning : colors.accent.primary },
+              ]}>
+                {data.stats.weightDelta > 0 ? '+' : ''}{data.stats.weightDelta} kg
+              </Text>
+              <Text style={styles.bigStatLabel}>{t('weeklyReport.weightThisWeek')}</Text>
+            </View>
+          )}
+
+          {/* Coach's notes (AI path only) */}
+          {data.aiNarrative && (
+            <View style={[styles.card, styles.coachCard]}>
+              <Text style={styles.cardTitle}>{t('weeklyReport.coachNotes')}</Text>
+              <Text style={styles.bodyText}>{data.aiNarrative}</Text>
+            </View>
+          )}
+
+          {/* Wins / Improve / Focus */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>🏆  {t('weeklyReport.local.winsHeader')}</Text>
+            {data.sections.wins.map((s) => (
+              <View key={s} style={styles.bulletRow}>
+                <Icon icon={Check} size={15} color={colors.status.success} strokeWidth={2.5} />
+                <Text style={styles.bulletText}>{s}</Text>
+              </View>
+            ))}
+          </View>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>🎯  {t('weeklyReport.local.improveHeader')}</Text>
+            {data.sections.improvements.map((s) => (
+              <View key={s} style={styles.bulletRow}>
+                <Icon icon={Target} size={15} color={colors.status.warning} strokeWidth={2.5} />
+                <Text style={styles.bulletText}>{s}</Text>
+              </View>
+            ))}
+          </View>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>🚀  {t('weeklyReport.local.focusHeader')}</Text>
+            {data.sections.focus.map((s, i) => (
+              <View key={s} style={styles.bulletRow}>
+                <View style={styles.stepNum}><Text style={styles.stepNumText}>{i + 1}</Text></View>
+                <Text style={styles.bulletText}>{s}</Text>
+              </View>
+            ))}
+          </View>
+
+          {data.source === 'local' && <Text style={styles.localNote}>{t('weeklyReport.localNote')}</Text>}
+
+          {/* Download PDF */}
+          <TouchableOpacity
+            style={styles.pdfBtn}
+            onPress={handleDownloadPdf}
+            disabled={exporting}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={t('weeklyReport.downloadPdfA11y')}
+          >
+            {exporting
+              ? (
+                <>
+                  <ActivityIndicator size="small" color={colors.accent.primary} />
+                  <Text style={styles.pdfBtnText}>{t('weeklyReport.exporting')}</Text>
+                </>
+              )
+              : (
+                <>
+                  <Icon icon={Download} size={17} color={colors.accent.primary} strokeWidth={2.2} />
+                  <Text style={styles.pdfBtnText}>{t('weeklyReport.downloadPdf')}</Text>
+                </>
+              )}
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.regenerateBtn} onPress={generateReport} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t('weeklyReport.regenerateA11y')}>
             <Text style={styles.regenerateText}>{t('weeklyReport.regenerate')}</Text>
           </TouchableOpacity>
-        </View>
+        </>
       )}
 
       <View style={{ height: 80 }} />
@@ -231,7 +409,6 @@ const styles = StyleSheet.create({
 
   snapshotGrid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.base },
   dayDot:       { flex: 1, alignItems: 'center', gap: 5 },
-  dayDotActive: {},
   dayDotLabel:  { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary },
   dayDotLabelActive: { color: colors.accent.primary, fontFamily: typography.fonts.bodyMed },
 
@@ -246,9 +423,57 @@ const styles = StyleSheet.create({
   loadingBox:  { alignItems: 'center', gap: spacing.base, paddingVertical: spacing['2xl'] },
   loadingText: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary },
 
-  reportCard:      { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.19), borderRadius: radius['2xl'], padding: spacing.xl, gap: spacing.xl },
-  localNote:       { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textAlign: 'center', marginTop: -spacing.sm },
-  reportText:      { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.primary, lineHeight: 22 },
-  regenerateBtn:   { alignSelf: 'center', paddingVertical: spacing.sm, paddingHorizontal: spacing.xl },
-  regenerateText:  { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.tertiary },
+  card: {
+    backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle,
+    borderRadius: radius['2xl'], padding: spacing.xl, marginBottom: spacing.base, gap: spacing.sm,
+  },
+  coachCard: { borderColor: withAlpha(colors.accent.primary, 0.28), borderLeftWidth: 3, borderLeftColor: colors.accent.primary },
+  cardTitle: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.primary },
+  bodyText:  { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.primary, lineHeight: 22 },
+
+  cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  avgScoreWrap:  { alignItems: 'flex-end' },
+  avgScoreNum:   { fontFamily: typography.fonts.display, fontSize: typography.sizes.xl },
+  avgScoreLabel: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary },
+
+  trendRow:      { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xs, marginTop: spacing.xs },
+  trendCol:      { flex: 1, alignItems: 'center', gap: 5 },
+  trendBarTrack: { height: 88, width: '100%', justifyContent: 'flex-end' },
+  trendBar:      { width: '100%', borderRadius: radius.sm },
+  trendDay:      { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary },
+
+  pillarRow:   { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  pillarLabel: { width: 46, fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary },
+  pillarBar:   { flex: 1 },
+  pillarVal:   { width: 46, textAlign: 'right', fontFamily: typography.fonts.mono, fontSize: typography.sizes.xs, color: colors.text.primary },
+
+  nutritionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+  bigStat:      { fontFamily: typography.fonts.display, fontSize: typography.sizes.xl, color: colors.text.primary },
+  bigStatLabel: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 2 },
+
+  macroRow:   { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs },
+  macroChip:  { flex: 1, backgroundColor: colors.bg.tertiary, borderRadius: radius.lg, paddingVertical: spacing.sm, alignItems: 'center', gap: 2 },
+  macroVal:   { fontFamily: typography.fonts.display, fontSize: typography.sizes.base, color: colors.text.primary },
+  macroLabel: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.secondary },
+
+  breakdownRow:  { flexDirection: 'row', justifyContent: 'space-between', paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border.subtle, marginTop: spacing.sm },
+  breakdownName: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.primary, textTransform: 'capitalize' },
+  breakdownMeta: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary },
+
+  bulletRow:  { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
+  bulletText: { flex: 1, fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.primary, lineHeight: 21 },
+  stepNum:     { width: 20, height: 20, borderRadius: 10, backgroundColor: colors.accent.dim, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  stepNumText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.accent.primary },
+
+  localNote: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textAlign: 'center', marginBottom: spacing.sm },
+
+  pdfBtn: {
+    flexDirection: 'row', gap: spacing.sm, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: colors.accent.primary, borderRadius: radius.full,
+    paddingVertical: 14, backgroundColor: withAlpha(colors.accent.primary, 0.06),
+  },
+  pdfBtnText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.base, color: colors.accent.primary },
+
+  regenerateBtn:  { alignSelf: 'center', paddingVertical: spacing.sm, paddingHorizontal: spacing.xl, marginTop: spacing.xs },
+  regenerateText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.tertiary },
 });
