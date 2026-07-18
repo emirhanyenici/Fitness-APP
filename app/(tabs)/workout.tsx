@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, Pressable, TextInput } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, Pressable, TextInput, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
@@ -254,7 +254,7 @@ export default function WorkoutScreen() {
 
   return (
     <View style={styles.screen}>
-    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'} keyboardDismissMode="interactive" keyboardShouldPersistTaps="handled">
 
       {/* ── Header ── */}
       <View style={[styles.header, { paddingTop: insets.top + spacing.lg }]}>

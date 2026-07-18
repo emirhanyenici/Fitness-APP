@@ -44,6 +44,9 @@ export default function LoginScreen() {
   // below must not race handleSubmit's own (server-aware) navigation.
   const interactiveAuth = useRef(false);
 
+  const passwordRef = useRef<TextInput>(null);
+  const confirmRef = useRef<TextInput>(null);
+
   useEffect(() => {
     secureStorage.getItem(SAVED_EMAIL_KEY).then((saved) => {
       if (saved) { setEmail(saved); setRememberMe(true); setMode('signin'); }
@@ -188,6 +191,8 @@ export default function LoginScreen() {
       contentContainerStyle={styles.container}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
+      automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+      keyboardDismissMode="interactive"
     >
       {/* Logo */}
       <View style={styles.logoWrap}>
@@ -233,11 +238,17 @@ export default function LoginScreen() {
         onChangeText={(v) => { setEmail(v); setFieldError(null); }}
         autoCapitalize="none"
         keyboardType="email-address"
+        textContentType="emailAddress"
+        autoComplete="email"
+        returnKeyType="next"
+        submitBehavior="submit"
+        onSubmitEditing={() => passwordRef.current?.focus()}
       />
       {fieldError?.field === 'email' && <Text style={styles.inlineError}>{fieldError.msg}</Text>}
       <View style={{ height: spacing.sm }} />
       <View style={[styles.pwWrap, fieldError?.field === 'password' && styles.inputError]}>
         <TextInput
+          ref={passwordRef}
           style={styles.pwInput}
           placeholder={t('auth.password')}
           placeholderTextColor={colors.text.tertiary}
@@ -245,6 +256,11 @@ export default function LoginScreen() {
           onChangeText={(v) => { setPassword(v); setFieldError(null); }}
           secureTextEntry={!showPassword}
           autoCapitalize="none"
+          textContentType={isSignUp ? 'newPassword' : 'password'}
+          autoComplete={isSignUp ? 'new-password' : 'password'}
+          returnKeyType={isSignUp ? 'next' : 'go'}
+          submitBehavior={isSignUp ? 'submit' : 'blurAndSubmit'}
+          onSubmitEditing={() => (isSignUp ? confirmRef.current?.focus() : handleSubmit())}
         />
         <Pressable
           style={styles.pwEye}
@@ -262,6 +278,7 @@ export default function LoginScreen() {
           <View style={{ height: spacing.sm }} />
           <View style={[styles.pwWrap, fieldError?.field === 'confirm' && styles.inputError]}>
             <TextInput
+              ref={confirmRef}
               style={styles.pwInput}
               placeholder={t('auth.confirmPassword')}
               placeholderTextColor={colors.text.tertiary}
@@ -269,6 +286,10 @@ export default function LoginScreen() {
               onChangeText={(v) => { setConfirmPassword(v); setFieldError(null); }}
               secureTextEntry={!showConfirm}
               autoCapitalize="none"
+              textContentType="newPassword"
+              autoComplete="new-password"
+              returnKeyType="go"
+              onSubmitEditing={handleSubmit}
             />
             <Pressable
               style={styles.pwEye}

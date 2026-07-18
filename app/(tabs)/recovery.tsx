@@ -88,7 +88,7 @@ export default function RecoveryScreen() {
   };
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'} keyboardDismissMode="interactive" keyboardShouldPersistTaps="handled">
 
       {/* ── Header ── */}
       <View style={[styles.header, { paddingTop: insets.top + spacing.lg }]}>

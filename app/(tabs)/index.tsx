@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, useWindowDimensions } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, useWindowDimensions, RefreshControl } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, withAlpha } from '../../constants/colors';
@@ -15,6 +15,7 @@ import { GOAL_TO_BODY_PART, TYPE_TO_BODY_PART, BODY_PART_LABEL } from '../../ser
 import { computeTargets, GOAL_LABELS } from '../../services/recommendations';
 import { dateStr, daysAgoStr } from '../../services/dateUtils';
 import { useZenovaScore, computeDayScore, formatDeltaLabel } from '../../hooks/useZenovaScore';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { AICoachBanner } from '../../components/ui/AICoachBanner';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -47,6 +48,7 @@ export default function HomeScreen() {
   const selectedType     = useWorkoutStore((s) => s.selectedType);
   const workoutHistory   = useWorkoutStore((s) => s.history);
   const recoveryEntries  = useRecoveryStore((s) => s.entries);
+  const { refreshing, onRefresh } = usePullToRefresh();
 
   // Recomputed on every render to avoid stale dates after midnight.
   const todayDate = new Date();
@@ -160,7 +162,12 @@ export default function HomeScreen() {
   ];
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent.primary} colors={[colors.accent.primary]} />}
+    >
 
       {/* ── Header ── */}
       <View style={[styles.header, { paddingTop: insets.top + spacing.lg }]}>

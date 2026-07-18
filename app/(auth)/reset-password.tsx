@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Alert, ScrollView } from 'react-native';
+import { useRef, useState } from 'react';
+import { View, Text, TextInput, StyleSheet, Alert, ScrollView, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { supabase } from '../../services/supabase';
 import { colors } from '../../constants/colors';
@@ -11,6 +11,7 @@ export default function ResetPasswordScreen() {
   const [password,  setPassword]  = useState('');
   const [confirm,   setConfirm]   = useState('');
   const [loading,   setLoading]   = useState(false);
+  const confirmRef = useRef<TextInput>(null);
 
   const handleReset = async () => {
     if (!password.trim()) {
@@ -53,6 +54,8 @@ export default function ResetPasswordScreen() {
       contentContainerStyle={styles.container}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
+      automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+      keyboardDismissMode="interactive"
     >
       <View style={styles.logoWrap}>
         <Text style={styles.logo}>ZENOVA</Text>
@@ -71,15 +74,25 @@ export default function ResetPasswordScreen() {
         value={password}
         onChangeText={setPassword}
         secureTextEntry
+        textContentType="newPassword"
+        autoComplete="new-password"
+        returnKeyType="next"
+        submitBehavior="submit"
+        onSubmitEditing={() => confirmRef.current?.focus()}
       />
       <View style={{ height: spacing.sm }} />
       <TextInput
         style={styles.input}
         placeholder="Confirm New Password"
         placeholderTextColor={colors.text.tertiary}
+        ref={confirmRef}
         value={confirm}
         onChangeText={setConfirm}
         secureTextEntry
+        textContentType="newPassword"
+        autoComplete="new-password"
+        returnKeyType="go"
+        onSubmitEditing={handleReset}
       />
 
       <View style={{ height: spacing.xl }} />

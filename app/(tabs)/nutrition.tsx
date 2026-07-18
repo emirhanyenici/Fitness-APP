@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, LayoutAnimation } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, LayoutAnimation, RefreshControl } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNutritionStore, FoodEntry } from '../../stores/nutritionStore';
@@ -7,6 +7,7 @@ import { useAISuggestionsStore } from '../../stores/aiSuggestionsStore';
 import { useUserStore } from '../../stores/userStore';
 import { computeTargets } from '../../services/recommendations';
 import { todayStr } from '../../services/dateUtils';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { colors, withAlpha } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
@@ -41,6 +42,7 @@ export default function NutritionScreen() {
   const profile      = useUserStore((s) => s.profile);
   const analytics    = useAnalytics();
   const t            = useT();
+  const { refreshing, onRefresh } = usePullToRefresh();
 
   const targets       = useMemo(() => computeTargets(profile), [profile]);
   const GOAL_CALS     = targets.calories;
@@ -100,7 +102,12 @@ export default function NutritionScreen() {
   };
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent.primary} colors={[colors.accent.primary]} />}
+    >
 
       {/* ── Header ── */}
       <View style={[styles.header, { paddingTop: insets.top + spacing.lg }]}>

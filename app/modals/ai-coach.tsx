@@ -1,9 +1,11 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
-  StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator,
+  StyleSheet, Platform, ActivityIndicator,
   Alert,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
+import { useKeyboardInset } from '../../hooks/useKeyboardInset';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useUserStore } from '../../stores/userStore';
 import { useRecoveryStore } from '../../stores/recoveryStore';
@@ -80,6 +82,10 @@ export default function AICoachModal() {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
+
+  // inputRow already reserves 32pt for the home indicator on iOS; subtract it
+  // so the row lands flush on the keyboard top instead of 32pt above it.
+  const keyboardStyle = useKeyboardInset(Platform.OS === 'ios' ? 32 : 0);
 
   const FREE_LIMIT = 5;
   // Date-keyed counter (survives "Clear conversation") + legacy message count
@@ -188,8 +194,11 @@ export default function AICoachModal() {
     );
   }, [t]);
 
+  // KeyboardAvoidingView 'padding' mismeasures inside this pageSheet modal
+  // (offset frame origin) — useKeyboardInset tracks the real keyboard frame
+  // in window coordinates instead.
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <Animated.View style={[styles.screen, keyboardStyle]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -212,6 +221,7 @@ export default function AICoachModal() {
         renderItem={renderMessage}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
+        keyboardDismissMode="interactive"
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
       />
 
@@ -288,7 +298,7 @@ export default function AICoachModal() {
           <Icon icon={ArrowUp} size="md" color={colors.text.inverse} strokeWidth={2.25} />
         </TouchableOpacity>
       </View>
-    </KeyboardAvoidingView>
+    </Animated.View>
   );
 }
 

@@ -139,19 +139,21 @@ export default function PaywallScreen() {
         />
 
         <Text
-          style={styles.monthly}
+          style={[styles.monthly, loading && styles.linkDisabled]}
           onPress={() => !loading && handlePurchase('zenova_pro_monthly')}
           accessibilityRole="button"
           accessibilityLabel={t('paywall.monthlyA11y')}
+          accessibilityState={{ disabled: loading }}
         >
           {t('paywall.orMonthly')}
         </Text>
 
         <Text
-          style={styles.footer}
-          onPress={handleRestore}
+          style={[styles.footer, loading && styles.linkDisabled]}
+          onPress={() => !loading && handleRestore()}
           accessibilityRole="button"
           accessibilityLabel={t('paywall.restoreA11y')}
+          accessibilityState={{ disabled: loading }}
         >
           {t('paywall.restoreFooter')}
         </Text>
@@ -207,4 +209,5 @@ const styles = StyleSheet.create({
   legalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, marginTop: spacing.xs },
   legalLink: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.text.secondary, textDecorationLine: 'underline' },
   legalDot: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary },
+  linkDisabled: { opacity: 0.4 },
 });

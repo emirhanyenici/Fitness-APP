@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, Platform, TextInput, KeyboardAvoidingView, Image, Switch, Linking } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, Platform, TextInput, Image, Switch, Linking } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 const HEALTH_APP = Platform.OS === 'ios' ? 'Apple Health' : 'Health Connect';
@@ -214,9 +214,11 @@ export default function ProfileScreen() {
     return null;
   })();
 
+  // Keyboard insets live on the ScrollView (not a KeyboardAvoidingView): KAV
+  // 'padding' over-pads by the tab-bar height on this tab screen.
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <View style={{ flex: 1 }}>
+      <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'} keyboardDismissMode="interactive" keyboardShouldPersistTaps="handled">
 
         {/* ── Header ── */}
         <View style={[styles.header, { paddingTop: insets.top + spacing.lg }]}>
@@ -492,7 +494,7 @@ export default function ProfileScreen() {
         <Text style={styles.version}>{t('profile.version')}{plan !== 'free' ? `  [${plan.toUpperCase()}]` : ''}</Text>
         <View style={{ height: 100 }} />
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

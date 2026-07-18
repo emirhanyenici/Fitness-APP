@@ -118,15 +118,17 @@ Deno.serve(async (req) => {
   // Per-user daily rate limit — protects against unbounded AI-provider spend
   // from a leaked JWT or abusive client. Tier-aware: the plan is mirrored into
   // public.subscriptions by the revenuecat-webhook fn; missing row = free.
-  // Free backstop is looser than the client's 5/day gate (local-day vs UTC-day
-  // drift); pro's 100/day is a fair-use ceiling behind the "unlimited" promise.
+  // Free matches the client's 5/day gate (UTC-day vs local-day may drift near
+  // midnight); pro's 100/day is a fair-use ceiling behind the "unlimited"
+  // promise. Counts in the 'chat' bucket (weekly report shares it); photo
+  // analysis has its own bucket in analyze-photo.
   const { data: subRow } = await supabase.from('subscriptions').select('plan').maybeSingle();
   const isPaid = subRow?.plan === 'pro' || subRow?.plan === 'elite';
   const AI_DAILY_LIMIT = isPaid
     ? Number(Deno.env.get('AI_COACH_LIMIT_PRO') ?? '100')
-    : Number(Deno.env.get('AI_COACH_LIMIT_FREE') ?? '10');
+    : Number(Deno.env.get('AI_COACH_LIMIT_FREE') ?? '5');
   const { data: allowed, error: limitError } = await supabase.rpc(
-    'check_and_increment_ai_usage', { p_limit: AI_DAILY_LIMIT },
+    'check_and_increment_ai_usage', { p_limit: AI_DAILY_LIMIT, p_feature: 'chat' },
   );
   if (limitError) {
     console.error('rate-limit check failed:', limitError);
