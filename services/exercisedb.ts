@@ -1,6 +1,17 @@
+// ExerciseDB (RapidAPI) key. Like the USDA key, this is EXPO_PUBLIC_* by design
+// (bundled into the client): free-tier, read-only exercise lookups only.
+// Accepted low risk; hardening path if ever warranted is a Supabase edge proxy.
+// Sent as a header (never in the URL), and results are cached on-device
+// (services/exerciseDemoCache.ts) so the monthly quota is spent ~once per name.
 import { fetchWithTimeout } from './http';
+import { logError } from './monitoring';
+import { getCachedDemo, setCachedDemo } from './exerciseDemoCache';
 
-/** wger.de — free exercise API, no key required */
+// Read lazily (not at module load) so tests can inject a key via process.env.
+const getRapidApiKey = () => process.env.EXPO_PUBLIC_RAPIDAPI_KEY ?? '';
+const EDB_BASE = 'https://exercisedb.p.rapidapi.com';
+
+/** wger.de — free exercise API, no key required (secondary fallback) */
 const WGER_BASE = 'https://wger.de/api/v2';
 const WGER_HOST = 'https://wger.de';
 
@@ -64,17 +75,231 @@ interface WgerListResponse {
   results?: WgerExerciseResult[];
 }
 
+// ── Name matching ────────────────────────────────────────────────────────────
+
 /**
- * Fetch exercise image + description from wger (free, no key).
- * Returns null on any error so callers can show a fallback gracefully.
+ * Normalize a display name for lookup: lowercase, drop parenthesized parts,
+ * hyphens → spaces, strip apostrophes, collapse whitespace.
+ * "Cat-Cow Stretch" → "cat cow stretch", "Child's Pose" → "childs pose".
+ */
+export function normalizeExerciseName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/-/g, ' ')
+    .replace(/'/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Normalized display name → ExerciseDB search term.
+ * - string:    the term to search (ExerciseDB matches by substring of its names)
+ * - 'id:NNNN': pin a specific catalog id (for entries name search can't reach —
+ *              the endpoint caps results at 10, alphabetically)
+ * - null:      no ExerciseDB entry exists (yoga/stretch flows) → skip the API
+ *              entirely and let the modal fall back to the YouTube search link.
+ * Names not in this map are searched under their normalized form as-is.
+ */
+// Terms validated against the live ExerciseDB catalog on 2026-07-18
+// (scratchpad probe: every app exercise name was searched; these are the terms
+// that returned the right movement).
+export const EXERCISE_ALIASES: Record<string, string | null> = {
+  // plural → singular / phrasing differences
+  'bench press':            'barbell bench press',
+  'overhead press':         'barbell seated overhead press',
+  'incline dumbbell press': 'dumbbell incline bench press',
+  'lateral raises':         'dumbbell lateral raise',
+  'front raises':           'barbell front raise',
+  'rear delt flyes':        'rear fly',                      // → "dumbbell rear fly"
+  'tricep pushdown':        'cable pushdown',
+  'dips':                   'chest dip',
+  'cable flyes':            'cable middle fly',              // "cable fly" has no match
+  'barbell row':            'barbell bent over row',
+  'bent over row':          'barbell bent over row',
+  'pull ups':               'pull up (neutral grip)',
+  'push ups':               'id:0662',                       // plain "push-up", unreachable by search
+  'lat pulldown':           'cable pulldown',
+  'face pulls':             'cable rear delt row (with rope)', // catalog has no "face pull"
+  'seated cable row':       'seated row',                    // → "cable low seated row"
+  'squats':                 'squat',
+  'deadlift':               'barbell deadlift',
+  'walking lunges':         'walking lunge',
+  'lunges':                 'lunge',
+  'calf raises':            'bodyweight standing calf raise',
+  'hip thrusts':            'hip thrust',
+  'burpees':                'burpee',
+  'mountain climbers':      'mountain climber',
+  'high knees':             'high knee',
+  'russian twists':         'russian twist',
+  'bicycle crunches':       'air bike',                      // catalog name for the movement
+  'crunches':               'crunch floor',
+  'leg raises':             'leg raise',
+  'pec deck':               'lever seated fly',              // pec-deck machine's catalog name
+  'shrugs':                 'barbell shrug',
+  'preacher curl':          'barbell preacher curl',
+  'close grip bench press': 'barbell close-grip bench press',
+  'skull crushers':         'lying triceps extension',
+  'box jumps':              'box jump',
+  // no usable catalog entry — YouTube-only
+  'superman hold':       null,  // only "superman push-up" exists, wrong movement
+  // yoga / mobility flows — not in ExerciseDB, YouTube-only
+  'sun salutation flow': null,
+  'downward dog':        null,
+  'pigeon pose':         null,
+  'cat cow stretch':     null,
+  'forward fold':        null,
+  'childs pose':         null,
+};
+
+/** Alias lookup; null = youtube-only, string = term to search ExerciseDB with. */
+export function resolveSearchTerm(name: string): string | null {
+  const key = normalizeExerciseName(name);
+  if (key in EXERCISE_ALIASES) return EXERCISE_ALIASES[key];
+  return key;
+}
+
+// ── ExerciseDB (RapidAPI) — primary source, animated GIFs ────────────────────
+
+interface EdbExercise {
+  id?: string;
+  name?: string;
+  bodyPart?: string;
+  target?: string;
+  equipment?: string;
+  instructions?: string[];
+}
+
+/**
+ * The current ExerciseDB API serves GIFs from a separate authenticated
+ * endpoint (no `gifUrl` field on exercises anymore). The URL is stable per
+ * exercise id; the Image component must send the RapidAPI headers — use
+ * `demoImageSource(gifUrl)` when rendering.
+ */
+const edbGifUrl = (id: string) => `${EDB_BASE}/image?exerciseId=${encodeURIComponent(id)}&resolution=360`;
+
+/** Build an <Image> source for a demo gifUrl, attaching auth headers when needed. */
+export function demoImageSource(gifUrl: string): { uri: string; headers?: Record<string, string> } {
+  if (gifUrl.startsWith(EDB_BASE)) {
+    return {
+      uri: gifUrl,
+      headers: {
+        'X-RapidAPI-Key':  getRapidApiKey(),
+        'X-RapidAPI-Host': 'exercisedb.p.rapidapi.com',
+      },
+    };
+  }
+  return { uri: gifUrl };
+}
+
+// Simple per-session rate limiter — prevents runaway API calls (same pattern
+// as services/usda.ts, but waits out the cooldown instead of failing).
+let _lastDemoFetch = 0;
+const DEMO_COOLDOWN_MS = 800;
+
+async function fetchFromExerciseDb(term: string, displayName: string): Promise<ExerciseDemo | null> {
+  const isIdLookup = term.startsWith('id:');
+  const url = isIdLookup
+    ? `${EDB_BASE}/exercises/exercise/${encodeURIComponent(term.slice(3))}`
+    : `${EDB_BASE}/exercises/name/${encodeURIComponent(term)}?limit=10`;
+
+  const res = await fetchWithTimeout(url, {
+    headers: {
+      'X-RapidAPI-Key':  getRapidApiKey(),
+      'X-RapidAPI-Host': 'exercisedb.p.rapidapi.com',
+    },
+  });
+  if (!res.ok) throw new Error(`exercisedb ${res.status}`);
+  const json = await res.json();
+  const list: EdbExercise[] = isIdLookup ? [json as EdbExercise] : json;
+  if (!Array.isArray(list) || list.length === 0) return null;
+
+  // Best hit: exact match on the display name, else on the search term (so an
+  // alias pinned to a full catalog name wins over shorter variants), else the
+  // shortest name (least-qualified variant, e.g. "barbell squat" over
+  // "barbell squat (side pov)").
+  const wantedDisplay = normalizeExerciseName(displayName);
+  const wantedTerm = normalizeExerciseName(term);
+  const best =
+    list.find((e) => normalizeExerciseName(e.name ?? '') === wantedDisplay) ??
+    list.find((e) => normalizeExerciseName(e.name ?? '') === wantedTerm) ??
+    [...list].sort((a, b) => (a.name?.length ?? 999) - (b.name?.length ?? 999))[0];
+
+  if (!best?.id) return null;
+  return {
+    gifUrl:       edbGifUrl(best.id),
+    instructions: (best.instructions ?? []).filter((s) => s.trim().length > 0).slice(0, 6),
+    bodyPart:     best.bodyPart  ?? '',
+    target:       best.target    ?? '',
+    equipment:    best.equipment ?? '',
+  };
+}
+
+/**
+ * Fetch an exercise demo (animated GIF + steps) by display name.
+ * Order: on-device cache → ExerciseDB (RapidAPI) → wger (free fallback).
+ * Returns null when no demo exists (modal shows placeholder + YouTube link).
+ * Errors are logged, never thrown; failures are not cached so the next open
+ * retries (e.g. after coming back online).
  */
 export async function fetchExerciseDemo(name: string): Promise<ExerciseDemo | null> {
+  const cacheKey = normalizeExerciseName(name);
+
+  const cached = await getCachedDemo(cacheKey);
+  if (cached !== undefined) return cached.demo;
+
+  const term = resolveSearchTerm(name);
+  if (term === null) {
+    // Known youtube-only exercise — remember the miss, skip the network.
+    await setCachedDemo(cacheKey, null);
+    return null;
+  }
+
+  // Wait out the cooldown window instead of failing the lookup.
+  const sinceLast = Date.now() - _lastDemoFetch;
+  if (sinceLast < DEMO_COOLDOWN_MS) {
+    await new Promise((r) => setTimeout(r, DEMO_COOLDOWN_MS - sinceLast));
+  }
+  _lastDemoFetch = Date.now();
+
+  if (getRapidApiKey()) {
+    try {
+      const demo = await fetchFromExerciseDb(term, name);
+      if (demo) {
+        await setCachedDemo(cacheKey, demo);
+        return demo;
+      }
+      // Genuine "not in catalog" → try wger before caching a negative.
+    } catch (e) {
+      logError(e, { scope: 'fetchExerciseDemo', source: 'exercisedb', name });
+    }
+  } else {
+    logError(new Error('EXPO_PUBLIC_RAPIDAPI_KEY missing'), { scope: 'fetchExerciseDemo' });
+  }
+
+  // Secondary: wger (static image). Cache only 1 day so a recovered/subscribed
+  // ExerciseDB can upgrade the result to an animated GIF soon after.
+  const WGER_TTL_MS = 86_400_000;
   try {
+    const demo = await fetchExerciseDemoWger(name);
+    await setCachedDemo(cacheKey, demo, WGER_TTL_MS);
+    return demo;
+  } catch (e) {
+    logError(e, { scope: 'fetchExerciseDemo', source: 'wger', name });
+    return null; // offline/network error — not cached, retried next open
+  }
+}
+
+// ── wger.de — secondary fallback (static PNG, no key) ────────────────────────
+
+/** Throws on network errors; resolves null when wger has no match. */
+async function fetchExerciseDemoWger(name: string): Promise<ExerciseDemo | null> {
+  {
     // Step 1: search by name → get base_id + thumbnail
     const searchRes = await fetchWithTimeout(
       `${WGER_BASE}/exercise/search/?term=${encodeURIComponent(name)}&language=english&format=json`
     );
-    if (!searchRes.ok) return null;
+    if (!searchRes.ok) throw new Error(`wger ${searchRes.status}`);
     const searchData: WgerSearchResponse = await searchRes.json();
     const suggestions = searchData.suggestions ?? [];
     if (suggestions.length === 0) return null;
@@ -124,8 +349,6 @@ export async function fetchExerciseDemo(name: string): Promise<ExerciseDemo | nu
       target:       muscles[0]     ?? '',
       equipment:    equipment.join(', '),
     };
-  } catch {
-    return null;
   }
 }
 

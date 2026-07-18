@@ -154,6 +154,18 @@ const ARM_SESSION: WorkoutExercise[] = [
     { name: 'Tricep Pushdown',       sets: 3, reps: '12', rest: '45s', muscle: 'Triceps', equipment: 'cable'    },
 ];
 
+/**
+ * Every distinct exercise name across the built-in programs — used by tests to
+ * guarantee each name resolves to a demo lookup (alias or passthrough).
+ */
+export const ALL_PROGRAM_EXERCISE_NAMES: string[] = [...new Set(
+  [
+    PUSH_EXERCISES, PULL_EXERCISES, LEG_EXERCISES, UPPER_EXERCISES,
+    LOWER_EXERCISES, FULL_BODY_EXERCISES, CARDIO_CORE_EXERCISES, FLEX_EXERCISES,
+    CHEST_SESSION, BACK_SESSION, SHOULDER_SESSION, ARM_SESSION,
+  ].flat().map((e) => e.name)
+)];
+
 // ─── Day rotation per program type ───────────────────────────
 
 export interface DayPlan {

@@ -4,7 +4,7 @@ import {
   TouchableOpacity, ActivityIndicator, Linking,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { fetchExerciseDemo, ExerciseDemo } from '../../services/exercisedb';
+import { fetchExerciseDemo, demoImageSource, ExerciseDemo } from '../../services/exercisedb';
 import { colors, withAlpha } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
@@ -67,7 +67,7 @@ export default function ExerciseDemoModal() {
             </View>
           ) : demo?.gifUrl && !imgErr ? (
             <Image
-              source={{ uri: demo.gifUrl }}
+              source={demoImageSource(demo.gifUrl)}
               style={styles.gif}
               resizeMode="contain"
               onError={() => setImgErr(true)}
