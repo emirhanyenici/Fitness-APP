@@ -394,6 +394,8 @@ export const en = {
     passwordsNoMatch: 'Passwords do not match.',
     somethingWrong: 'Something went wrong. Please try again.',
     orDivider: 'or',
+    signInWithApple: 'Sign in with Apple',
+    signUpWithApple: 'Sign up with Apple',
     accountCreated: 'Account created!',
     accountCreatedBody: 'Check your email to confirm your account, then sign in.',
     enterEmail: 'Enter your email',

@@ -28,9 +28,12 @@ export default function LoginScreen() {
   const [fieldError, setFieldError] = useState<{ field: 'email' | 'password' | 'confirm' | 'general'; msg: string } | null>(null);
 
   const { signIn, signUp, signInWithApple, isLoading } = useAuthStore();
-  // Loaded module doubles as the availability flag: set only on iOS devices
-  // where the native Apple auth module exists and reports available.
-  const [apple, setApple] = useState<typeof import('expo-apple-authentication') | null>(null);
+  // True only on iOS devices where the native Apple auth module exists and
+  // reports available. The button itself is custom (Apple's official
+  // AppleAuthenticationButton renders in the DEVICE language, which clashes
+  // with the English-only app) — styled per Apple's HIG: black, Apple logo,
+  // official wording.
+  const [appleAvailable, setAppleAvailable] = useState(false);
   const session = useAuthStore((s) => s.session);
   const isOnboarded = useUserStore((s) => s.isOnboarded);
   const analytics = useAnalytics();
@@ -50,7 +53,7 @@ export default function LoginScreen() {
   useEffect(() => {
     if (Platform.OS !== 'ios') return;
     import('expo-apple-authentication')
-      .then(async (m) => { if (await m.isAvailableAsync()) setApple(m); })
+      .then(async (m) => { if (await m.isAvailableAsync()) setAppleAvailable(true); })
       .catch(() => { /* module not in this build — keep the button hidden */ });
   }, []);
 
@@ -324,22 +327,26 @@ export default function LoginScreen() {
         accessibilityLabel={isSignUp ? t('auth.createAccount') : t('auth.signIn')}
       />
 
-      {apple && (
+      {appleAvailable && (
         <>
           <View style={styles.dividerRow}>
             <View style={styles.dividerLine} />
             <Text style={styles.dividerText}>{t('auth.orDivider')}</Text>
             <View style={styles.dividerLine} />
           </View>
-          <apple.AppleAuthenticationButton
-            buttonType={isSignUp
-              ? apple.AppleAuthenticationButtonType.SIGN_UP
-              : apple.AppleAuthenticationButtonType.SIGN_IN}
-            buttonStyle={apple.AppleAuthenticationButtonStyle.BLACK}
-            cornerRadius={radius.lg}
+          <TouchableOpacity
             style={styles.appleButton}
             onPress={handleAppleSignIn}
-          />
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={isSignUp ? t('auth.signUpWithApple') : t('auth.signInWithApple')}
+          >
+            {/*  renders via the system font on iOS (button is iOS-only) */}
+            <Text style={styles.appleLogo}></Text>
+            <Text style={styles.appleButtonText}>
+              {isSignUp ? t('auth.signUpWithApple') : t('auth.signInWithApple')}
+            </Text>
+          </TouchableOpacity>
         </>
       )}
 
@@ -399,7 +406,14 @@ const styles = StyleSheet.create({
   dividerRow:  { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginVertical: spacing.base },
   dividerLine: { flex: 1, height: 1, backgroundColor: colors.border.default },
   dividerText: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.tertiary },
-  appleButton: { width: '100%', height: 50 },
+  // Apple HIG: black fill, white system-font label with the Apple logo,
+  // min 44pt height. System font (no fontFamily) is intentional.
+  appleButton: {
+    width: '100%', height: 50, borderRadius: radius.lg, backgroundColor: '#000000',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+  },
+  appleLogo:       { color: '#FFFFFF', fontSize: 19, marginTop: -2 },
+  appleButtonText: { color: '#FFFFFF', fontSize: 17, fontWeight: '600' },
 
   back: { fontFamily: typography.fonts.body, fontSize: typography.sizes.base, color: colors.text.tertiary, textAlign: 'center' },
   inputError:      { borderColor: withAlpha(colors.status.danger, 0.5) },
