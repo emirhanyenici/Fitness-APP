@@ -221,6 +221,11 @@ export function buildReportHtml(data: WeeklyReportData, t: TFunction): string {
   </div>`;
 }
 
+/** Human-friendly file name — the share sheet and Files app show this. */
+export function reportFileName(data: WeeklyReportData): string {
+  return `Zenova-Weekly-Report-${data.period.end}.pdf`;
+}
+
 /**
  * Render the report HTML to a PDF file and open the OS share sheet.
  * Throws on failure (after logging) so the modal can surface `pdfError`.
@@ -234,8 +239,25 @@ export async function exportReportPdf(data: WeeklyReportData, t: TFunction): Pro
 
     const { uri } = await Print.printToFileAsync({ html: buildReportHtml(data, t) });
 
+    // printToFileAsync names the file randomly (e.g. Print-1A2B.pdf); rename it
+    // so the share sheet / Files app show a meaningful name.
+    let shareUri = uri;
+    try {
+      const FileSystem = await import('expo-file-system/legacy');
+      const named = `${uri.slice(0, uri.lastIndexOf('/') + 1)}${reportFileName(data)}`;
+      if (named !== uri) {
+        // A re-export the same day targets the same name — clear it first.
+        await FileSystem.deleteAsync(named, { idempotent: true });
+        await FileSystem.moveAsync({ from: uri, to: named });
+        shareUri = named;
+      }
+    } catch (e) {
+      // Rename is cosmetic — fall back to the original file on any failure.
+      logError(e, { scope: 'exportReportPdf', step: 'rename' });
+    }
+
     if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(uri, {
+      await Sharing.shareAsync(shareUri, {
         mimeType: 'application/pdf',
         dialogTitle: t('weeklyReport.pdfSubtitle'),
         UTI: 'com.adobe.pdf',

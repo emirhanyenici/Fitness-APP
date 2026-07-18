@@ -2,7 +2,7 @@
  * buildReportHtml — pure HTML string builder for the weekly report PDF.
  * (printToFileAsync/shareAsync are native and exercised on-device.)
  */
-import { buildReportHtml, esc } from '../services/reportPdf';
+import { buildReportHtml, esc, reportFileName } from '../services/reportPdf';
 import { translate } from '../constants/i18n';
 import type { WeeklyReportData } from '../services/weeklyReport';
 
@@ -34,6 +34,12 @@ describe('esc', () => {
   it('escapes HTML-sensitive characters', () => {
     expect(esc('<script>alert("x")</script> & more'))
       .toBe('&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; more');
+  });
+});
+
+describe('reportFileName', () => {
+  it('names the file after the week-ending date', () => {
+    expect(reportFileName(baseData)).toBe('Zenova-Weekly-Report-2026-07-18.pdf');
   });
 });
 
