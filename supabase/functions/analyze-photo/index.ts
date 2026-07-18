@@ -69,15 +69,16 @@ Deno.serve(async (req) => {
 
   // Per-user daily rate limit — protects against unbounded AI-provider spend.
   // Tier-aware via public.subscriptions (mirrored by revenuecat-webhook fn;
-  // missing row = free). Free backstop (5/day) covers the client's 3-lifetime
-  // taste quota with slack; snap is otherwise a Pro feature.
+  // missing row = free). Free 3/day backs the client's 3-lifetime taste quota
+  // (the client counter is stricter); snap is otherwise a Pro feature. Counts
+  // in the 'photo' bucket, independent from ai-coach's 'chat' bucket.
   const { data: subRow } = await supabase.from('subscriptions').select('plan').maybeSingle();
   const isPaid = subRow?.plan === 'pro' || subRow?.plan === 'elite';
   const PHOTO_DAILY_LIMIT = isPaid
     ? Number(Deno.env.get('PHOTO_LIMIT_PRO') ?? '30')
-    : Number(Deno.env.get('PHOTO_LIMIT_FREE') ?? '5');
+    : Number(Deno.env.get('PHOTO_LIMIT_FREE') ?? '3');
   const { data: allowed, error: limitError } = await supabase.rpc(
-    'check_and_increment_ai_usage', { p_limit: PHOTO_DAILY_LIMIT },
+    'check_and_increment_ai_usage', { p_limit: PHOTO_DAILY_LIMIT, p_feature: 'photo' },
   );
   if (limitError) {
     console.error('rate-limit check failed:', limitError);
@@ -115,6 +116,36 @@ Deno.serve(async (req) => {
       });
     }
 
+    const PROMPT = `You are a nutrition analysis expert. Analyze the food in this photo.
+
+Step 1 — Identify every distinct food item visible (max 10). Use visual cues
+(plate diameter ~27 cm, fork/spoon size, food depth and density) to estimate
+each item's portion weight in grams.
+
+Step 2 — For each item, compute calories and macros from typical nutrition
+per 100 g for that food AS PREPARED. Account for likely cooking fat
+(e.g. sauteed vegetables absorb ~1 tbsp oil = ~120 kcal) and visible
+dressings/sauces, either as their own items or included per item.
+
+Step 3 — Sum the items into totals and double-check the totals are plausible
+against the 4/4/9 kcal rule (protein*4 + carbs*4 + fat*9 = calories, within ~15%).
+
+Return ONLY a valid JSON object, no markdown, exactly this shape:
+{
+  "name": "short dish summary, e.g. 'Grilled chicken with rice & salad'",
+  "items": [
+    { "name": "string", "grams": integer, "calories": integer,
+      "protein": integer, "carbs": integer, "fat": integer }
+  ],
+  "calories": integer, "protein": integer, "carbs": integer, "fat": integer,
+  "confidence": "high" | "medium" | "low",
+  "notes": "one short caveat about assumptions, e.g. 'assumed 1 tbsp oil', or empty string"
+}
+
+Rules: grams and all macros are integers. confidence is "low" when portions are
+hard to judge (occlusion, no size reference, mixed dishes). If the image
+contains no food, return {"name": null}.`;
+
     const response = await fetch('https://api.x.ai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -123,7 +154,9 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model: XAI_MODEL,
-        max_tokens: 256,
+        max_tokens: 1024,
+        temperature: 0.2,
+        response_format: { type: 'json_object' },
         messages: [
           {
             role: 'user',
@@ -134,7 +167,7 @@ Deno.serve(async (req) => {
               },
               {
                 type: 'text',
-                text: 'Identify the food in this image. Return ONLY valid JSON with: name (string), calories (integer per serving), protein (integer grams), carbs (integer grams), fat (integer grams). No markdown, no explanation — just the JSON object.',
+                text: PROMPT,
               },
             ],
           },
@@ -174,12 +207,44 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Itemized breakdown: clamp each entry, drop junk (no name / all-zero).
+    const items = (Array.isArray(parsed.items) ? parsed.items.slice(0, 10) : [])
+      .map((it: unknown) => {
+        const o = (it && typeof it === 'object' ? it : {}) as Record<string, unknown>;
+        const itemName = typeof o.name === 'string' ? o.name.trim().slice(0, 80) : '';
+        return {
+          name:     itemName,
+          grams:    num(o.grams, 2000),
+          calories: num(o.calories, 5000),
+          protein:  num(o.protein, 500),
+          carbs:    num(o.carbs, 500),
+          fat:      num(o.fat, 500),
+        };
+      })
+      .filter((it) => it.name && (it.calories > 0 || it.protein > 0 || it.carbs > 0 || it.fat > 0));
+
+    // Prefer totals recomputed from the items the user will see — keeps the
+    // breakdown and the headline numbers internally consistent.
+    const sum = (k: 'calories' | 'protein' | 'carbs' | 'fat', max: number) =>
+      Math.min(items.reduce((s, it) => s + it[k], 0), max);
+    const totals = items.length > 0
+      ? { calories: sum('calories', 5000), protein: sum('protein', 500), carbs: sum('carbs', 500), fat: sum('fat', 500) }
+      : {
+          calories: num(parsed.calories, 5000),
+          protein:  num(parsed.protein, 500),
+          carbs:    num(parsed.carbs, 500),
+          fat:      num(parsed.fat, 500),
+        };
+
+    const confidence = parsed.confidence === 'high' || parsed.confidence === 'low' ? parsed.confidence : 'medium';
+    const notes = typeof parsed.notes === 'string' ? parsed.notes.trim().slice(0, 200) : '';
+
     const result = {
       name,
-      calories: num(parsed.calories, 5000),
-      protein:  num(parsed.protein, 500),
-      carbs:    num(parsed.carbs, 500),
-      fat:      num(parsed.fat, 500),
+      ...totals,
+      ...(items.length > 0 ? { items } : {}),
+      confidence,
+      ...(notes ? { notes } : {}),
     };
 
     return new Response(JSON.stringify(result), {

@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
-  StyleSheet, ActivityIndicator, Alert, ScrollView, Image,
+  StyleSheet, ActivityIndicator, Alert, ScrollView, Image, Platform,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
@@ -20,8 +20,15 @@ import { SkeletonRow } from '../../components/ui/Skeleton';
 
 type Screen = 'home' | 'search' | 'manual' | 'barcode' | 'snap';
 
-/** Free-tier taste: this many photo analyses before the paywall (lifetime). */
+/** Free-tier taste: this many photo analyses before the paywall (lifetime).
+ *  Server backstop: analyze-photo enforces 3/day in the 'photo' usage bucket. */
 export const FREE_SNAP_LIMIT = 3;
+
+const CONFIDENCE_COLORS = {
+  high: colors.status.success,
+  medium: colors.status.warning,
+  low: colors.status.danger,
+} as const;
 
 export default function AddFoodModal() {
   const { mealType = 'snack' } = useLocalSearchParams<{ mealType: string }>();
@@ -136,7 +143,7 @@ function SearchScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBa
       }
       setResults(combined);
     } catch {
-      Alert.alert('Error', 'Could not search foods. Check your connection.');
+      Alert.alert(t('common.error'), t('addFood.couldNotSearch'));
     } finally {
       setLoading(false);
     }
@@ -185,6 +192,8 @@ function SearchScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBa
           keyExtractor={(item, index) => `${item.fdcId}_${index}`}
           style={{ marginTop: spacing.xs }}
           keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+          keyboardDismissMode="interactive"
           renderItem={({ item }) => (
             <TouchableOpacity
               style={styles.resultRow}
@@ -244,7 +253,7 @@ function PortionStep({ item, onAdd, onBack }: { item: FoodItem; onAdd: (item: Fo
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'} keyboardDismissMode="interactive">
       <View style={styles.handle} />
       <TouchableOpacity onPress={onBack} accessibilityRole="button" accessibilityLabel={t('addFood.backToResults')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
         <Text style={styles.backLink}>← {t('addFood.backToResults')}</Text>
@@ -349,7 +358,7 @@ function ManualScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBa
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'} keyboardDismissMode="interactive">
       <View style={styles.handle} />
       <TouchableOpacity onPress={onBack} accessibilityRole="button" accessibilityLabel={t('addFood.goBack')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}><Text style={styles.backLink}>← {t('common.back')}</Text></TouchableOpacity>
       <Text style={[styles.title, { marginTop: spacing.sm, marginBottom: spacing.xl }]}>{t('addFood.manualEntry')}</Text>
@@ -455,7 +464,7 @@ function BarcodeScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onB
       fat:      Math.round(found.fat      * scale * 10) / 10,
     };
     return (
-      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40, alignItems: 'center' }} keyboardShouldPersistTaps="handled">
+      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40, alignItems: 'center' }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'} keyboardDismissMode="interactive">
         <View style={styles.handle} />
         <Text style={styles.title}>{t('addFood.productFound')}</Text>
         <View style={[styles.foundCard, { width: '100%' }]}>
@@ -569,9 +578,11 @@ function SnapScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBack
       Alert.alert(t('common.permissionNeeded'), useCamera ? t('addFood.allowCameraMsg') : t('addFood.allowLibraryMsg'));
       return;
     }
+    // 0.8 keeps enough detail for portion-size estimation; the server rejects
+    // uploads past ~5 MB, which a 4:3-cropped 0.8 JPEG stays well under.
     const res = useCamera
-      ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.6, allowsEditing: true, aspect: [4, 3] })
-      : await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.6, allowsEditing: true, aspect: [4, 3], mediaTypes: ['images'] });
+      ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.8, allowsEditing: true, aspect: [4, 3] })
+      : await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.8, allowsEditing: true, aspect: [4, 3], mediaTypes: ['images'] });
 
     if (!res.canceled && res.assets[0]) {
       setImageUri(res.assets[0].uri);
@@ -598,7 +609,10 @@ function SnapScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBack
   };
 
   const handleAdd = () => {
-    if (!editName.trim() || !editCalories.trim()) return;
+    if (!editName.trim() || !editCalories.trim()) {
+      Alert.alert(t('common.required'), t('addFood.requiredNameCal'));
+      return;
+    }
     const count = Math.max(1, parseInt(editQty) || 1);
     onAdd({
       fdcId: 0,
@@ -611,7 +625,7 @@ function SnapScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBack
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'} keyboardDismissMode="interactive">
       <View style={styles.handle} />
       <TouchableOpacity onPress={onBack} accessibilityRole="button" accessibilityLabel={t('addFood.goBack')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}><Text style={styles.backLink}>← {t('common.back')}</Text></TouchableOpacity>
       <Text style={[styles.title, { marginTop: spacing.sm, marginBottom: spacing.xs }]}>{t('addFood.snapPhoto')}</Text>
@@ -654,6 +668,40 @@ function SnapScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBack
       {result && (
         <View style={{ marginTop: spacing.base }}>
           <Text style={[styles.sub, { marginBottom: spacing.sm, color: colors.status.success }]}>{t('addFood.foodIdentified')}</Text>
+
+          {result.confidence && (
+            <View style={styles.confidenceRow}>
+              <View style={[styles.confidencePill, { backgroundColor: withAlpha(CONFIDENCE_COLORS[result.confidence], 0.12), borderColor: withAlpha(CONFIDENCE_COLORS[result.confidence], 0.35) }]}>
+                <Text style={[styles.confidencePillText, { color: CONFIDENCE_COLORS[result.confidence] }]}>
+                  {t(`addFood.confidence${result.confidence[0].toUpperCase()}${result.confidence.slice(1)}`)}
+                </Text>
+              </View>
+            </View>
+          )}
+          {result.confidence === 'low' && (
+            <Text style={styles.confidenceHint}>{t('addFood.confidenceLowHint')}</Text>
+          )}
+
+          {(result.items?.length ?? 0) > 0 && (
+            <View style={styles.itemsCard}>
+              <Text style={styles.itemsHeader}>{t('addFood.itemsDetected')}</Text>
+              {result.items!.map((it, i) => (
+                <View
+                  key={`${it.name}_${i}`}
+                  style={[styles.itemRow, i > 0 && styles.itemRowBorder]}
+                  accessible
+                  accessibilityLabel={t('addFood.itemA11y', { name: it.name, grams: it.grams, kcal: it.calories })}
+                >
+                  <Text style={styles.itemName} numberOfLines={1}>{it.name}</Text>
+                  <Text style={styles.itemMeta}>{t('addFood.itemLine', { grams: it.grams, kcal: it.calories })}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {!!result.notes && (
+            <Text style={styles.notesText}>{result.notes}</Text>
+          )}
 
           <TextInput style={[styles.input, { marginBottom: spacing.sm }]}
             value={editName} onChangeText={setEditName}
@@ -721,6 +769,18 @@ const styles = StyleSheet.create({
   proBadgeText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.accent.primary },
   cancelBtn:  { marginTop: spacing.xl, alignItems: 'center', paddingVertical: spacing.base },
   cancelText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.base, color: colors.text.secondary },
+
+  confidenceRow:      { flexDirection: 'row', marginBottom: spacing.sm },
+  confidencePill:     { borderRadius: radius.full, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 4 },
+  confidencePillText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs },
+  confidenceHint:     { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.status.danger, marginBottom: spacing.sm },
+  itemsCard:     { backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.lg, paddingHorizontal: spacing.base, paddingVertical: spacing.sm, marginBottom: spacing.sm },
+  itemsHeader:   { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginBottom: spacing.xs, textTransform: 'uppercase', letterSpacing: 0.5 },
+  itemRow:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm, paddingVertical: 6 },
+  itemRowBorder: { borderTopWidth: 1, borderTopColor: colors.border.subtle },
+  itemName:      { flex: 1, fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.primary },
+  itemMeta:      { fontFamily: typography.fonts.mono, fontSize: typography.sizes.xs, color: colors.text.secondary },
+  notesText:     { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginBottom: spacing.sm, fontStyle: 'italic' },
 
   searchRow:     { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
   searchInput:   { flex: 1, backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: colors.border.default, borderRadius: radius.lg, paddingHorizontal: spacing.base, paddingVertical: 12, color: colors.text.primary, fontFamily: typography.fonts.body, fontSize: typography.sizes.base },
