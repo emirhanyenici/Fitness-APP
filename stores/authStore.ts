@@ -24,6 +24,12 @@ interface AuthStore {
    * False means a confirmation email is pending and sign-in must wait.
    */
   signUp: (email: string, password: string) => Promise<boolean>;
+  /**
+   * Native Sign in with Apple (iOS only). Runs the Apple sheet, then exchanges
+   * the identity token with Supabase. Throws with code ERR_REQUEST_CANCELED
+   * when the user dismisses the sheet.
+   */
+  signInWithApple: () => Promise<void>;
   /** Signs out and clears all user data from every persisted store. */
   signOut: () => Promise<void>;
 }
@@ -51,6 +57,30 @@ export const useAuthStore = create<AuthStore>((set) => ({
     set({ isLoading: false });
     if (error) throw error;
     return data.session !== null;
+  },
+
+  signInWithApple: async () => {
+    // Lazy import keeps the native module out of Android/web/Jest bundles.
+    const { signInWithAppleNative } = await import('../services/appleAuth');
+    const { identityToken, rawNonce, fullName } = await signInWithAppleNative();
+
+    set({ isLoading: true });
+    try {
+      const { data, error } = await supabase.auth.signInWithIdToken({
+        provider: 'apple',
+        token: identityToken,
+        nonce: rawNonce,
+      });
+      if (error) throw error;
+
+      // Apple only sends the name on the FIRST authorization — persist it now
+      // or it is lost forever (Supabase does not capture it from the token).
+      if (fullName && data.user && !data.user.user_metadata?.full_name) {
+        await supabase.auth.updateUser({ data: { full_name: fullName } });
+      }
+    } finally {
+      set({ isLoading: false });
+    }
   },
 
   signOut: async () => {

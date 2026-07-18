@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, Pressable } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, Pressable, Platform } from 'react-native';
 import { Icon, Eye, EyeOff, Check } from '../../components/ui/Icon';
 import { secureStorage } from '../../services/secureStorage';
 import { router, useRootNavigationState } from 'expo-router';
@@ -27,7 +27,10 @@ export default function LoginScreen() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [fieldError, setFieldError] = useState<{ field: 'email' | 'password' | 'confirm' | 'general'; msg: string } | null>(null);
 
-  const { signIn, signUp, isLoading } = useAuthStore();
+  const { signIn, signUp, signInWithApple, isLoading } = useAuthStore();
+  // Loaded module doubles as the availability flag: set only on iOS devices
+  // where the native Apple auth module exists and reports available.
+  const [apple, setApple] = useState<typeof import('expo-apple-authentication') | null>(null);
   const session = useAuthStore((s) => s.session);
   const isOnboarded = useUserStore((s) => s.isOnboarded);
   const analytics = useAnalytics();
@@ -42,6 +45,13 @@ export default function LoginScreen() {
     secureStorage.getItem(SAVED_EMAIL_KEY).then((saved) => {
       if (saved) { setEmail(saved); setRememberMe(true); setMode('signin'); }
     });
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    import('expo-apple-authentication')
+      .then(async (m) => { if (await m.isAvailableAsync()) setApple(m); })
+      .catch(() => { /* module not in this build — keep the button hidden */ });
   }, []);
 
   // Navigating before the root navigator mounts (hot reload / error-boundary
@@ -121,6 +131,27 @@ export default function LoginScreen() {
         router.replace(serverOnboarded || isOnboarded ? '/(tabs)' : '/(onboarding)/welcome');
       }
     } catch (e: any) {
+      setFieldError({ field: 'general', msg: e.message ?? t('auth.somethingWrong') });
+    }
+  };
+
+  const handleAppleSignIn = async () => {
+    interactiveAuth.current = true;
+    setFieldError(null);
+    try {
+      await signInWithApple();
+      analytics.signedIn('apple');
+      const { data: { session: freshSession } } = await supabase.auth.getSession();
+      const userId = freshSession?.user?.id;
+      if (userId) analytics.identify(userId, freshSession?.user?.email ?? '');
+      const serverOnboarded = freshSession?.user?.user_metadata?.onboarding_completed === true;
+      if (serverOnboarded && !isOnboarded) {
+        useUserStore.getState().updateProfile({ onboarding_completed: true });
+      }
+      router.replace(serverOnboarded || isOnboarded ? '/(tabs)' : '/(onboarding)/welcome');
+    } catch (e: any) {
+      // User dismissed the Apple sheet — not an error, re-enable auto-redirect.
+      if (e?.code === 'ERR_REQUEST_CANCELED') { interactiveAuth.current = false; return; }
       setFieldError({ field: 'general', msg: e.message ?? t('auth.somethingWrong') });
     }
   };
@@ -293,6 +324,25 @@ export default function LoginScreen() {
         accessibilityLabel={isSignUp ? t('auth.createAccount') : t('auth.signIn')}
       />
 
+      {apple && (
+        <>
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>{t('auth.orDivider')}</Text>
+            <View style={styles.dividerLine} />
+          </View>
+          <apple.AppleAuthenticationButton
+            buttonType={isSignUp
+              ? apple.AppleAuthenticationButtonType.SIGN_UP
+              : apple.AppleAuthenticationButtonType.SIGN_IN}
+            buttonStyle={apple.AppleAuthenticationButtonStyle.BLACK}
+            cornerRadius={radius.lg}
+            style={styles.appleButton}
+            onPress={handleAppleSignIn}
+          />
+        </>
+      )}
+
       <View style={{ height: spacing.base }} />
 
       <TouchableOpacity
@@ -345,6 +395,11 @@ const styles = StyleSheet.create({
   checkboxActive: { borderColor: colors.accent.primary, backgroundColor: colors.accent.primary },
   rememberText: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary },
   forgotText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.accent.primary },
+
+  dividerRow:  { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginVertical: spacing.base },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border.default },
+  dividerText: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.tertiary },
+  appleButton: { width: '100%', height: 50 },
 
   back: { fontFamily: typography.fonts.body, fontSize: typography.sizes.base, color: colors.text.tertiary, textAlign: 'center' },
   inputError:      { borderColor: withAlpha(colors.status.danger, 0.5) },

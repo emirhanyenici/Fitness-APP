@@ -17,11 +17,11 @@ export function useAnalytics() {
       capture('onboarding_completed', { goal }),
 
     /** Called when user signs up */
-    signedUp: (method: 'email') =>
+    signedUp: (method: 'email' | 'apple') =>
       capture('signed_up', { method }),
 
     /** Called when user signs in */
-    signedIn: (method: 'email') =>
+    signedIn: (method: 'email' | 'apple') =>
       capture('signed_in', { method }),
 
     /** Called when workout starts */
