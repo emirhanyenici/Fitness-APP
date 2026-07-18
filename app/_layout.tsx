@@ -111,10 +111,9 @@ export default function RootLayout() {
         })
       );
       const { access_token, refresh_token } = params;
-      if (
-        access_token && refresh_token &&
-        isJWTShaped(access_token) && isJWTShaped(refresh_token)
-      ) {
+      // access_token is a JWT; refresh_token is an opaque Supabase token
+      // (not JWT-shaped) — only the access_token gets the structural check.
+      if (access_token && refresh_token && isJWTShaped(access_token)) {
         supabase.auth.setSession({ access_token, refresh_token });
       }
     };

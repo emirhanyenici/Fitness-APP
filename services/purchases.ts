@@ -14,6 +14,12 @@ const API_KEY = Platform.select({
   android: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY,
 }) ?? '';
 
+// TestFlight-only override: RevenueCat products/offering aren't set up yet,
+// so real purchases can't be tested pre-launch. Every build submitted while
+// this is 'true' grants Pro to every install for free — MUST be set back to
+// 'false' (and rebuilt) before the App Store review submission.
+const FORCE_PRO = process.env.EXPO_PUBLIC_FORCE_PRO === 'true';
+
 let configured = false;
 
 export function isPurchasesConfigured(): boolean {
@@ -31,7 +37,7 @@ export function planFromCustomerInfo(info: Pick<CustomerInfo, 'entitlements'>): 
 }
 
 function applyCustomerInfo(info: CustomerInfo): void {
-  useSubscriptionStore.getState().setPlan(planFromCustomerInfo(info));
+  useSubscriptionStore.getState().setPlan(FORCE_PRO ? 'pro' : planFromCustomerInfo(info));
 }
 
 /**
