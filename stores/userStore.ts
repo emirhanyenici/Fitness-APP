@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { secureStorage } from '../services/secureStorage';
+import { todayStr } from '../services/dateUtils';
 
 export interface UserProfile {
   id: string;
@@ -31,12 +32,23 @@ export interface UserProfile {
 interface UserStore {
   profile: UserProfile | null;
   isOnboarded: boolean;
-  /** Lifetime count of free-tier Snap photo analyses used (3 free tastes, then paywall) */
+  /** Free-tier Snap photo analyses used on `freeSnapsDate` (daily quota, resets each local day) */
   freeSnapsUsed: number;
+  /** Local calendar day (todayStr) the freeSnapsUsed counter belongs to */
+  freeSnapsDate: string;
   setProfile: (p: UserProfile) => void;
   updateProfile: (updates: Partial<UserProfile>) => void;
   incrementFreeSnaps: () => void;
   clearProfile: () => void;
+}
+
+/**
+ * Snap analyses consumed today. The persisted counter may belong to an earlier
+ * day (or predate the daily-quota migration, when freeSnapsDate is ''); both
+ * cases read as 0 — the quota self-resets at local midnight.
+ */
+export function snapsUsedToday(s: { freeSnapsUsed: number; freeSnapsDate: string }): number {
+  return s.freeSnapsDate === todayStr() ? s.freeSnapsUsed : 0;
 }
 
 export const useUserStore = create<UserStore>()(
@@ -45,6 +57,7 @@ export const useUserStore = create<UserStore>()(
       profile: null,
       isOnboarded: false,
       freeSnapsUsed: 0,
+      freeSnapsDate: '',
 
       setProfile: (profile) =>
         set({ profile, isOnboarded: profile.onboarding_completed ?? false }),
@@ -58,9 +71,15 @@ export const useUserStore = create<UserStore>()(
         }),
 
       incrementFreeSnaps: () =>
-        set((state) => ({ freeSnapsUsed: state.freeSnapsUsed + 1 })),
+        set((state) => {
+          const today = todayStr();
+          return {
+            freeSnapsUsed: state.freeSnapsDate === today ? state.freeSnapsUsed + 1 : 1,
+            freeSnapsDate: today,
+          };
+        }),
 
-      clearProfile: () => set({ profile: null, isOnboarded: false, freeSnapsUsed: 0 }),
+      clearProfile: () => set({ profile: null, isOnboarded: false, freeSnapsUsed: 0, freeSnapsDate: '' }),
     }),
     {
       name: 'zenova-user-storage',

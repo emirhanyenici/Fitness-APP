@@ -8,7 +8,7 @@ import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-ca
 import * as ImagePicker from 'expo-image-picker';
 import { useNutritionStore, MealType } from '../../stores/nutritionStore';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
-import { useUserStore } from '../../stores/userStore';
+import { useUserStore, snapsUsedToday } from '../../stores/userStore';
 import { searchFoods, searchFoodsOFF, lookupBarcode, scaleFood, FoodItem } from '../../services/usda';
 import { analyzeFood, SnapResult } from '../../services/foodSnap';
 import { colors, withAlpha } from '../../constants/colors';
@@ -20,9 +20,9 @@ import { SkeletonRow } from '../../components/ui/Skeleton';
 
 type Screen = 'home' | 'search' | 'manual' | 'barcode' | 'snap';
 
-/** Free-tier taste: this many photo analyses before the paywall (lifetime).
- *  Server backstop: analyze-photo enforces 3/day in the 'photo' usage bucket. */
-export const FREE_SNAP_LIMIT = 3;
+/** Free-tier taste: this many photo analyses PER DAY before the paywall.
+ *  Server backstop: analyze-photo enforces 1/day in the 'photo' usage bucket. */
+export const FREE_SNAP_LIMIT = 1;
 
 const CONFIDENCE_COLORS = {
   high: colors.status.success,
@@ -35,8 +35,8 @@ export default function AddFoodModal() {
   const [screen, setScreen] = useState<Screen>('home');
   const addEntry = useNutritionStore((s) => s.addEntry);
   const isPro = useSubscriptionStore((s) => s.isPro);
-  const freeSnapsUsed = useUserStore((s) => s.freeSnapsUsed);
-  const snapsLeft = Math.max(0, FREE_SNAP_LIMIT - freeSnapsUsed);
+  const snapsUsed = useUserStore((s) => snapsUsedToday(s));
+  const snapsLeft = Math.max(0, FREE_SNAP_LIMIT - snapsUsed);
   const t = useT();
 
   const handleAdd = useCallback((item: FoodItem) => {
@@ -556,7 +556,7 @@ function SnapScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBack
   const [editFat,      setEditFat]      = useState('');
   const [editQty,      setEditQty]      = useState('1');
   const isPro = useSubscriptionStore((s) => s.isPro);
-  const freeSnapsUsed = useUserStore((s) => s.freeSnapsUsed);
+  const snapsUsed = useUserStore((s) => snapsUsedToday(s));
   const incrementFreeSnaps = useUserStore((s) => s.incrementFreeSnaps);
   const t = useT();
 
@@ -594,7 +594,7 @@ function SnapScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBack
   const analyze = async () => {
     if (!imageB64) return;
     // Free taste guard: quota may run out while this screen is already open
-    if (!isPro && freeSnapsUsed >= FREE_SNAP_LIMIT) { router.push('/paywall'); return; }
+    if (!isPro && snapsUsed >= FREE_SNAP_LIMIT) { router.push('/paywall'); return; }
     setAnalyzing(true);
     try {
       const r = await analyzeFood(imageB64);

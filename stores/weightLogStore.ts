@@ -11,6 +11,8 @@ export interface WeightEntry {
 interface WeightLogStore {
   entries: WeightEntry[];
   addEntry: (weight_kg: number) => void;
+  /** Merge imported entries (e.g. Apple Health); manually logged dates win. */
+  importEntries: (imported: WeightEntry[]) => void;
   clearEntries: () => void;
 }
 
@@ -28,6 +30,14 @@ export const useWeightLogStore = create<WeightLogStore>()(
           ],
         }));
       },
+
+      importEntries: (imported) =>
+        set((state) => {
+          const have = new Set(state.entries.map((e) => e.date));
+          const fresh = imported.filter((e) => !have.has(e.date) && e.weight_kg > 0);
+          if (fresh.length === 0) return state;
+          return { entries: [...state.entries, ...fresh].sort((a, b) => a.date.localeCompare(b.date)) };
+        }),
 
       clearEntries: () => set({ entries: [] }),
     }),

@@ -13,7 +13,15 @@
       "expo-font",
       "expo-web-browser",
       "expo-apple-authentication",
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          "NSHealthShareUsageDescription": "Zenova reads your steps, workouts, sleep, and weight from Apple Health to fill in your daily LifeScore automatically.",
+          "NSHealthUpdateUsageDescription": "Zenova does not write data to Apple Health.",
+          "background": false
+        }
+      ]
     ],
     "splash": {
       "image": "./assets/splash.png",

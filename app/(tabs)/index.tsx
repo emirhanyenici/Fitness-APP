@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, useWindowDimensions, RefreshControl } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,6 +11,8 @@ import { useUserStore } from '../../stores/userStore';
 import { useNutritionStore } from '../../stores/nutritionStore';
 import { useWorkoutStore } from '../../stores/workoutStore';
 import { useRecoveryStore } from '../../stores/recoveryStore';
+import { useHealthStore } from '../../stores/healthStore';
+import { syncHealthData } from '../../services/healthkit';
 import { GOAL_TO_BODY_PART, TYPE_TO_BODY_PART, BODY_PART_LABEL } from '../../services/exercisedb';
 import { computeTargets, GOAL_LABELS } from '../../services/recommendations';
 import { dateStr, daysAgoStr } from '../../services/dateUtils';
@@ -27,8 +29,16 @@ import { SegmentMeter } from '../../components/ui/SegmentMeter';
 import { useT } from '../../constants/i18n';
 import {
   Icon, Droplets, Flame, MoonStar, Zap, Target, Dumbbell, Salad, Moon,
-  MessageCircle, ChevronRight, Apple, ClipboardCheck, TrendingUp,
+  MessageCircle, ChevronRight, Apple, ClipboardCheck, TrendingUp, Footprints,
 } from '../../components/ui/Icon';
+
+// Same thresholds useZenovaScore applies to the daily hero score.
+function scoreToColor(score: number): string {
+  return score >= 70 ? colors.score.excellent :
+         score >= 50 ? colors.score.good :
+         score >= 30 ? colors.score.fair :
+         colors.score.poor;
+}
 
 function greetingKey(): string {
   const h = new Date().getHours();
@@ -49,6 +59,12 @@ export default function HomeScreen() {
   const workoutHistory   = useWorkoutStore((s) => s.history);
   const recoveryEntries  = useRecoveryStore((s) => s.entries);
   const { refreshing, onRefresh } = usePullToRefresh();
+  const [heroTab, setHeroTab] = useState<'today' | 'week'>('today');
+  const healthConnected = useHealthStore((s) => s.connected);
+  const stepsByDate     = useHealthStore((s) => s.stepsByDate);
+
+  // Refresh Apple Health data whenever Home mounts (no-op unless connected).
+  useEffect(() => { syncHealthData(); }, []);
 
   // Recomputed on every render to avoid stale dates after midnight.
   const todayDate = new Date();
@@ -150,11 +166,23 @@ export default function HomeScreen() {
     );
   }, [entries, recoveryEntries, workoutHistory, targets, selectedType]);
 
-  const weekLabels = weekDates.map((d) =>
-    new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'narrow' })
+  // Labels for the trailing-7-day trend (weekScores), NOT the Mon→Sun weekDates
+  // used by the streak meter — the two windows differ mid-week.
+  const weekLabels = Array.from({ length: 7 }, (_, i) =>
+    new Date(daysAgoStr(6 - i) + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'narrow' })
   );
 
+  const weekAvg      = Math.round(weekScores.reduce((s, v) => s + v, 0) / weekScores.length);
+  const weekAvgColor = scoreToColor(weekAvg);
+
+  const stepsToday = stepsByDate[todayStr] ?? 0;
+  const STEP_GOAL  = 8000;
+
   const stats = [
+    // Steps tile appears only once Apple Health is connected (no pedometer otherwise).
+    ...(healthConnected
+      ? [{ icon: Footprints, value: stepsToday.toLocaleString(), label: t('home.steps'), color: colors.accent.primary, pct: Math.min(stepsToday / STEP_GOAL, 1) }]
+      : []),
     { icon: Droplets,   value: `${waterGlasses}/${targets.waterGlasses}`,    label: t('home.water'),    color: colors.status.info,    pct: waterPct },
     { icon: Flame,      value: todayCalories > 0 ? `${todayCalories}` : '0', label: t('home.calories'), color: colors.status.warning, pct: calPct },
     { icon: MoonStar,   value: sleepH > 0 ? `${sleepH}h` : '0h',            label: t('home.sleepStat'), color: colors.violet.primary, pct: sleepPct },
@@ -185,28 +213,89 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* ── Zenova Score Hero ── */}
+      {/* ── Zenova Score Hero (Today / This Week tabs) ── */}
       <Card variant="hero" style={styles.heroCard}>
-        <View style={styles.ringWrap}>
-          <ProgressRing progress={score / 100} size={180} strokeWidth={14} color={scoreColor}>
-            <CountUpText value={score} style={[styles.scoreNum, { color: scoreColor }]} />
-            <Text style={styles.scoreLabel}>LIFESCORE</Text>
-          </ProgressRing>
-        </View>
-        <Text style={[styles.delta, { color: deltaColor }]}>{t('home.vsYesterday', { delta: deltaLabel })}</Text>
-
-        <View style={styles.pillsRow}>
-          {pillars.map((p) => (
-            <View
-              key={p.labelKey}
-              style={[styles.pill, { borderColor: withAlpha(p.color, 0.3) }]}
+        <View style={styles.heroTabs}>
+          {([['today', 'home.tabToday'], ['week', 'home.tabWeek']] as const).map(([tab, key]) => (
+            <TouchableOpacity
+              key={tab}
+              style={[styles.heroTab, heroTab === tab && styles.heroTabActive]}
+              onPress={() => { hapticTap(); setHeroTab(tab); }}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityState={{ selected: heroTab === tab }}
+              accessibilityLabel={t(key)}
             >
-              <View style={[styles.pillDot, { backgroundColor: p.color }]} />
-              <Text style={styles.pillLabel}>{t(p.labelKey)}</Text>
-              <Text style={[styles.pillScore, { color: p.color }]}>{p.value}/25</Text>
-            </View>
+              <Text style={[styles.heroTabText, heroTab === tab && styles.heroTabTextActive]}>
+                {t(key)}
+              </Text>
+            </TouchableOpacity>
           ))}
         </View>
+
+        {heroTab === 'today' ? (
+          <>
+            <View style={styles.ringWrap}>
+              <ProgressRing progress={score / 100} size={180} strokeWidth={14} color={scoreColor}>
+                <CountUpText value={score} style={[styles.scoreNum, { color: scoreColor }]} />
+                <Text style={styles.scoreLabel}>LIFESCORE</Text>
+              </ProgressRing>
+            </View>
+            <Text style={[styles.delta, { color: deltaColor }]}>{t('home.vsYesterday', { delta: deltaLabel })}</Text>
+
+            <View style={styles.pillsRow}>
+              {pillars.map((p) => (
+                <View
+                  key={p.labelKey}
+                  style={[styles.pill, { borderColor: withAlpha(p.color, 0.3) }]}
+                >
+                  <View style={[styles.pillDot, { backgroundColor: p.color }]} />
+                  <Text style={styles.pillLabel}>{t(p.labelKey)}</Text>
+                  <Text style={[styles.pillScore, { color: p.color }]}>{p.value}/25</Text>
+                </View>
+              ))}
+            </View>
+          </>
+        ) : (
+          <>
+            <View style={styles.ringWrap}>
+              <ProgressRing progress={weekAvg / 100} size={180} strokeWidth={14} color={weekAvgColor}>
+                <CountUpText value={weekAvg} style={[styles.scoreNum, { color: weekAvgColor }]} />
+                <Text style={styles.scoreLabel}>LIFESCORE</Text>
+              </ProgressRing>
+            </View>
+            <Text style={styles.delta}>{t('home.weekAvgLabel')}</Text>
+
+            {isPro ? (
+              <SparklineChart
+                data={weekScores}
+                color={colors.accent.primary}
+                labels={weekLabels}
+                // Fill the hero card: window − screen padding (16×2) − card
+                // padding and border (24+1 ×2).
+                width={winW - spacing.base * 2 - (spacing.xl + 1) * 2}
+                height={72}
+              />
+            ) : (
+              <TouchableOpacity
+                style={styles.trendLocked}
+                onPress={() => router.push('/paywall')}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={t('home.trendUnlockA11y')}
+              >
+                <View style={styles.trendLockedInner}>
+                  <Icon icon={TrendingUp} size="lg" color={colors.accent.primary} />
+                  <View>
+                    <Text style={styles.trendLockedTitle}>{t('home.trendCharts')}</Text>
+                    <Text style={styles.trendLockedSub}>{t('home.trendUpgradeSub')}</Text>
+                  </View>
+                </View>
+                <Text style={styles.trendLockedCta}>{t('home.upgrade')}</Text>
+              </TouchableOpacity>
+            )}
+          </>
+        )}
       </Card>
 
       {/* ── Daily Targets ── */}
@@ -363,43 +452,6 @@ export default function HomeScreen() {
         ))}
       </ScrollView>
 
-      {/* ── This Week Trend ── */}
-      <Text style={styles.sectionTitle}>{t('home.thisWeek')}</Text>
-      {isPro ? (
-        <Card variant="raised" style={styles.trendCard}>
-          <View style={styles.trendHeader}>
-            <Text style={styles.trendTitle}>{t('home.lifeScoreTrend')}</Text>
-            <Text style={[styles.trendCurrent, { color: scoreColor }]}>{t('home.scoreToday', { score })}</Text>
-          </View>
-          <SparklineChart
-            data={weekScores}
-            color={colors.accent.primary}
-            labels={weekLabels}
-            // Fill the trend card: window − screen padding (16×2) − card padding
-            // and border (17×2). Fixed 320 overflowed on narrow screens (T5).
-            width={winW - spacing.base * 2 - (spacing.base + 1) * 2}
-            height={72}
-          />
-        </Card>
-      ) : (
-        <TouchableOpacity
-          style={styles.trendLocked}
-          onPress={() => router.push('/paywall')}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel={t('home.trendUnlockA11y')}
-        >
-          <View style={styles.trendLockedInner}>
-            <Icon icon={TrendingUp} size="lg" color={colors.accent.primary} />
-            <View>
-              <Text style={styles.trendLockedTitle}>{t('home.trendCharts')}</Text>
-              <Text style={styles.trendLockedSub}>{t('home.trendUpgradeSub')}</Text>
-            </View>
-          </View>
-          <Text style={styles.trendLockedCta}>{t('home.upgrade')}</Text>
-        </TouchableOpacity>
-      )}
-
       {/* ── AI Coach Banner ── */}
       <AICoachBanner subtitle={t('home.aiCoachSubtitle')} />
 
@@ -440,6 +492,11 @@ const styles = StyleSheet.create({
   dateText: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.secondary },
 
   heroCard:   { padding: spacing.xl, alignItems: 'center', marginBottom: spacing.base },
+  heroTabs:          { flexDirection: 'row', backgroundColor: colors.bg.elevated, borderRadius: radius.full, padding: 3, marginBottom: spacing.base },
+  heroTab:           { paddingHorizontal: spacing.base, paddingVertical: 6, borderRadius: radius.full },
+  heroTabActive:     { backgroundColor: colors.bg.secondary, ...elevation.card },
+  heroTabText:       { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.text.tertiary },
+  heroTabTextActive: { color: colors.accent.primary },
   ringWrap:   { marginBottom: spacing.sm },
   scoreNum:   { fontFamily: typography.fonts.mono, fontSize: typography.sizes['5xl'] },
   scoreLabel: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, letterSpacing: 4 },
@@ -497,11 +554,8 @@ const styles = StyleSheet.create({
   streakLabel: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary },
   streakDots:  { flex: 1, maxWidth: 200, marginLeft: spacing.base },
 
-  trendCard:        { marginBottom: spacing.base },
-  trendHeader:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
-  trendTitle:       { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.secondary },
-  trendCurrent:     { fontFamily: typography.fonts.display, fontSize: typography.sizes.sm },
-  trendLocked:      { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', ...elevation.card },
+  // Lives inside the hero card's week tab — flat elevated row, no own border.
+  trendLocked:      { alignSelf: 'stretch', backgroundColor: colors.bg.elevated, borderRadius: radius.lg, padding: spacing.base, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   trendLockedInner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   trendLockedTitle: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.primary },
   trendLockedSub:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 2 },

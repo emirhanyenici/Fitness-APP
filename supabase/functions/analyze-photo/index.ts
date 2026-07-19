@@ -69,14 +69,14 @@ Deno.serve(async (req) => {
 
   // Per-user daily rate limit — protects against unbounded AI-provider spend.
   // Tier-aware via public.subscriptions (mirrored by revenuecat-webhook fn;
-  // missing row = free). Free 3/day backs the client's 3-lifetime taste quota
-  // (the client counter is stricter); snap is otherwise a Pro feature. Counts
-  // in the 'photo' bucket, independent from ai-coach's 'chat' bucket.
+  // missing row = free). Free 1/day backs the client's 1/day taste quota
+  // (FREE_SNAP_LIMIT in add-food.tsx — keep in sync); snap is otherwise a Pro
+  // feature. Counts in the 'photo' bucket, independent from ai-coach's 'chat'.
   const { data: subRow } = await supabase.from('subscriptions').select('plan').maybeSingle();
   const isPaid = subRow?.plan === 'pro' || subRow?.plan === 'elite';
   const PHOTO_DAILY_LIMIT = isPaid
     ? Number(Deno.env.get('PHOTO_LIMIT_PRO') ?? '30')
-    : Number(Deno.env.get('PHOTO_LIMIT_FREE') ?? '3');
+    : Number(Deno.env.get('PHOTO_LIMIT_FREE') ?? '1');
   const { data: allowed, error: limitError } = await supabase.rpc(
     'check_and_increment_ai_usage', { p_limit: PHOTO_DAILY_LIMIT, p_feature: 'photo' },
   );

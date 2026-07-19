@@ -334,28 +334,33 @@ describe('services/progressUtils.ts', () => {
     } catch (e) { logResult('suggestAdjustment: messageKeys exist in en', false, e); throw e; }
   });
 
-  test('free snap taste: 3 analyses then paywall (F-pro tiering)', () => {
+  test('free snap taste: 1/day then paywall (F-pro tiering)', () => {
     try {
-      const FREE_SNAP_LIMIT = 3;
-      // Simulate the add-food gate: free user with N used snaps
-      const canSnap = (isPro: boolean, used: number) =>
-        isPro || Math.max(0, FREE_SNAP_LIMIT - used) > 0;
+      const FREE_SNAP_LIMIT = 1;
+      // Simulate the add-food gate: free user with N snaps used TODAY
+      const canSnap = (isPro: boolean, usedToday: number) =>
+        isPro || Math.max(0, FREE_SNAP_LIMIT - usedToday) > 0;
 
-      expect(canSnap(false, 0)).toBe(true);   // fresh free user
-      expect(canSnap(false, 2)).toBe(true);   // last taste
-      expect(canSnap(false, 3)).toBe(false);  // quota exhausted â†’ paywall
+      expect(canSnap(false, 0)).toBe(true);   // fresh day → one free snap
+      expect(canSnap(false, 1)).toBe(false);  // daily quota exhausted → paywall
       expect(canSnap(false, 99)).toBe(false);
       expect(canSnap(true, 99)).toBe(true);   // pro never gated
 
-      // Counter increments only on success, like incrementFreeSnaps
-      let used = 2;
-      const onAnalyzeSuccess = (isPro: boolean) => { if (!isPro) used += 1; };
-      onAnalyzeSuccess(false);
-      expect(used).toBe(3);
-      onAnalyzeSuccess(true); // pro analysis does not consume quota
-      expect(used).toBe(3);
-      logResult('free snap taste: 3 then paywall', true);
-    } catch (e) { logResult('free snap taste: 3 then paywall', false, e); throw e; }
+      // Daily counter, like incrementFreeSnaps + snapsUsedToday: resets when
+      // the stored date is not today, increments only on successful analyses.
+      const today = '2026-07-19';
+      let state = { freeSnapsUsed: 3, freeSnapsDate: '2026-07-18' };
+      const usedToday = (s: typeof state) => (s.freeSnapsDate === today ? s.freeSnapsUsed : 0);
+      expect(usedToday(state)).toBe(0);       // yesterday's usage doesn't count
+      expect(canSnap(false, usedToday(state))).toBe(true);
+
+      state = state.freeSnapsDate === today
+        ? { freeSnapsUsed: state.freeSnapsUsed + 1, freeSnapsDate: today }
+        : { freeSnapsUsed: 1, freeSnapsDate: today };
+      expect(usedToday(state)).toBe(1);       // consumed today's snap
+      expect(canSnap(false, usedToday(state))).toBe(false);
+      logResult('free snap taste: 1/day then paywall', true);
+    } catch (e) { logResult('free snap taste: 1/day then paywall', false, e); throw e; }
   });
 });
 

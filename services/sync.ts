@@ -38,7 +38,7 @@ interface Adapter {
 }
 
 const ADAPTERS: Adapter[] = [
-  { store: 'user',            hook: useUserStore as AnyStore,           keys: ['profile', 'isOnboarded', 'freeSnapsUsed'] },
+  { store: 'user',            hook: useUserStore as AnyStore,           keys: ['profile', 'isOnboarded', 'freeSnapsUsed', 'freeSnapsDate'] },
   { store: 'nutrition',       hook: useNutritionStore as AnyStore,      keys: ['entries', 'waterByDate'] },
   { store: 'workout',         hook: useWorkoutStore as AnyStore,        keys: ['history', 'selectedType', 'selectedProgram'] },
   { store: 'recovery',        hook: useRecoveryStore as AnyStore,       keys: ['entries'] },

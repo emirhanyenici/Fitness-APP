@@ -1,10 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, Platform, TextInput } from 'react-native';
 
 const HEALTH_APP = Platform.OS === 'ios' ? 'Apple Health' : 'Health Connect';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRecoveryStore } from '../../stores/recoveryStore';
+import { useHealthStore } from '../../stores/healthStore';
+import { connectAppleHealth } from '../../services/healthkit';
 import { useUserStore } from '../../stores/userStore';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { computeTargets } from '../../services/recommendations';
@@ -66,6 +68,27 @@ export default function RecoveryScreen() {
   );
   const [saved, setSaved] = useState(!!todayEntry);
 
+  const healthConnected = useHealthStore((s) => s.connected);
+  const healthSleep     = useHealthStore((s) => s.sleepByDate[todayStr]);
+
+  // Prefill last night's sleep from Apple Health once it lands (async sync) —
+  // never over a saved check-in or something the user already typed.
+  useEffect(() => {
+    if (!todayEntry?.sleepHours && healthSleep && !sleepInput) {
+      setSleepInput(String(healthSleep));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [healthSleep]);
+
+  const handleConnectHealth = async () => {
+    if (Platform.OS !== 'ios') {
+      Alert.alert(HEALTH_APP, t('profile.healthIntegration', { app: HEALTH_APP }));
+      return;
+    }
+    const ok = await connectAppleHealth();
+    if (!ok) Alert.alert(HEALTH_APP, t('recovery.healthConnectFailed'));
+  };
+
   const setRating = (key: RatingKey, val: number) => {
     hapticTap();
     setRatings((prev) => ({ ...prev, [key]: val }));
@@ -96,13 +119,21 @@ export default function RecoveryScreen() {
         <Text style={styles.pageSub}>{t('recovery.subtitle')}</Text>
       </View>
 
-      {/* ── Sleep Card (no sensor connected) ── */}
+      {/* ── Sleep Card ── */}
       <View style={styles.sleepCard}>
         <View style={styles.sleepNoDataRow}>
           <Icon icon={MoonStar} size={32} color={colors.violet.primary} strokeWidth={1.5} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.sleepNoDataTitle}>{t('recovery.sleepTracking')}</Text>
-            <Text style={styles.sleepNoDataSub}>{t('recovery.connectHealthSub', { app: HEALTH_APP })}</Text>
+            <Text style={styles.sleepNoDataTitle}>
+              {healthConnected ? t('recovery.healthConnectedTitle') : t('recovery.sleepTracking')}
+            </Text>
+            <Text style={styles.sleepNoDataSub}>
+              {healthConnected
+                ? (healthSleep
+                    ? t('recovery.healthSleepLastNight', { hours: healthSleep })
+                    : t('recovery.healthConnectedSub'))
+                : t('recovery.connectHealthSub', { app: HEALTH_APP })}
+            </Text>
           </View>
         </View>
         <View style={styles.sleepTargetRow}>
@@ -111,15 +142,17 @@ export default function RecoveryScreen() {
             <Text style={styles.sleepTargetVal}>{t('recovery.perNight', { hours: targets.sleepHours })}</Text>
           </View>
         </View>
-        <TouchableOpacity
-          style={styles.connectBtn}
-          onPress={() => Alert.alert(HEALTH_APP, t('profile.healthIntegration', { app: HEALTH_APP }))}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel={t('recovery.connectAppA11y', { app: HEALTH_APP })}
-        >
-          <Text style={styles.connectBtnText}>{t('recovery.connectApp', { app: HEALTH_APP })}</Text>
-        </TouchableOpacity>
+        {!healthConnected && (
+          <TouchableOpacity
+            style={styles.connectBtn}
+            onPress={handleConnectHealth}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={t('recovery.connectAppA11y', { app: HEALTH_APP })}
+          >
+            <Text style={styles.connectBtnText}>{t('recovery.connectApp', { app: HEALTH_APP })}</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* ── Sleep & Workout Insight ── */}

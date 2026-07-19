@@ -9,6 +9,8 @@ import { useAuthStore } from '../../stores/authStore';
 import { useUserStore } from '../../stores/userStore';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { useWeightLogStore } from '../../stores/weightLogStore';
+import { useHealthStore } from '../../stores/healthStore';
+import { connectAppleHealth, disconnectAppleHealth } from '../../services/healthkit';
 import { useZenovaScore, formatDeltaLabel } from '../../hooks/useZenovaScore';
 import { colors, withAlpha, bmiColor } from '../../constants/colors';
 import { typography } from '../../constants/typography';
@@ -49,11 +51,12 @@ export default function ProfileScreen() {
   const units = profile?.units ?? 'metric';
   const t = useT();
   const [deleting, setDeleting] = useState(false);
+  const healthConnected = useHealthStore((s) => s.connected);
 
   const SETTINGS = [
     { icon: Bell,        label: t('profile.notifications'), sub: '',                                                        action: 'notifications', pro: false },
     { icon: ChartColumn, label: t('profile.weeklyReport'),  sub: isPro ? t('profile.aiPowered') : '',                       action: 'weeklyReport',  pro: !isPro },
-    { icon: Heart,       label: HEALTH_APP,                  sub: t('profile.connect'),                                      action: 'health',        pro: false },
+    { icon: Heart,       label: HEALTH_APP,                  sub: healthConnected ? t('profile.healthConnected') : t('profile.connect'), action: 'health', pro: false },
     { icon: CreditCard,  label: t('profile.subscription'),  sub: plan === 'free' ? t('profile.freePlan') : plan.toUpperCase(), action: 'subscription', pro: false },
     { icon: Stethoscope, label: t('profile.healthDisclaimer'), sub: t('profile.notMedicalAdvice'),                          action: 'disclaimer',    pro: false },
     { icon: Lock,        label: t('profile.privacyPolicy'), sub: '',                                                        action: 'privacy',       pro: false },
@@ -116,7 +119,25 @@ export default function ProfileScreen() {
         router.push('/modals/weekly-report');
         break;
       case 'health':
-        Alert.alert(HEALTH_APP, t('profile.healthIntegration', { app: HEALTH_APP }));
+        if (Platform.OS !== 'ios') {
+          // Android Health Connect is not integrated yet
+          Alert.alert(HEALTH_APP, t('profile.healthIntegration', { app: HEALTH_APP }));
+          return;
+        }
+        if (healthConnected) {
+          Alert.alert(HEALTH_APP, t('profile.healthDisconnectConfirm'), [
+            { text: t('common.cancel'), style: 'cancel' },
+            {
+              text: t('profile.healthDisconnect'),
+              style: 'destructive',
+              onPress: () => disconnectAppleHealth(),
+            },
+          ]);
+          return;
+        }
+        connectAppleHealth().then((ok) => {
+          if (!ok) Alert.alert(HEALTH_APP, t('recovery.healthConnectFailed'));
+        });
         break;
       case 'disclaimer':
         Alert.alert(t('profile.healthDisclaimer'), MEDICAL_DISCLAIMER);

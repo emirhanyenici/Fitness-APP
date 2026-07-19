@@ -39,6 +39,8 @@ interface WorkoutStore {
   addWorkout: (workout: Omit<CompletedWorkout, 'id' | 'date' | 'timestamp'>) => void;
   /** Replace an existing entry's data in place (same id + date, fresh timestamp) */
   updateWorkout: (id: string, workout: Omit<CompletedWorkout, 'id' | 'date' | 'timestamp'>) => void;
+  /** Merge imported workouts (e.g. Apple Health) with full records incl. id/date; dedupes by id. */
+  importWorkouts: (imported: CompletedWorkout[]) => void;
   clearHistory: () => void;
 }
 
@@ -70,6 +72,18 @@ export const useWorkoutStore = create<WorkoutStore>()(
             w.id === id ? { ...workout, id: w.id, date: w.date, timestamp: Date.now() } : w
           ),
         })),
+      importWorkouts: (imported) =>
+        set((state) => {
+          const have = new Set(state.history.map((w) => w.id));
+          const fresh = imported.filter((w) => !have.has(w.id));
+          if (fresh.length === 0) return state;
+          return {
+            history: [...fresh, ...state.history]
+              .sort((a, b) => b.timestamp - a.timestamp)
+              .slice(0, 50),
+          };
+        }),
+
       clearHistory: () => set({ history: [], selectedType: null, selectedProgram: null }),
     }),
     {

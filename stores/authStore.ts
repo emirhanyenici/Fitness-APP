@@ -103,6 +103,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
     const { useWeightLogStore }      = await import('./weightLogStore');
     const { useAIChatStore }         = await import('./aiChatStore');
     const { useSubscriptionStore }   = await import('./subscriptionStore');
+    const { useHealthStore }         = await import('./healthStore');
 
     useUserStore.getState().clearProfile();
     useNutritionStore.getState().clearEntries();
@@ -114,5 +115,6 @@ export const useAuthStore = create<AuthStore>((set) => ({
     useWeightLogStore.getState().clearEntries();
     useAIChatStore.getState().clearAll();
     useSubscriptionStore.getState().setPlan('free');
+    useHealthStore.getState().clearAll();
   },
 }));
