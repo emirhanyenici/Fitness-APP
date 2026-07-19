@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { pullUserState } from '../services/sync';
-import { syncHealthData } from '../services/healthkit';
+import { syncHealth } from '../services/health';
 
 /** Keep the spinner visible long enough to read as a deliberate refresh. */
 const MIN_SPIN_MS = 600;
@@ -19,7 +19,7 @@ export function usePullToRefresh() {
     try {
       await Promise.all([
         userId ? pullUserState(userId) : Promise.resolve(false),
-        syncHealthData(), // no-op unless Apple Health is connected (iOS)
+        syncHealth(), // no-op unless Apple Health / Health Connect is connected
         new Promise((resolve) => setTimeout(resolve, MIN_SPIN_MS)),
       ]);
     } finally {

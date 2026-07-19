@@ -12,7 +12,7 @@ import { useNutritionStore } from '../../stores/nutritionStore';
 import { useWorkoutStore } from '../../stores/workoutStore';
 import { useRecoveryStore } from '../../stores/recoveryStore';
 import { useHealthStore } from '../../stores/healthStore';
-import { syncHealthData } from '../../services/healthkit';
+import { syncHealth } from '../../services/health';
 import { GOAL_TO_BODY_PART, TYPE_TO_BODY_PART, BODY_PART_LABEL } from '../../services/exercisedb';
 import { computeTargets, GOAL_LABELS } from '../../services/recommendations';
 import { dateStr, daysAgoStr } from '../../services/dateUtils';
@@ -63,8 +63,8 @@ export default function HomeScreen() {
   const healthConnected = useHealthStore((s) => s.connected);
   const stepsByDate     = useHealthStore((s) => s.stepsByDate);
 
-  // Refresh Apple Health data whenever Home mounts (no-op unless connected).
-  useEffect(() => { syncHealthData(); }, []);
+  // Refresh health-app data whenever Home mounts (no-op unless connected).
+  useEffect(() => { syncHealth(); }, []);
 
   // Recomputed on every render to avoid stale dates after midnight.
   const todayDate = new Date();

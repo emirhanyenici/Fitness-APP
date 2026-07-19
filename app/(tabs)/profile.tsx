@@ -10,7 +10,7 @@ import { useUserStore } from '../../stores/userStore';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { useWeightLogStore } from '../../stores/weightLogStore';
 import { useHealthStore } from '../../stores/healthStore';
-import { connectAppleHealth, disconnectAppleHealth } from '../../services/healthkit';
+import { connectHealth, disconnectHealth } from '../../services/health';
 import { useZenovaScore, formatDeltaLabel } from '../../hooks/useZenovaScore';
 import { colors, withAlpha, bmiColor } from '../../constants/colors';
 import { typography } from '../../constants/typography';
@@ -119,24 +119,19 @@ export default function ProfileScreen() {
         router.push('/modals/weekly-report');
         break;
       case 'health':
-        if (Platform.OS !== 'ios') {
-          // Android Health Connect is not integrated yet
-          Alert.alert(HEALTH_APP, t('profile.healthIntegration', { app: HEALTH_APP }));
-          return;
-        }
         if (healthConnected) {
           Alert.alert(HEALTH_APP, t('profile.healthDisconnectConfirm'), [
             { text: t('common.cancel'), style: 'cancel' },
             {
               text: t('profile.healthDisconnect'),
               style: 'destructive',
-              onPress: () => disconnectAppleHealth(),
+              onPress: () => disconnectHealth(),
             },
           ]);
           return;
         }
-        connectAppleHealth().then((ok) => {
-          if (!ok) Alert.alert(HEALTH_APP, t('recovery.healthConnectFailed'));
+        connectHealth().then((ok) => {
+          if (!ok) Alert.alert(HEALTH_APP, t('recovery.healthConnectFailed', { app: HEALTH_APP }));
         });
         break;
       case 'disclaimer':

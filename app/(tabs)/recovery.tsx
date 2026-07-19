@@ -6,7 +6,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRecoveryStore } from '../../stores/recoveryStore';
 import { useHealthStore } from '../../stores/healthStore';
-import { connectAppleHealth } from '../../services/healthkit';
+import { connectHealth } from '../../services/health';
 import { useUserStore } from '../../stores/userStore';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { computeTargets } from '../../services/recommendations';
@@ -81,12 +81,8 @@ export default function RecoveryScreen() {
   }, [healthSleep]);
 
   const handleConnectHealth = async () => {
-    if (Platform.OS !== 'ios') {
-      Alert.alert(HEALTH_APP, t('profile.healthIntegration', { app: HEALTH_APP }));
-      return;
-    }
-    const ok = await connectAppleHealth();
-    if (!ok) Alert.alert(HEALTH_APP, t('recovery.healthConnectFailed'));
+    const ok = await connectHealth();
+    if (!ok) Alert.alert(HEALTH_APP, t('recovery.healthConnectFailed', { app: HEALTH_APP }));
   };
 
   const setRating = (key: RatingKey, val: number) => {
@@ -125,12 +121,12 @@ export default function RecoveryScreen() {
           <Icon icon={MoonStar} size={32} color={colors.violet.primary} strokeWidth={1.5} />
           <View style={{ flex: 1 }}>
             <Text style={styles.sleepNoDataTitle}>
-              {healthConnected ? t('recovery.healthConnectedTitle') : t('recovery.sleepTracking')}
+              {healthConnected ? t('recovery.healthConnectedTitle', { app: HEALTH_APP }) : t('recovery.sleepTracking')}
             </Text>
             <Text style={styles.sleepNoDataSub}>
               {healthConnected
                 ? (healthSleep
-                    ? t('recovery.healthSleepLastNight', { hours: healthSleep })
+                    ? t('recovery.healthSleepLastNight', { hours: healthSleep, app: HEALTH_APP })
                     : t('recovery.healthConnectedSub'))
                 : t('recovery.connectHealthSub', { app: HEALTH_APP })}
             </Text>
