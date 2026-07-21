@@ -24,6 +24,10 @@ type Screen = 'home' | 'search' | 'manual' | 'barcode' | 'snap';
  *  Server backstop: analyze-photo enforces 1/day in the 'photo' usage bucket. */
 export const FREE_SNAP_LIMIT = 1;
 
+/** One id per Snap screen mount — lets the server recognize retries of the
+ *  same scanning attempt (same or new photo) as free, see analyze-photo. */
+const genSnapSessionId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+
 const CONFIDENCE_COLORS = {
   high: colors.status.success,
   medium: colors.status.warning,
@@ -547,6 +551,10 @@ function SnapScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBack
   const [imageB64, setImageB64]     = useState<string | null>(null);
   const [analyzing, setAnalyzing]   = useState(false);
   const [result, setResult]         = useState<SnapResult | null>(null);
+  // One id for this whole scanning attempt — retries (same photo re-analyzed,
+  // or a new photo swapped in before confirming) share it and are free.
+  const [sessionId]       = useState(genSnapSessionId);
+  const [sessionCharged, setSessionCharged] = useState(false);
 
   // Editable result fields
   const [editName,     setEditName]     = useState('');
@@ -579,9 +587,13 @@ function SnapScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBack
       return;
     }
     // 0.8 keeps enough detail for portion-size estimation; the server rejects
-    // uploads past ~5 MB, which a 4:3-cropped 0.8 JPEG stays well under.
+    // uploads past ~5 MB, which a 0.8 JPEG stays well under even uncropped.
+    // Camera: allowsEditing is deliberately OFF — the native crop/edit screen
+    // works from a downsampled preview on some Android devices, so the final
+    // photo comes out visibly blurrier than the live camera preview. The AI
+    // prompt doesn't need a specific aspect ratio, so we just skip that step.
     const res = useCamera
-      ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.8, allowsEditing: true, aspect: [4, 3] })
+      ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.8 })
       : await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.8, allowsEditing: true, aspect: [4, 3], mediaTypes: ['images'] });
 
     if (!res.canceled && res.assets[0]) {
@@ -593,13 +605,18 @@ function SnapScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBack
 
   const analyze = async () => {
     if (!imageB64) return;
-    // Free taste guard: quota may run out while this screen is already open
-    if (!isPro && snapsUsed >= FREE_SNAP_LIMIT) { router.push('/paywall'); return; }
+    // Free taste guard: quota may run out while this screen is already open.
+    // Once this session has been charged once, further retries (same photo
+    // re-analyzed, or a new one picked) are free — skip the local gate and
+    // let the server's session-aware check confirm it.
+    if (!isPro && !sessionCharged && snapsUsed >= FREE_SNAP_LIMIT) { router.push('/paywall'); return; }
     setAnalyzing(true);
     try {
-      const r = await analyzeFood(imageB64);
-      // Count only successful analyses against the free taste quota
-      if (!isPro) incrementFreeSnaps();
+      const r = await analyzeFood(imageB64, sessionId);
+      // Count only the first successful analysis of this session against the
+      // free taste quota — later retries within the same session are free.
+      if (!isPro && !sessionCharged) incrementFreeSnaps();
+      setSessionCharged(true);
       applyResult(r);
     } catch (e: any) {
       Alert.alert(t('addFood.analysisFailed'), e.message ?? t('addFood.couldNotIdentify'));

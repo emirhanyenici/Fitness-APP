@@ -73,7 +73,13 @@ export function sanitizeSnapResult(raw: unknown): SnapResult {
   };
 }
 
-export async function analyzeFood(base64: string): Promise<SnapResult> {
+/**
+ * @param sessionId Identifies one scanning attempt (set once per Snap screen
+ * mount). Retries within the same session — re-analyzing the same photo or
+ * swapping in a new one before the user confirms — are free on the server;
+ * only the first charged request per session consumes the daily quota.
+ */
+export async function analyzeFood(base64: string, sessionId: string): Promise<SnapResult> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
     throw new Error('You must be signed in to use this feature.');
@@ -86,7 +92,7 @@ export async function analyzeFood(base64: string): Promise<SnapResult> {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${session.access_token}`,
     },
-    body: JSON.stringify({ base64 }),
+    body: JSON.stringify({ base64, sessionId }),
   }, 30_000);
 
   if (!response.ok) {

@@ -67,19 +67,39 @@ Deno.serve(async (req) => {
     });
   }
 
+  // Read sessionId early (before the JSON re-parse below) so it's available
+  // for the rate-limit check; body is re-read as JSON further down.
+  let sessionId: string | undefined;
+  const reqClone = req.clone();
+  try {
+    const preBody = await reqClone.json();
+    sessionId = typeof preBody?.sessionId === 'string' && preBody.sessionId ? preBody.sessionId : undefined;
+  } catch {
+    // Malformed body — fall through, the real parse below will reject it.
+  }
+
   // Per-user daily rate limit — protects against unbounded AI-provider spend.
   // Tier-aware via public.subscriptions (mirrored by revenuecat-webhook fn;
   // missing row = free). Free 1/day backs the client's 1/day taste quota
   // (FREE_SNAP_LIMIT in add-food.tsx — keep in sync); snap is otherwise a Pro
   // feature. Counts in the 'photo' bucket, independent from ai-coach's 'chat'.
+  // sessionId (set once per Snap screen mount, client-side) lets the same
+  // scanning attempt retry — same photo re-analyzed, or a new photo swapped
+  // in before the user confirms — without burning additional quota; only the
+  // first charged request per session increments the counter.
   const { data: subRow } = await supabase.from('subscriptions').select('plan').maybeSingle();
   const isPaid = subRow?.plan === 'pro' || subRow?.plan === 'elite';
   const PHOTO_DAILY_LIMIT = isPaid
     ? Number(Deno.env.get('PHOTO_LIMIT_PRO') ?? '30')
     : Number(Deno.env.get('PHOTO_LIMIT_FREE') ?? '1');
-  const { data: allowed, error: limitError } = await supabase.rpc(
-    'check_and_increment_ai_usage', { p_limit: PHOTO_DAILY_LIMIT, p_feature: 'photo' },
-  );
+  const { data: allowed, error: limitError } = sessionId
+    ? await supabase.rpc(
+        'check_and_increment_ai_usage_session',
+        { p_limit: PHOTO_DAILY_LIMIT, p_feature: 'photo', p_session_id: sessionId },
+      )
+    : await supabase.rpc(
+        'check_and_increment_ai_usage', { p_limit: PHOTO_DAILY_LIMIT, p_feature: 'photo' },
+      );
   if (limitError) {
     console.error('rate-limit check failed:', limitError);
     return new Response(JSON.stringify({ error: 'Could not analyze photo. Please try again.' }), {
