@@ -3,9 +3,11 @@
  *
  * react-native-health-connect is loaded lazily so platforms without the native
  * module (iOS, web, Jest, or a dev build made before this feature) never touch
- * it. Data lands in the same places as the iOS path: steps/sleep in
- * healthStore, weight in weightLogStore, exercise sessions in workoutStore
- * (id `hc-{recordId}` keeps re-imports idempotent).
+ * it. Data lands in the same places as the iOS path: steps/sleep/calories/
+ * distance/exerciseMin in healthStore, weight in weightLogStore, exercise
+ * sessions in workoutStore (id `hc-{recordId}` keeps re-imports idempotent).
+ * Health Connect has no per-day "exercise time" aggregate like Apple's, so
+ * exerciseMin is derived by summing ExerciseSession durations per local day.
  */
 import { Platform } from 'react-native';
 import { dateStr } from './dateUtils';
@@ -22,6 +24,8 @@ const READ_PERMISSIONS = [
   { accessType: 'read', recordType: 'SleepSession' },
   { accessType: 'read', recordType: 'Weight' },
   { accessType: 'read', recordType: 'ExerciseSession' },
+  { accessType: 'read', recordType: 'ActiveCaloriesBurned' },
+  { accessType: 'read', recordType: 'Distance' },
 ] as const;
 
 type HC = typeof import('react-native-health-connect');
@@ -194,6 +198,9 @@ export async function syncHealthConnectData(): Promise<void> {
 
   const steps: Record<string, number> = {};
   const sleep: Record<string, number> = {};
+  const calories: Record<string, number> = {};
+  const distance: Record<string, number> = {};
+  const exerciseMin: Record<string, number> = {};
 
   try {
     await hc.initialize();
@@ -211,6 +218,36 @@ export async function syncHealthConnectData(): Promise<void> {
       }
     } catch (e) {
       logError(e, { scope: 'healthConnect.sync.steps' });
+    }
+
+    // Active calories burned: platform-deduped daily totals.
+    try {
+      const buckets = await hc.aggregateGroupByPeriod({
+        recordType: 'ActiveCaloriesBurned',
+        timeRangeFilter: range,
+        timeRangeSlicer: { period: 'DAYS', length: 1 },
+      });
+      for (const b of buckets) {
+        const kcal = b.result.ACTIVE_CALORIES_TOTAL?.inKilocalories ?? 0;
+        if (kcal > 0) calories[dateStr(new Date(b.startTime))] = Math.round(kcal);
+      }
+    } catch (e) {
+      logError(e, { scope: 'healthConnect.sync.calories' });
+    }
+
+    // Distance: platform-deduped daily totals, km (1 decimal).
+    try {
+      const buckets = await hc.aggregateGroupByPeriod({
+        recordType: 'Distance',
+        timeRangeFilter: range,
+        timeRangeSlicer: { period: 'DAYS', length: 1 },
+      });
+      for (const b of buckets) {
+        const km = b.result.DISTANCE?.inKilometers ?? 0;
+        if (km > 0) distance[dateStr(new Date(b.startTime))] = Math.round(km * 10) / 10;
+      }
+    } catch (e) {
+      logError(e, { scope: 'healthConnect.sync.distance' });
     }
 
     // Sleep: sessions (stage-aware) keyed to the morning they end.
@@ -243,27 +280,49 @@ export async function syncHealthConnectData(): Promise<void> {
       logError(e, { scope: 'healthConnect.sync.weight' });
     }
 
-    // Exercise sessions → workout history (idempotent via hc-{recordId} ids).
+    // Exercise sessions → workout history (idempotent via hc-{recordId} ids),
+    // and also summed into exerciseMin per day (HC has no separate "exercise
+    // time" aggregate the way Apple's AppleExerciseTime does).
     try {
       const res = await hc.readRecords('ExerciseSession', { timeRangeFilter: range });
-      const mapped = res.records
-        .filter((r) => r.metadata?.id)
-        .map((r) =>
-          mapHCWorkout({
-            id: r.metadata!.id!,
-            exerciseType: r.exerciseType,
-            startTime: r.startTime,
-            endTime: r.endTime,
-            title: r.title,
+      const mapped = await Promise.all(
+        res.records
+          .filter((r) => r.metadata?.id)
+          .map(async (r) => {
+            const w = mapHCWorkout({
+              id: r.metadata!.id!,
+              exerciseType: r.exerciseType,
+              startTime: r.startTime,
+              endTime: r.endTime,
+              title: r.title,
+            });
+            // HC has no per-session calories field (mapHCWorkout always sets
+            // 0) — look up active energy burned within this exact session
+            // window so workout history doesn't show 0 kcal while Home's
+            // daily "Burned" tile shows a real total for the same activity.
+            try {
+              const agg = await hc.aggregateRecord({
+                recordType: 'ActiveCaloriesBurned',
+                timeRangeFilter: { operator: 'between', startTime: r.startTime, endTime: r.endTime },
+              });
+              const kcal = agg.ACTIVE_CALORIES_TOTAL?.inKilocalories ?? 0;
+              if (kcal > 0) w.calories = Math.round(kcal);
+            } catch {
+              // Leave calories at 0 — a failed lookup must not drop the session.
+            }
+            return w;
           }),
-        )
-        .filter((w) => (w.durationMinutes ?? 0) >= 1);
-      useWorkoutStore.getState().importWorkouts(mapped);
+      );
+      const filtered = mapped.filter((w) => (w.durationMinutes ?? 0) >= 1);
+      useWorkoutStore.getState().importWorkouts(filtered);
+      for (const w of filtered) {
+        exerciseMin[w.date] = (exerciseMin[w.date] ?? 0) + (w.durationMinutes ?? 0);
+      }
     } catch (e) {
       logError(e, { scope: 'healthConnect.sync.workouts' });
     }
 
-    useHealthStore.getState().applySync(steps, sleep);
+    useHealthStore.getState().applySync({ steps, sleep, calories, distance, exerciseMin });
   } finally {
     syncInFlight = false;
   }

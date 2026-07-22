@@ -80,6 +80,39 @@ describe('computeDayScore', () => {
     const s = computeDayScore(D, base({ restDaySelected: true, workoutHistory: [{ date: D }] }));
     expect(s.moveScore).toBe(25);
   });
+
+  it('gives partial Move credit from Health-app steps/exercise minutes with no logged workout', () => {
+    const stepsOnly = computeDayScore(D, base({
+      healthActivity: { stepsByDate: { [D]: 8000 } },
+    }));
+    expect(stepsOnly.moveScore).toBe(20);
+
+    const exerciseOnly = computeDayScore(D, base({
+      healthActivity: { exerciseMinByDate: { [D]: 15 } },
+    }));
+    expect(exerciseOnly.moveScore).toBe(10); // 15/30 * 20 = 10
+
+    // Whichever signal is more favorable wins — not additive.
+    const both = computeDayScore(D, base({
+      healthActivity: { stepsByDate: { [D]: 8000 }, exerciseMinByDate: { [D]: 15 } },
+    }));
+    expect(both.moveScore).toBe(20);
+  });
+
+  it('a real workout still beats passive Health-app activity, even maxed out', () => {
+    const s = computeDayScore(D, base({
+      workoutHistory: [{ date: D }],
+      healthActivity: { stepsByDate: { [D]: 20000 }, exerciseMinByDate: { [D]: 90 } },
+    }));
+    expect(s.moveScore).toBe(25);
+  });
+
+  it('ignores Health-app activity from other days', () => {
+    const s = computeDayScore(D, base({
+      healthActivity: { stepsByDate: { [OTHER]: 20000 } },
+    }));
+    expect(s.moveScore).toBe(0);
+  });
 });
 
 describe('pillar labelKeys resolve', () => {

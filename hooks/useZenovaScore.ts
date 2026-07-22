@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useNutritionStore } from '../stores/nutritionStore';
 import { useWorkoutStore } from '../stores/workoutStore';
 import { useRecoveryStore } from '../stores/recoveryStore';
+import { useHealthStore } from '../stores/healthStore';
 import { useUserStore } from '../stores/userStore';
 import { computeTargets } from '../services/recommendations';
 import { daysAgoStr } from '../services/dateUtils';
@@ -40,6 +41,17 @@ export interface DayScoreInputs {
    * (a rest selection can never manufacture a fake "+10 ↑" day-over-day).
    */
   restDaySelected?: boolean;
+  /**
+   * Apple Health / Health Connect daily caches. Gives partial Move credit on
+   * days with no logged workout — e.g. a Watch-tracked hike or a high step
+   * count that never became an in-app "workout" entry. Capped below the full
+   * 25 a completed workout earns, so logging a real workout always still
+   * beats passive activity (see computeDayScore).
+   */
+  healthActivity?: {
+    stepsByDate?: Record<string, number>;
+    exerciseMinByDate?: Record<string, number>;
+  };
 }
 
 export interface DayScore {
@@ -62,10 +74,18 @@ export function computeDayScore(date: string, inp: DayScoreInputs): DayScore {
   const calPct = inp.targets.calories > 0 ? Math.min(cal / inp.targets.calories, 1) : 0;
   const foodScore = Math.min(Math.round(calPct * 25), 25);
 
-  // moveScore: 25 = workout completed that day, 10 = rest day selected, 0 = none
+  // moveScore: 25 = workout completed that day, 10 = rest day selected,
+  // otherwise up to 20 from passive Health-app activity (steps or exercise
+  // minutes, whichever is more favorable) — a real workout always beats it.
+  const steps       = inp.healthActivity?.stepsByDate?.[date] ?? 0;
+  const exerciseMin = inp.healthActivity?.exerciseMinByDate?.[date] ?? 0;
+  const activityCredit = Math.max(
+    Math.min(20, Math.round((exerciseMin / 30) * 20)),
+    Math.min(20, Math.round((steps / 8000) * 20)),
+  );
   const moveScore = inp.workoutHistory.some((w) => w.date === date)
     ? 25
-    : inp.restDaySelected ? 10 : 0;
+    : inp.restDaySelected ? 10 : activityCredit;
 
   const rec = inp.recoveryEntries.find((e) => e.date === date);
   const moodScore = rec ? Math.round(rec.mood * 5) : 0;
@@ -96,6 +116,8 @@ export function useZenovaScore(): ZenovaScore {
   const selectedType    = useWorkoutStore((s) => s.selectedType);
   const workoutHistory  = useWorkoutStore((s) => s.history);
   const recoveryEntries = useRecoveryStore((s) => s.entries);
+  const stepsByDate       = useHealthStore((s) => s.stepsByDate);
+  const exerciseMinByDate = useHealthStore((s) => s.exerciseMinByDate);
   const profile         = useUserStore((s) => s.profile);
 
   const targets = useMemo(() => computeTargets(profile), [profile]);
@@ -110,7 +132,8 @@ export function useZenovaScore(): ZenovaScore {
     recoveryEntries,
     targets: { calories: targets.calories, sleepHours: targets.sleepHours },
     restDaySelected: selectedType === 'rest',
-  }), [entries, workoutHistory, recoveryEntries, targets, selectedType]);
+    healthActivity: { stepsByDate, exerciseMinByDate },
+  }), [entries, workoutHistory, recoveryEntries, targets, selectedType, stepsByDate, exerciseMinByDate]);
 
   const today = useMemo(
     () => computeDayScore(todayStr, dayInputs),

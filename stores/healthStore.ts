@@ -11,6 +11,16 @@ import { secureStorage } from '../services/secureStorage';
  * different — they merge into weightLogStore/workoutStore so they behave like
  * (and sync like) manually logged entries.
  */
+/** Days-by-metric payload passed to applySync — every field optional so each
+ *  platform sync only has to report what it actually queried. */
+export interface HealthSyncData {
+  steps?: Record<string, number>;
+  sleep?: Record<string, number>;
+  calories?: Record<string, number>;
+  distance?: Record<string, number>;
+  exerciseMin?: Record<string, number>;
+}
+
 interface HealthStore {
   /** User connected Apple Health from Profile (authorization sheet completed). */
   connected: boolean;
@@ -20,9 +30,15 @@ interface HealthStore {
   stepsByDate: Record<string, number>;
   /** Local day the sleep ENDED (the morning) → hours asleep. */
   sleepByDate: Record<string, number>;
+  /** Local day → active energy burned, kcal. */
+  caloriesByDate: Record<string, number>;
+  /** Local day → walking+running distance, km (1 decimal). */
+  distanceByDate: Record<string, number>;
+  /** Local day → minutes of recorded exercise/activity. */
+  exerciseMinByDate: Record<string, number>;
   setConnected: (v: boolean) => void;
   /** Merge freshly synced days over the cache and prune anything older than 30 days. */
-  applySync: (steps: Record<string, number>, sleep: Record<string, number>) => void;
+  applySync: (data: HealthSyncData) => void;
   clearAll: () => void;
 }
 
@@ -37,22 +53,31 @@ export const useHealthStore = create<HealthStore>()(
       lastSyncAt: null,
       stepsByDate: {},
       sleepByDate: {},
+      caloriesByDate: {},
+      distanceByDate: {},
+      exerciseMinByDate: {},
 
       setConnected: (connected) => set({ connected }),
 
-      applySync: (steps, sleep) =>
+      applySync: (data) =>
         set((s) => {
           const cutoff = new Date();
           cutoff.setDate(cutoff.getDate() - 30);
           const minDate = cutoff.toISOString().slice(0, 10);
           return {
-            stepsByDate: pruned({ ...s.stepsByDate, ...steps }, minDate),
-            sleepByDate: pruned({ ...s.sleepByDate, ...sleep }, minDate),
+            stepsByDate:       pruned({ ...s.stepsByDate,       ...data.steps       }, minDate),
+            sleepByDate:       pruned({ ...s.sleepByDate,       ...data.sleep       }, minDate),
+            caloriesByDate:    pruned({ ...s.caloriesByDate,    ...data.calories    }, minDate),
+            distanceByDate:    pruned({ ...s.distanceByDate,    ...data.distance    }, minDate),
+            exerciseMinByDate: pruned({ ...s.exerciseMinByDate, ...data.exerciseMin }, minDate),
             lastSyncAt: new Date().toISOString(),
           };
         }),
 
-      clearAll: () => set({ connected: false, lastSyncAt: null, stepsByDate: {}, sleepByDate: {} }),
+      clearAll: () => set({
+        connected: false, lastSyncAt: null,
+        stepsByDate: {}, sleepByDate: {}, caloriesByDate: {}, distanceByDate: {}, exerciseMinByDate: {},
+      }),
     }),
     {
       name: 'zenova-health-storage',

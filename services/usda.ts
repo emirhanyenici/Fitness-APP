@@ -136,23 +136,26 @@ export async function searchFoodsOFF(query: string): Promise<FoodItem[]> {
   }
 }
 
-/** Barcode lookup via Open Food Facts (free, no key needed) */
+/**
+ * Barcode lookup via Open Food Facts (free, no key needed).
+ *
+ * Only returns null for a genuine "not in database" result (status !== 1).
+ * Network/timeout failures are allowed to throw so callers can tell a real
+ * connectivity problem apart from "product not found" instead of both
+ * collapsing into the same not-found message.
+ */
 export async function lookupBarcode(barcode: string): Promise<FoodItem | null> {
-  try {
-    const res = await fetchWithTimeout(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
-    const data: OFFProductResponse = await res.json();
-    if (data.status !== 1 || !data.product) return null;
-    const p = data.product;
-    const n = p.nutriments ?? {};
-    return {
-      fdcId: 0,
-      description: p.product_name || p.generic_name || 'Unknown Product',
-      calories: Math.round(n['energy-kcal_100g'] ?? n['energy-kcal'] ?? 0),
-      protein:  Math.round(n.proteins_100g ?? 0),
-      carbs:    Math.round(n.carbohydrates_100g ?? 0),
-      fat:      Math.round(n.fat_100g ?? 0),
-    };
-  } catch {
-    return null;
-  }
+  const res = await fetchWithTimeout(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
+  const data: OFFProductResponse = await res.json();
+  if (data.status !== 1 || !data.product) return null;
+  const p = data.product;
+  const n = p.nutriments ?? {};
+  return {
+    fdcId: 0,
+    description: p.product_name || p.generic_name || 'Unknown Product',
+    calories: Math.round(n['energy-kcal_100g'] ?? n['energy-kcal'] ?? 0),
+    protein:  Math.round(n.proteins_100g ?? 0),
+    carbs:    Math.round(n.carbohydrates_100g ?? 0),
+    fat:      Math.round(n.fat_100g ?? 0),
+  };
 }

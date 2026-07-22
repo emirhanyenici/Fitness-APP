@@ -7,10 +7,13 @@
  * gate UI on isHealthKitSupported().
  *
  * Data flow (last 7 days, re-runs on Home mount + pull-to-refresh):
- *  - steps  → healthStore.stepsByDate   (Home "Steps" stat tile)
- *  - sleep  → healthStore.sleepByDate   (recovery check-in prefill)
- *  - weight → weightLogStore            (manual entries win per date)
- *  - workouts → workoutStore.history    (id `hk-{uuid}` — deduped across syncs)
+ *  - steps       → healthStore.stepsByDate        (Home "Steps" stat tile)
+ *  - sleep       → healthStore.sleepByDate         (recovery check-in prefill)
+ *  - calories    → healthStore.caloriesByDate      (Home "Calories Burned" tile)
+ *  - distance    → healthStore.distanceByDate      (Home "Distance" tile)
+ *  - exerciseMin → healthStore.exerciseMinByDate   (Home "Exercise" tile)
+ *  - weight      → weightLogStore                  (manual entries win per date)
+ *  - workouts    → workoutStore.history             (id `hk-{uuid}` — deduped across syncs)
  */
 import { Platform } from 'react-native';
 import { dateStr, daysAgoStr } from './dateUtils';
@@ -24,6 +27,9 @@ const READ_TYPES = [
   'HKQuantityTypeIdentifierBodyMass',
   'HKCategoryTypeIdentifierSleepAnalysis',
   'HKWorkoutTypeIdentifier',
+  'HKQuantityTypeIdentifierActiveEnergyBurned',
+  'HKQuantityTypeIdentifierDistanceWalkingRunning',
+  'HKQuantityTypeIdentifierAppleExerciseTime',
 ] as const;
 
 const SYNC_DAYS = 7;
@@ -206,6 +212,9 @@ export async function syncHealthData(): Promise<void> {
 
   const steps: Record<string, number> = {};
   const sleep: Record<string, number> = {};
+  const calories: Record<string, number> = {};
+  const distance: Record<string, number> = {};
+  const exerciseMin: Record<string, number> = {};
 
   try {
     // Steps: one cumulative sum per local day.
@@ -223,6 +232,57 @@ export async function syncHealthData(): Promise<void> {
       }
     } catch (e) {
       logError(e, { scope: 'healthkit.sync.steps' });
+    }
+
+    // Active energy burned: one cumulative sum (kcal) per local day.
+    try {
+      const buckets = await hk.queryStatisticsCollectionForQuantity(
+        'HKQuantityTypeIdentifierActiveEnergyBurned',
+        ['cumulativeSum'],
+        from,
+        { day: 1 },
+        { unit: 'kcal', filter: { date: { startDate: from, endDate: now } } },
+      );
+      for (const b of buckets) {
+        const sum = b.sumQuantity?.quantity ?? 0;
+        if (b.startDate && sum > 0) calories[dateStr(new Date(b.startDate))] = Math.round(sum);
+      }
+    } catch (e) {
+      logError(e, { scope: 'healthkit.sync.calories' });
+    }
+
+    // Walking+running distance: canonical unit is meters — convert to km.
+    try {
+      const buckets = await hk.queryStatisticsCollectionForQuantity(
+        'HKQuantityTypeIdentifierDistanceWalkingRunning',
+        ['cumulativeSum'],
+        from,
+        { day: 1 },
+        { unit: 'm', filter: { date: { startDate: from, endDate: now } } },
+      );
+      for (const b of buckets) {
+        const sum = b.sumQuantity?.quantity ?? 0;
+        if (b.startDate && sum > 0) distance[dateStr(new Date(b.startDate))] = Math.round((sum / 1000) * 10) / 10;
+      }
+    } catch (e) {
+      logError(e, { scope: 'healthkit.sync.distance' });
+    }
+
+    // Apple Exercise Time: cumulative minutes per local day.
+    try {
+      const buckets = await hk.queryStatisticsCollectionForQuantity(
+        'HKQuantityTypeIdentifierAppleExerciseTime',
+        ['cumulativeSum'],
+        from,
+        { day: 1 },
+        { unit: 'min', filter: { date: { startDate: from, endDate: now } } },
+      );
+      for (const b of buckets) {
+        const sum = b.sumQuantity?.quantity ?? 0;
+        if (b.startDate && sum > 0) exerciseMin[dateStr(new Date(b.startDate))] = Math.round(sum);
+      }
+    } catch (e) {
+      logError(e, { scope: 'healthkit.sync.exerciseMin' });
     }
 
     // Sleep: asleep intervals keyed to the morning they end. Query one extra
@@ -290,7 +350,7 @@ export async function syncHealthData(): Promise<void> {
       logError(e, { scope: 'healthkit.sync.workouts' });
     }
 
-    useHealthStore.getState().applySync(steps, sleep);
+    useHealthStore.getState().applySync({ steps, sleep, calories, distance, exerciseMin });
   } finally {
     syncInFlight = false;
   }

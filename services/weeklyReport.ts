@@ -41,6 +41,9 @@ export interface WeekStatsExtended extends WeekStats {
   workoutBreakdown: { bodyPart: string; count: number; minutes: number; calories: number }[];
   /** Weight change (kg) across the week's entries; null when fewer than 2. */
   weightDelta: number | null;
+  /** Averages across days with any synced health-app data; null when Health
+   *  isn't connected (no data supplied at all). */
+  activityAvgs: { steps: number; caloriesBurned: number; distanceKm: number; exerciseMin: number } | null;
 }
 
 export interface DailyScorePoint {
@@ -76,6 +79,14 @@ export interface WeekDataInputs {
   weightEntries: { date: string; weight_kg: number }[];
   targets: { calories: number; sleepHours: number };
   restDaySelected?: boolean;
+  /** Apple Health / Health Connect daily caches, keyed by local YYYY-MM-DD.
+   *  Omit (or leave undefined) when the user hasn't connected a health app. */
+  health?: {
+    stepsByDate?: Record<string, number>;
+    caloriesByDate?: Record<string, number>;
+    distanceByDate?: Record<string, number>;
+    exerciseMinByDate?: Record<string, number>;
+  };
 }
 
 /** Older records only have the "40 min" string form. */
@@ -101,6 +112,7 @@ export function computeWeekData(inp: WeekDataInputs): {
     recoveryEntries: inp.recoveryEntries,
     targets: inp.targets,
     restDaySelected: inp.restDaySelected,
+    healthActivity: { stepsByDate: inp.health?.stepsByDate, exerciseMinByDate: inp.health?.exerciseMinByDate },
   };
 
   const days = Array.from({ length: 7 }, (_, i) => {
@@ -111,6 +123,8 @@ export function computeWeekData(inp: WeekDataInputs): {
     const dayWorkouts = inp.workoutHistory.filter((w) => w.date === date);
     const recovery = inp.recoveryEntries.find((e) => e.date === date);
     const dayScore = computeDayScore(date, dayInputs);
+    const hasHealthActivity = (inp.health?.stepsByDate?.[date] ?? 0) > 0
+      || (inp.health?.exerciseMinByDate?.[date] ?? 0) > 0;
     return {
       date,
       jsDate,
@@ -121,7 +135,7 @@ export function computeWeekData(inp: WeekDataInputs): {
       workouts: dayWorkouts,
       recovery,
       dayScore,
-      hasData: dayCalories > 0 || dayWorkouts.length > 0 || recovery != null,
+      hasData: dayCalories > 0 || dayWorkouts.length > 0 || recovery != null || hasHealthActivity,
     };
   });
 
@@ -160,6 +174,29 @@ export function computeWeekData(inp: WeekDataInputs): {
     .filter((e) => e.date >= period.start && e.date <= period.end)
     .sort((a, b) => a.date.localeCompare(b.date));
 
+  // Health-app averages: only days the health app actually synced something
+  // count, so a partial week (e.g. connected mid-week) doesn't drag the
+  // average down with phantom zero days.
+  const health = inp.health;
+  const healthDates = health
+    ? days
+        .map((d) => d.date)
+        .filter((date) =>
+          (health.stepsByDate?.[date] ?? 0) > 0 ||
+          (health.caloriesByDate?.[date] ?? 0) > 0 ||
+          (health.distanceByDate?.[date] ?? 0) > 0 ||
+          (health.exerciseMinByDate?.[date] ?? 0) > 0,
+        )
+    : [];
+  const activityAvgs = healthDates.length > 0
+    ? {
+        steps:          Math.round(avg(healthDates.map((d) => health!.stepsByDate?.[d] ?? 0))),
+        caloriesBurned: Math.round(avg(healthDates.map((d) => health!.caloriesByDate?.[d] ?? 0))),
+        distanceKm:     round1(avg(healthDates.map((d) => health!.distanceByDate?.[d] ?? 0))),
+        exerciseMin:    Math.round(avg(healthDates.map((d) => health!.exerciseMinByDate?.[d] ?? 0))),
+      }
+    : null;
+
   const stats: WeekStatsExtended = {
     daysLogged:    loggedDays.length,
     avgCalories:   Math.round(avg(foodDays.map((d) => d.calories))),
@@ -184,6 +221,7 @@ export function computeWeekData(inp: WeekDataInputs): {
     weightDelta: weekWeights.length >= 2
       ? round1(weekWeights[weekWeights.length - 1].weight_kg - weekWeights[0].weight_kg)
       : null,
+    activityAvgs,
   };
 
   return { period, stats, daily };

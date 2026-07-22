@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
   StyleSheet, ActivityIndicator, Alert, ScrollView, Image, Platform,
@@ -10,7 +10,7 @@ import { useNutritionStore, MealType } from '../../stores/nutritionStore';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { useUserStore, snapsUsedToday } from '../../stores/userStore';
 import { searchFoods, searchFoodsOFF, lookupBarcode, scaleFood, FoodItem } from '../../services/usda';
-import { analyzeFood, SnapResult } from '../../services/foodSnap';
+import { analyzeFood, SnapResult, SnapItem } from '../../services/foodSnap';
 import { colors, withAlpha } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
@@ -408,8 +408,20 @@ function BarcodeScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onB
   const [grams,    setGrams]    = useState('100');
   const t = useT();
 
+  // The native camera can fire onBarcodeScanned for several frames of the
+  // same code before React commits the `scanned` state update that removes
+  // the callback — a ref blocks re-entry synchronously so those extra frames
+  // can't each open their own "not found" alert.
+  const scannedRef = useRef(false);
+
+  const resetScan = useCallback(() => {
+    scannedRef.current = false;
+    setScanned(false);
+  }, []);
+
   const handleBarcode = useCallback(async (result: BarcodeScanningResult) => {
-    if (scanned) return;
+    if (scannedRef.current) return;
+    scannedRef.current = true;
     setScanned(true);
     setScanning(true);
     try {
@@ -422,17 +434,20 @@ function BarcodeScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onB
           t('addFood.productNotFound'),
           [
             { text: t('addFood.searchManually'), onPress: onBack },
-            { text: t('addFood.scanAgain'),      onPress: () => setScanned(false) },
+            { text: t('addFood.scanAgain'),      onPress: resetScan },
           ]
         );
       }
     } catch {
+      // Network/timeout failures land here (lookupBarcode throws instead of
+      // swallowing them) so they get their own message rather than being
+      // misreported as "not found".
       Alert.alert(t('common.error'), t('addFood.couldNotLookup'));
-      setScanned(false);
+      resetScan();
     } finally {
       setScanning(false);
     }
-  }, [scanned, onBack, t]);
+  }, [onBack, resetScan, t]);
 
   if (!permission) {
     return (
@@ -507,7 +522,7 @@ function BarcodeScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onB
         >
           <Text style={styles.primaryBtnText}>{t('addFood.addToLog')}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={{ marginTop: spacing.base }} onPress={() => { setFound(null); setScanned(false); setGrams('100'); }} accessibilityRole="button" accessibilityLabel={t('addFood.scanAgain')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <TouchableOpacity style={{ marginTop: spacing.base }} onPress={() => { setFound(null); resetScan(); setGrams('100'); }} accessibilityRole="button" accessibilityLabel={t('addFood.scanAgain')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Text style={styles.backLink}>{t('addFood.scanAgain')}</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -522,6 +537,7 @@ function BarcodeScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onB
       <CameraView
         style={{ flex: 1 }}
         facing="back"
+        autofocus="on"
         barcodeScannerSettings={{ barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'qr'] }}
         onBarcodeScanned={scanned ? undefined : handleBarcode}
       />
@@ -551,6 +567,16 @@ function SnapScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBack
   const [imageB64, setImageB64]     = useState<string | null>(null);
   const [analyzing, setAnalyzing]   = useState(false);
   const [result, setResult]         = useState<SnapResult | null>(null);
+  // Editable copy of result.items — grams can be adjusted per item; macros
+  // rescale from the AI's original per-item estimate (see updateItemGrams).
+  const [items, setItems]           = useState<SnapItem[]>([]);
+  // Custom camera (CameraView, not ImagePicker's native launcher) so we can
+  // force autofocus — the native camera intent gave no focus control and
+  // photos came out visibly blurrier than the live preview.
+  const [showCamera, setShowCamera] = useState(false);
+  const [capturing,  setCapturing]  = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
+  const cameraRef = useRef<CameraView>(null);
   // One id for this whole scanning attempt — retries (same photo re-analyzed,
   // or a new photo swapped in before confirming) share it and are free.
   const [sessionId]       = useState(genSnapSessionId);
@@ -570,6 +596,7 @@ function SnapScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBack
 
   const applyResult = (r: SnapResult) => {
     setResult(r);
+    setItems(r.items ? r.items.map((it) => ({ ...it })) : []);
     setEditName(r.name);
     setEditCalories(String(r.calories));
     setEditProtein(String(r.protein));
@@ -578,28 +605,78 @@ function SnapScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBack
     setEditQty('1');
   };
 
-  const pickImage = async (useCamera: boolean) => {
-    const perm = useCamera
-      ? await ImagePicker.requestCameraPermissionsAsync()
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+  // Rescale one detected item's macros when its grams are edited, always from
+  // the AI's original per-item estimate (not the previous edit) so repeated
+  // edits don't compound rounding error. Aggregate totals are recomputed as
+  // the sum of items so they stay the single source of truth for Add to Log.
+  const updateItemGrams = (index: number, gramsStr: string) => {
+    const original = result?.items?.[index];
+    if (!original) return;
+    const newGrams = parseFloat(gramsStr) || 0;
+    const ratio = original.grams > 0 ? newGrams / original.grams : 0;
+
+    setItems((prev) => {
+      const next = prev.map((it, i) => i === index
+        ? {
+            ...it,
+            grams: newGrams,
+            calories: Math.round(original.calories * ratio),
+            protein:  Math.round(original.protein  * ratio),
+            carbs:    Math.round(original.carbs    * ratio),
+            fat:      Math.round(original.fat      * ratio),
+          }
+        : it);
+      setEditCalories(String(next.reduce((s, it) => s + it.calories, 0)));
+      setEditProtein(String(next.reduce((s, it) => s + it.protein, 0)));
+      setEditCarbs(String(next.reduce((s, it) => s + it.carbs, 0)));
+      setEditFat(String(next.reduce((s, it) => s + it.fat, 0)));
+      return next;
+    });
+  };
+
+  const pickFromLibrary = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (perm.status !== 'granted') {
-      Alert.alert(t('common.permissionNeeded'), useCamera ? t('addFood.allowCameraMsg') : t('addFood.allowLibraryMsg'));
+      Alert.alert(t('common.permissionNeeded'), t('addFood.allowLibraryMsg'));
       return;
     }
     // 0.8 keeps enough detail for portion-size estimation; the server rejects
     // uploads past ~5 MB, which a 0.8 JPEG stays well under even uncropped.
-    // Camera: allowsEditing is deliberately OFF — the native crop/edit screen
-    // works from a downsampled preview on some Android devices, so the final
-    // photo comes out visibly blurrier than the live camera preview. The AI
-    // prompt doesn't need a specific aspect ratio, so we just skip that step.
-    const res = useCamera
-      ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.8 })
-      : await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.8, allowsEditing: true, aspect: [4, 3], mediaTypes: ['images'] });
-
+    const res = await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.8, allowsEditing: true, aspect: [4, 3], mediaTypes: ['images'] });
     if (!res.canceled && res.assets[0]) {
       setImageUri(res.assets[0].uri);
       setImageB64(res.assets[0].base64 ?? null);
       setResult(null);
+    }
+  };
+
+  const openCamera = async () => {
+    let perm = permission;
+    if (!perm?.granted) {
+      perm = await requestPermission();
+    }
+    if (!perm?.granted) {
+      Alert.alert(t('common.permissionNeeded'), t('addFood.allowCameraMsg'));
+      return;
+    }
+    setShowCamera(true);
+  };
+
+  const takePhoto = async () => {
+    if (capturing) return;
+    setCapturing(true);
+    try {
+      // quality 0.8 matches the library-picker path; allowsEditing is
+      // intentionally skipped here too — no crop/downsample step to blur it.
+      const photo = await cameraRef.current?.takePictureAsync({ quality: 0.8, base64: true });
+      if (photo) {
+        setImageUri(photo.uri);
+        setImageB64(photo.base64 ?? null);
+        setResult(null);
+      }
+    } finally {
+      setCapturing(false);
+      setShowCamera(false);
     }
   };
 
@@ -641,6 +718,37 @@ function SnapScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBack
     });
   };
 
+  if (showCamera) {
+    return (
+      // Intentional raw #000/#fff, matching the barcode camera viewport.
+      <View style={{ flex: 1, backgroundColor: '#000' }}>
+        <CameraView ref={cameraRef} style={{ flex: 1 }} facing="back" autofocus="on" />
+        {capturing && (
+          <View style={styles.scanOverlay}>
+            <ActivityIndicator size="large" color="#fff" />
+          </View>
+        )}
+        <View style={styles.scanBar}>
+          <TouchableOpacity onPress={() => setShowCamera(false)} accessibilityRole="button" accessibilityLabel={t('addFood.goBack')} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+            <Text style={styles.scanBarBack}>← {t('common.back')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.shutterBtn}
+            onPress={takePhoto}
+            disabled={capturing}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={t('addFood.captureA11y')}
+            accessibilityState={{ disabled: capturing, busy: capturing }}
+          >
+            <View style={styles.shutterBtnInner} />
+          </TouchableOpacity>
+          <View style={{ width: 60 }} />
+        </View>
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'} keyboardDismissMode="interactive">
       <View style={styles.handle} />
@@ -651,11 +759,11 @@ function SnapScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBack
       {/* Pick buttons */}
       {!imageUri && (
         <View style={styles.snapPickRow}>
-          <TouchableOpacity style={styles.snapPickBtn} onPress={() => pickImage(true)} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t('addFood.takePhotoA11y')}>
+          <TouchableOpacity style={styles.snapPickBtn} onPress={openCamera} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t('addFood.takePhotoA11y')}>
             <Icon icon={Camera} size={28} color={colors.accent.primary} strokeWidth={1.5} />
             <Text style={styles.snapPickLabel}>{t('addFood.takePhoto')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.snapPickBtn} onPress={() => pickImage(false)} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t('addFood.fromLibraryA11y')}>
+          <TouchableOpacity style={styles.snapPickBtn} onPress={pickFromLibrary} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t('addFood.fromLibraryA11y')}>
             <Icon icon={ImageIcon} size={28} color={colors.accent.primary} strokeWidth={1.5} />
             <Text style={styles.snapPickLabel}>{t('addFood.fromLibrary')}</Text>
           </TouchableOpacity>
@@ -699,18 +807,25 @@ function SnapScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBack
             <Text style={styles.confidenceHint}>{t('addFood.confidenceLowHint')}</Text>
           )}
 
-          {(result.items?.length ?? 0) > 0 && (
+          {items.length > 0 && (
             <View style={styles.itemsCard}>
               <Text style={styles.itemsHeader}>{t('addFood.itemsDetected')}</Text>
-              {result.items!.map((it, i) => (
-                <View
-                  key={`${it.name}_${i}`}
-                  style={[styles.itemRow, i > 0 && styles.itemRowBorder]}
-                  accessible
-                  accessibilityLabel={t('addFood.itemA11y', { name: it.name, grams: it.grams, kcal: it.calories })}
-                >
+              {items.map((it, i) => (
+                <View key={`${it.name}_${i}`} style={[styles.itemRow, i > 0 && styles.itemRowBorder]}>
                   <Text style={styles.itemName} numberOfLines={1}>{it.name}</Text>
-                  <Text style={styles.itemMeta}>{t('addFood.itemLine', { grams: it.grams, kcal: it.calories })}</Text>
+                  <View style={styles.itemGramsRow}>
+                    <TextInput
+                      style={styles.itemGramsInput}
+                      value={String(it.grams)}
+                      onChangeText={(v) => updateItemGrams(i, v)}
+                      keyboardType="decimal-pad"
+                      selectTextOnFocus
+                      maxLength={5}
+                      accessibilityLabel={t('addFood.itemGramsA11y', { name: it.name })}
+                    />
+                    <Text style={styles.itemGramsUnit}>g</Text>
+                    <Text style={styles.itemMeta}>{t('addFood.itemKcal', { kcal: it.calories })}</Text>
+                  </View>
                 </View>
               ))}
             </View>
@@ -797,6 +912,9 @@ const styles = StyleSheet.create({
   itemRowBorder: { borderTopWidth: 1, borderTopColor: colors.border.subtle },
   itemName:      { flex: 1, fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.primary },
   itemMeta:      { fontFamily: typography.fonts.mono, fontSize: typography.sizes.xs, color: colors.text.secondary },
+  itemGramsRow:   { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  itemGramsInput: { backgroundColor: colors.bg.tertiary, borderWidth: 1, borderColor: colors.border.default, borderRadius: radius.sm, paddingHorizontal: 6, paddingVertical: 3, color: colors.text.primary, fontFamily: typography.fonts.mono, fontSize: typography.sizes.xs, textAlign: 'center', minWidth: 40 },
+  itemGramsUnit:  { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginRight: 4 },
   notesText:     { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginBottom: spacing.sm, fontStyle: 'italic' },
 
   searchRow:     { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
@@ -826,6 +944,8 @@ const styles = StyleSheet.create({
   scanBar:      { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', paddingVertical: spacing.xl, paddingHorizontal: spacing.xl, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   scanBarBack:  { color: '#fff', fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.base },
   scanBarHint:  { color: 'rgba(255,255,255,0.65)', fontFamily: typography.fonts.body, fontSize: typography.sizes.sm },
+  shutterBtn:      { width: 60, height: 60, borderRadius: 30, borderWidth: 3, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  shutterBtnInner: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#fff' },
 
   snapPickRow:    { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.xl },
   snapPickBtn:    { flex: 1, backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, paddingVertical: spacing.xl, alignItems: 'center', gap: spacing.sm },

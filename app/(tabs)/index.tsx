@@ -30,6 +30,7 @@ import { useT } from '../../constants/i18n';
 import {
   Icon, Droplets, Flame, MoonStar, Zap, Target, Dumbbell, Salad, Moon,
   MessageCircle, ChevronRight, Apple, ClipboardCheck, TrendingUp, Footprints,
+  Activity, MapPin, Watch,
 } from '../../components/ui/Icon';
 
 // Same thresholds useZenovaScore applies to the daily hero score.
@@ -60,8 +61,11 @@ export default function HomeScreen() {
   const recoveryEntries  = useRecoveryStore((s) => s.entries);
   const { refreshing, onRefresh } = usePullToRefresh();
   const [heroTab, setHeroTab] = useState<'today' | 'week'>('today');
-  const healthConnected = useHealthStore((s) => s.connected);
-  const stepsByDate     = useHealthStore((s) => s.stepsByDate);
+  const healthConnected   = useHealthStore((s) => s.connected);
+  const stepsByDate       = useHealthStore((s) => s.stepsByDate);
+  const caloriesByDate    = useHealthStore((s) => s.caloriesByDate);
+  const distanceByDate    = useHealthStore((s) => s.distanceByDate);
+  const exerciseMinByDate = useHealthStore((s) => s.exerciseMinByDate);
 
   // Refresh health-app data whenever Home mounts (no-op unless connected).
   useEffect(() => { syncHealth(); }, []);
@@ -160,11 +164,12 @@ export default function HomeScreen() {
       recoveryEntries,
       targets: { calories: targets.calories, sleepHours: targets.sleepHours },
       restDaySelected: selectedType === 'rest',
+      healthActivity: { stepsByDate, exerciseMinByDate },
     };
     return Array.from({ length: 7 }, (_, i) =>
       computeDayScore(daysAgoStr(6 - i), inputs).score
     );
-  }, [entries, recoveryEntries, workoutHistory, targets, selectedType]);
+  }, [entries, recoveryEntries, workoutHistory, targets, selectedType, stepsByDate, exerciseMinByDate]);
 
   // Labels for the trailing-7-day trend (weekScores), NOT the Mon→Sun weekDates
   // used by the streak meter — the two windows differ mid-week.
@@ -175,13 +180,24 @@ export default function HomeScreen() {
   const weekAvg      = Math.round(weekScores.reduce((s, v) => s + v, 0) / weekScores.length);
   const weekAvgColor = scoreToColor(weekAvg);
 
-  const stepsToday = stepsByDate[todayStr] ?? 0;
-  const STEP_GOAL  = 8000;
+  const stepsToday       = stepsByDate[todayStr] ?? 0;
+  const caloriesBurned    = caloriesByDate[todayStr] ?? 0;
+  const distanceToday     = distanceByDate[todayStr] ?? 0;
+  const exerciseMinToday  = exerciseMinByDate[todayStr] ?? 0;
+  const STEP_GOAL       = 8000;
+  const CALORIES_BURNED_GOAL = 500;
+  const DISTANCE_GOAL_KM     = 5;
+  const EXERCISE_MIN_GOAL    = 30;
 
   const stats = [
-    // Steps tile appears only once Apple Health is connected (no pedometer otherwise).
+    // Health-app tiles appear only once connected (no on-device fallback for any of these).
     ...(healthConnected
-      ? [{ icon: Footprints, value: stepsToday.toLocaleString(), label: t('home.steps'), color: colors.accent.primary, pct: Math.min(stepsToday / STEP_GOAL, 1) }]
+      ? [
+          { icon: Footprints, value: stepsToday.toLocaleString(), label: t('home.steps'), color: colors.accent.primary, pct: Math.min(stepsToday / STEP_GOAL, 1) },
+          { icon: Activity,   value: caloriesBurned > 0 ? `${caloriesBurned}` : '0', label: t('home.caloriesBurned'), color: colors.status.danger, pct: Math.min(caloriesBurned / CALORIES_BURNED_GOAL, 1) },
+          { icon: MapPin,     value: distanceToday > 0 ? `${distanceToday}km` : '0km', label: t('home.distance'), color: colors.violet.primary, pct: Math.min(distanceToday / DISTANCE_GOAL_KM, 1) },
+          { icon: Watch,      value: exerciseMinToday > 0 ? `${exerciseMinToday}m` : '0m', label: t('home.exerciseMin'), color: colors.status.success, pct: Math.min(exerciseMinToday / EXERCISE_MIN_GOAL, 1) },
+        ]
       : []),
     { icon: Droplets,   value: `${waterGlasses}/${targets.waterGlasses}`,    label: t('home.water'),    color: colors.status.info,    pct: waterPct },
     { icon: Flame,      value: todayCalories > 0 ? `${todayCalories}` : '0', label: t('home.calories'), color: colors.status.warning, pct: calPct },
@@ -254,6 +270,24 @@ export default function HomeScreen() {
                   <Text style={[styles.pillScore, { color: p.color }]}>{p.value}/25</Text>
                 </View>
               ))}
+            </View>
+
+            <View style={styles.heroStreakRow}>
+              <View style={styles.heroStreakLeft}>
+                <Icon icon={Flame} size={18} color={colors.status.warning} strokeWidth={2} />
+                <Text style={styles.heroStreakNum}>{streak}</Text>
+                <Text style={styles.heroStreakLabel}>{t('home.dayStreak')}</Text>
+              </View>
+              <SegmentMeter
+                count={7}
+                filled={(i) => activeDates.has(weekDates[i])}
+                color={colors.accent.primary}
+                height={8}
+                outlineIndex={weekDates.indexOf(todayStr)}
+                labels={['M', 'T', 'W', 'T', 'F', 'S', 'S']}
+                highlightLabelIndex={weekDates.indexOf(todayStr)}
+                style={styles.heroStreakDots}
+              />
             </View>
           </>
         ) : (
@@ -455,27 +489,6 @@ export default function HomeScreen() {
       {/* ── AI Coach Banner ── */}
       <AICoachBanner subtitle={t('home.aiCoachSubtitle')} />
 
-      {/* ── Streak ── */}
-      <Card style={styles.streakCard}>
-        <View style={styles.streakLeft}>
-          <Icon icon={Flame} size={30} color={colors.status.warning} strokeWidth={2} />
-          <View>
-            <Text style={styles.streakNum}>{streak}</Text>
-            <Text style={styles.streakLabel}>{t('home.dayStreak')}</Text>
-          </View>
-        </View>
-        <SegmentMeter
-          count={7}
-          filled={(i) => activeDates.has(weekDates[i])}
-          color={colors.accent.primary}
-          height={10}
-          outlineIndex={weekDates.indexOf(todayStr)}
-          labels={['M', 'T', 'W', 'T', 'F', 'S', 'S']}
-          highlightLabelIndex={weekDates.indexOf(todayStr)}
-          style={styles.streakDots}
-        />
-      </Card>
-
       <View style={{ height: 110 }} />
     </ScrollView>
   );
@@ -548,11 +561,11 @@ const styles = StyleSheet.create({
   welcomeStepNumText:  { fontFamily: typography.fonts.display, fontSize: typography.sizes.xs, color: colors.text.inverse },
   welcomeStepText:     { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary },
 
-  streakCard:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  streakLeft:  { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  streakNum:   { fontFamily: typography.fonts.mono, fontSize: typography.sizes['2xl'], color: colors.accent.primary },
-  streakLabel: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary },
-  streakDots:  { flex: 1, maxWidth: 200, marginLeft: spacing.base },
+  heroStreakRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', alignSelf: 'stretch', marginTop: spacing.base, paddingTop: spacing.base, borderTopWidth: 1, borderTopColor: colors.border.subtle },
+  heroStreakLeft:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  heroStreakNum:   { fontFamily: typography.fonts.mono, fontSize: typography.sizes.base, color: colors.accent.primary },
+  heroStreakLabel: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.secondary },
+  heroStreakDots:  { flex: 1, maxWidth: 160, marginLeft: spacing.base },
 
   // Lives inside the hero card's week tab — flat elevated row, no own border.
   trendLocked:      { alignSelf: 'stretch', backgroundColor: colors.bg.elevated, borderRadius: radius.lg, padding: spacing.base, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

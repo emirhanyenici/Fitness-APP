@@ -8,6 +8,7 @@ import { useNutritionStore } from '../../stores/nutritionStore';
 import { useRecoveryStore } from '../../stores/recoveryStore';
 import { useWorkoutStore } from '../../stores/workoutStore';
 import { useWeightLogStore } from '../../stores/weightLogStore';
+import { useHealthStore } from '../../stores/healthStore';
 import { useUserStore } from '../../stores/userStore';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { computeTargets } from '../../services/recommendations';
@@ -42,6 +43,11 @@ export default function WeeklyReportModal() {
   const workoutHistory  = useWorkoutStore((s) => s.history);
   const selectedType    = useWorkoutStore((s) => s.selectedType);
   const weightEntries   = useWeightLogStore((s) => s.entries);
+  const healthConnected    = useHealthStore((s) => s.connected);
+  const stepsByDate        = useHealthStore((s) => s.stepsByDate);
+  const caloriesByDate     = useHealthStore((s) => s.caloriesByDate);
+  const distanceByDate     = useHealthStore((s) => s.distanceByDate);
+  const exerciseMinByDate  = useHealthStore((s) => s.exerciseMinByDate);
   const targets         = useMemo(() => computeTargets(profile), [profile]);
 
   const [data,      setData]      = useState<WeeklyReportData | null>(null);
@@ -64,7 +70,9 @@ export default function WeeklyReportModal() {
     weightEntries,
     targets: { calories: targets.calories, sleepHours: targets.sleepHours },
     restDaySelected: selectedType === 'rest',
-  }), [entries, workoutHistory, recoveryEntries, weightEntries, targets, selectedType]);
+    health: healthConnected ? { stepsByDate, caloriesByDate, distanceByDate, exerciseMinByDate } : undefined,
+  }), [entries, workoutHistory, recoveryEntries, weightEntries, targets, selectedType,
+       healthConnected, stepsByDate, caloriesByDate, distanceByDate, exerciseMinByDate]);
 
   const generateReport = async () => {
     setLoading(true);
@@ -304,6 +312,26 @@ Write a short motivating coach's summary (5-8 sentences) of their week: call out
                   <Text style={styles.breakdownMeta}>×{w.count} · {t('weeklyReport.minutes', { count: w.minutes })}</Text>
                 </View>
               ))}
+            </View>
+          )}
+
+          {/* Health app activity (steps, calories burned, distance, exercise) */}
+          {data.stats.activityAvgs && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>{t('weeklyReport.activitySection')}</Text>
+              <View style={styles.macroRow}>
+                {[
+                  { label: t('weeklyReport.avgSteps'),    value: data.stats.activityAvgs.steps.toLocaleString() },
+                  { label: t('weeklyReport.avgBurned'),   value: `${data.stats.activityAvgs.caloriesBurned}` },
+                  { label: t('weeklyReport.avgDistance'), value: `${data.stats.activityAvgs.distanceKm}km` },
+                  { label: t('weeklyReport.avgExerciseMin'), value: `${data.stats.activityAvgs.exerciseMin}m` },
+                ].map((m) => (
+                  <View key={m.label} style={styles.macroChip}>
+                    <Text style={styles.macroVal}>{m.value}</Text>
+                    <Text style={styles.macroLabel}>{m.label}</Text>
+                  </View>
+                ))}
+              </View>
             </View>
           )}
 

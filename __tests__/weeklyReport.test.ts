@@ -93,10 +93,26 @@ describe('computeWeekData', () => {
     expect(stats.daysLogged).toBe(0);
     expect(stats.avgScore).toBe(0);
     expect(stats.weightDelta).toBeNull();
+    expect(stats.activityAvgs).toBeNull();
     expect(daily).toHaveLength(7);
     expect(daily.every((d) => !d.hasData && d.score === 0)).toBe(true);
     expect(period.start).toBe(daysAgoStr(6));
     expect(period.end).toBe(daysAgoStr(0));
+  });
+
+  it('averages health-app data only over the days it actually synced', () => {
+    const today = daysAgoStr(0);
+    const yesterday = daysAgoStr(1);
+    const { stats } = computeWeekData({
+      ...emptyInputs,
+      health: {
+        stepsByDate:       { [today]: 8000, [yesterday]: 6000 },
+        caloriesByDate:    { [today]: 500,  [yesterday]: 300 },
+        distanceByDate:    { [today]: 5,    [yesterday]: 3 },
+        exerciseMinByDate: { [today]: 40,   [yesterday]: 20 },
+      },
+    });
+    expect(stats.activityAvgs).toEqual({ steps: 7000, caloriesBurned: 400, distanceKm: 4, exerciseMin: 30 });
   });
 
   it('aggregates a synthetic week correctly', () => {

@@ -126,6 +126,14 @@ export function buildReportHtml(data: WeeklyReportData, t: TFunction): string {
   const totalMinutes = s.workoutBreakdown.reduce((sum, w) => sum + w.minutes, 0);
   const totalBurned  = s.workoutBreakdown.reduce((sum, w) => sum + w.calories, 0);
 
+  const activityCell = s.activityAvgs
+    ? statCell(
+        t('weeklyReport.activitySection'),
+        `${s.activityAvgs.steps.toLocaleString()} steps`,
+        `${s.activityAvgs.caloriesBurned} kcal &middot; ${s.activityAvgs.distanceKm}km &middot; ${s.activityAvgs.exerciseMin}min`,
+      )
+    : '';
+
   const weightCell = s.weightDelta !== null
     ? statCell(
         t('weeklyReport.weightChange'),
@@ -206,7 +214,16 @@ export function buildReportHtml(data: WeeklyReportData, t: TFunction): string {
           `${s.totalWorkouts} · ${totalMinutes} min · ${totalBurned} kcal`,
           workoutsSub,
         )}
-      </tr>${weightCell ? `<tr>${weightCell}<td style="width:50%;"></td></tr>` : ''}</table>
+      </tr>${(() => {
+        // Extra stat cells (activity, weight) are optional — pair them up two
+        // per row, padding a lone trailing cell with an empty spacer.
+        const extra = [activityCell, weightCell].filter(Boolean);
+        const rows: string[] = [];
+        for (let i = 0; i < extra.length; i += 2) {
+          rows.push(`<tr>${extra[i]}${extra[i + 1] ?? '<td style="width:50%;"></td>'}</tr>`);
+        }
+        return rows.join('');
+      })()}</table>
 
       ${coachNotes}
 
