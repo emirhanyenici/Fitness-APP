@@ -113,6 +113,28 @@ describe('computeDayScore', () => {
     }));
     expect(s.moveScore).toBe(0);
   });
+
+  it('falls back to Health-app synced sleep when no manual check-in exists', () => {
+    const s = computeDayScore(D, base({
+      healthSleep: { sleepByDate: { [D]: 6 } },
+    }));
+    expect(s.sleepScore).toBe(19); // 6/8 * 25 = 18.75 → 19
+  });
+
+  it('a manual sleepHours check-in wins over synced Health-app sleep', () => {
+    const s = computeDayScore(D, base({
+      recoveryEntries: [{ date: D, mood: 3, sleepHours: 8 }],
+      healthSleep: { sleepByDate: { [D]: 4 } },
+    }));
+    expect(s.sleepScore).toBe(25);
+  });
+
+  it('ignores Health-app sleep from other days', () => {
+    const s = computeDayScore(D, base({
+      healthSleep: { sleepByDate: { [OTHER]: 8 } },
+    }));
+    expect(s.sleepScore).toBe(0);
+  });
 });
 
 describe('pillar labelKeys resolve', () => {

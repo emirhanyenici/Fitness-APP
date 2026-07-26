@@ -52,6 +52,14 @@ export interface DayScoreInputs {
     stepsByDate?: Record<string, number>;
     exerciseMinByDate?: Record<string, number>;
   };
+  /**
+   * Apple Health / Health Connect synced sleep hours. Falls back to this when
+   * the day has no manual recovery check-in sleepHours — a manual entry is a
+   * deliberate user input and always wins over the passive Health-app import.
+   */
+  healthSleep?: {
+    sleepByDate?: Record<string, number>;
+  };
 }
 
 export interface DayScore {
@@ -90,8 +98,9 @@ export function computeDayScore(date: string, inp: DayScoreInputs): DayScore {
   const rec = inp.recoveryEntries.find((e) => e.date === date);
   const moodScore = rec ? Math.round(rec.mood * 5) : 0;
 
-  const sleepScore = rec?.sleepHours && inp.targets.sleepHours
-    ? Math.min(Math.round((rec.sleepHours / inp.targets.sleepHours) * 25), 25)
+  const sleepHours = rec?.sleepHours ?? inp.healthSleep?.sleepByDate?.[date];
+  const sleepScore = sleepHours && inp.targets.sleepHours
+    ? Math.min(Math.round((sleepHours / inp.targets.sleepHours) * 25), 25)
     : 0;
 
   return {
@@ -118,6 +127,7 @@ export function useZenovaScore(): ZenovaScore {
   const recoveryEntries = useRecoveryStore((s) => s.entries);
   const stepsByDate       = useHealthStore((s) => s.stepsByDate);
   const exerciseMinByDate = useHealthStore((s) => s.exerciseMinByDate);
+  const sleepByDate       = useHealthStore((s) => s.sleepByDate);
   const profile         = useUserStore((s) => s.profile);
 
   const targets = useMemo(() => computeTargets(profile), [profile]);
@@ -133,7 +143,8 @@ export function useZenovaScore(): ZenovaScore {
     targets: { calories: targets.calories, sleepHours: targets.sleepHours },
     restDaySelected: selectedType === 'rest',
     healthActivity: { stepsByDate, exerciseMinByDate },
-  }), [entries, workoutHistory, recoveryEntries, targets, selectedType, stepsByDate, exerciseMinByDate]);
+    healthSleep: { sleepByDate },
+  }), [entries, workoutHistory, recoveryEntries, targets, selectedType, stepsByDate, exerciseMinByDate, sleepByDate]);
 
   const today = useMemo(
     () => computeDayScore(todayStr, dayInputs),

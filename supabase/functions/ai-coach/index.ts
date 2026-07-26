@@ -29,12 +29,133 @@ const XAI_MODEL     = Deno.env.get('XAI_MODEL') ?? 'grok-4.20-non-reasoning';
 const SUPABASE_URL  = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_ANON = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 
+// Nutrition lookup fallback chain for the food_nutrition_lookup tool — all
+// server-side secrets, never exposed to the client. Edamam is accessed via
+// RapidAPI (same account/key the app already uses for ExerciseDB) rather
+// than Edamam's own app_id/app_key, so auth is a single RapidAPI key + host
+// header pair. RAPIDAPI_EDAMAM_HOST defaults to the conventional RapidAPI
+// proxy hostname for this API — verify against the "Code Snippets" tab on
+// your RapidAPI subscription and override the secret if it differs.
+const RAPIDAPI_KEY = Deno.env.get('RAPIDAPI_KEY') ?? '';
+const RAPIDAPI_EDAMAM_HOST = Deno.env.get('RAPIDAPI_EDAMAM_HOST') ?? 'edamam-edamam-nutrition-analysis.p.rapidapi.com';
+const USDA_API_KEY = Deno.env.get('USDA_API_KEY') ?? '';
+
 const SYSTEM_PROMPT = `You are Zenova AI, a personal health and fitness coach inside the Zenova LifeScore app.
 You help users with personalized workout plans, nutrition advice, recovery optimization, and motivation.
 Keep responses concise (2-4 sentences max unless generating a plan), friendly, and actionable.
 For workout plans, format as a numbered list with sets/reps.
 For nutrition, give specific food suggestions with portion sizes.
+When the user asks about calories or nutrition facts for a specific food or meal, always call
+food_nutrition_lookup instead of guessing — then base your answer on its result.
 Never give medical diagnoses or replace professional medical advice.`;
+
+const FOOD_LOOKUP_TOOL = {
+  type: 'function',
+  function: {
+    name: 'food_nutrition_lookup',
+    description: 'Look up accurate calorie and macro (protein/carbs/fat) data for a specific food or meal. Use this whenever the user asks about calories or nutrition facts, instead of guessing from memory.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'The food or meal to look up, in natural language, optionally with quantity, e.g. "1 chicken quesadilla" or "2 boiled eggs and a slice of toast".',
+        },
+      },
+      required: ['query'],
+    },
+  },
+};
+
+/** Fetch with an abort-based timeout — no shared utils between edge fns, mirrors services/http.ts. */
+async function fetchWithTimeout(input: string, init: RequestInit = {}, ms = 6000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Resolves a natural-language food query to a compact nutrition summary for
+ * the model to base its answer on. Tries Edamam (parses quantity/serving from
+ * the query directly, e.g. "1 chicken quesadilla") first, then USDA FDC, then
+ * Open Food Facts — each a best-effort, independently-caught step so one
+ * provider's outage doesn't block the others. The raw nutrient data is never
+ * stored — only a one-off natural-language summary is produced for the
+ * model's reply, in line with Edamam's no-caching terms.
+ */
+async function lookupNutrition(query: string): Promise<string> {
+  if (RAPIDAPI_KEY) {
+    try {
+      const res = await fetchWithTimeout(
+        `https://${RAPIDAPI_EDAMAM_HOST}/api/nutrition-data?nutrition-type=cooking&ingr=${encodeURIComponent(query)}`,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'X-RapidAPI-Key': RAPIDAPI_KEY,
+            'X-RapidAPI-Host': RAPIDAPI_EDAMAM_HOST,
+          },
+        },
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const n = data?.totalNutrients;
+        if (typeof data?.calories === 'number' && data.calories > 0) {
+          const protein = Math.round(n?.PROCNT?.quantity ?? 0);
+          const carbs   = Math.round(n?.CHOCDF?.quantity ?? 0);
+          const fat     = Math.round(n?.FAT?.quantity ?? 0);
+          return `${query}: ${Math.round(data.calories)} kcal, ${protein}g protein, ${carbs}g carbs, ${fat}g fat` +
+            (data.totalWeight ? ` (~${Math.round(data.totalWeight)}g total)` : '');
+        }
+      }
+    } catch (err) {
+      console.error('edamam (rapidapi) lookup failed:', err);
+    }
+  }
+
+  if (USDA_API_KEY) {
+    try {
+      const res = await fetchWithTimeout(
+        `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&api_key=${USDA_API_KEY}&dataType=SR%20Legacy,Branded&pageSize=1`,
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const food = data?.foods?.[0];
+        if (food) {
+          const getNutrient = (id: number) =>
+            Math.round(food.foodNutrients?.find((n: Record<string, unknown>) => n.nutrientId === id)?.value ?? 0);
+          return `${food.description}: ${getNutrient(1008)} kcal, ${getNutrient(1003)}g protein, ` +
+            `${getNutrient(1005)}g carbs, ${getNutrient(1004)}g fat (per USDA reported serving)`;
+        }
+      }
+    } catch (err) {
+      console.error('usda lookup failed:', err);
+    }
+  }
+
+  try {
+    const res = await fetchWithTimeout(
+      `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=1&fields=product_name,nutriments`,
+    );
+    if (res.ok) {
+      const data = await res.json();
+      const product = data?.products?.[0];
+      const n = product?.nutriments;
+      const kcal = n?.['energy-kcal_100g'] ?? n?.['energy-kcal'];
+      if (product?.product_name && kcal != null) {
+        return `${product.product_name} (per 100g): ${Math.round(kcal)} kcal, ${Math.round(n?.proteins_100g ?? 0)}g protein, ` +
+          `${Math.round(n?.carbohydrates_100g ?? 0)}g carbs, ${Math.round(n?.fat_100g ?? 0)}g fat`;
+      }
+    }
+  } catch (err) {
+    console.error('open food facts lookup failed:', err);
+  }
+
+  return 'No nutrition data found for this query.';
+}
 
 /** Forward only whitelisted, non-PII profile fields to the AI context. */
 function sanitizeProfile(raw: unknown): string {
@@ -162,6 +283,11 @@ Deno.serve(async (req) => {
       ? [{ role: 'user', content: 'Generate a complete weekly workout plan for me based on my profile. Format it day by day.' }]
       : messages!;
 
+    const baseMessages = [
+      { role: 'system', content: SYSTEM_PROMPT + contextNote },
+      ...finalMessages,
+    ];
+
     const response = await fetch('https://api.x.ai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -171,10 +297,9 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model: XAI_MODEL,
         max_tokens: mode === 'generate_plan' ? 1024 : 512,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT + contextNote },
-          ...finalMessages,
-        ],
+        messages: baseMessages,
+        tools: [FOOD_LOOKUP_TOOL],
+        tool_choice: 'auto',
       }),
     });
 
@@ -185,6 +310,53 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ error: 'AI service unavailable. Please try again.' }),
         { status: 500, headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const toolCalls = data.choices?.[0]?.message?.tool_calls;
+    if (Array.isArray(toolCalls) && toolCalls.length > 0) {
+      const toolCall = toolCalls[0];
+      let query = '';
+      try {
+        query = JSON.parse(toolCall.function?.arguments ?? '{}').query ?? '';
+      } catch (err) {
+        console.error('tool call argument parse failed:', err);
+      }
+
+      const nutritionResult = query ? await lookupNutrition(query) : 'No nutrition data found for this query.';
+
+      // Single round-trip: no `tools` this time, so the model must answer
+      // in plain text from the tool result rather than calling again.
+      const followUp = await fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${XAI_KEY}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: XAI_MODEL,
+          max_tokens: mode === 'generate_plan' ? 1024 : 512,
+          messages: [
+            ...baseMessages,
+            data.choices[0].message,
+            { role: 'tool', tool_call_id: toolCall.id, content: nutritionResult },
+          ],
+        }),
+      });
+
+      const followUpData = await followUp.json();
+      if (!followUp.ok) {
+        console.error('xAI follow-up API error:', followUpData?.error);
+        return new Response(
+          JSON.stringify({ error: 'AI service unavailable. Please try again.' }),
+          { status: 500, headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const followUpContent = followUpData.choices?.[0]?.message?.content ?? '';
+      return new Response(
+        JSON.stringify({ content: followUpContent }),
+        { headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' } }
       );
     }
 
