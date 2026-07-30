@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, Platform, TextInput, Image, Switch, Linking } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -10,17 +10,19 @@ import { useUserStore } from '../../stores/userStore';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { useWeightLogStore } from '../../stores/weightLogStore';
 import { useHealthStore } from '../../stores/healthStore';
+import { useThemeStore } from '../../stores/themeStore';
 import { connectHealth, disconnectHealth } from '../../services/health';
 import { useZenovaScore, formatDeltaLabel } from '../../hooks/useZenovaScore';
-import { colors, withAlpha, bmiColor } from '../../constants/colors';
+import { type Colors, withAlpha, bmiColor } from '../../constants/colors';
+import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
-import { elevation } from '../../constants/elevation';
+import { getElevation } from '../../constants/elevation';
 import { MEDICAL_DISCLAIMER } from '../../constants/legal';
 import { isValidHeightCm, isValidWeightKg } from '../../services/recommendations';
 import {
   Icon, Bell, ChartColumn, Heart, CreditCard, Stethoscope, Lock, FileText,
-  Ruler, ChevronRight, CircleUserRound, Pencil, Settings, Trash2,
+  Ruler, ChevronRight, CircleUserRound, Pencil, Settings, Trash2, Moon, Sun,
 } from '../../components/ui/Icon';
 import { supabase } from '../../services/supabase';
 import { logError } from '../../services/monitoring';
@@ -42,6 +44,8 @@ function cmToFtIn(cm: number) {
 }
 
 export default function ProfileScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const { signOut, user } = useAuthStore();
   const profile        = useUserStore((s) => s.profile);
@@ -49,6 +53,8 @@ export default function ProfileScreen() {
   const addWeightEntry = useWeightLogStore((s) => s.addEntry);
   const { plan, isPro, setPlan } = useSubscriptionStore();
   const units = profile?.units ?? 'metric';
+  const isDark = useThemeStore((s) => s.mode === 'dark');
+  const setThemeMode = useThemeStore((s) => s.setMode);
   const t = useT();
   const [deleting, setDeleting] = useState(false);
   const healthConnected = useHealthStore((s) => s.connected);
@@ -436,6 +442,23 @@ export default function ProfileScreen() {
               </View>
             </View>
 
+            {/* Dark mode toggle row */}
+            <View style={styles.settingRow}>
+              <View style={styles.settingLeft}>
+                <Icon icon={isDark ? Moon : Sun} size="md" color={colors.text.secondary} />
+                <Text style={styles.settingLabel}>{t('profile.darkMode')}</Text>
+              </View>
+              <View style={styles.settingRight}>
+                <Text style={styles.settingSub}>{isDark ? t('profile.darkModeOn') : t('profile.darkModeOff')}</Text>
+                <Switch
+                  value={isDark}
+                  onValueChange={(val) => setThemeMode(val ? 'dark' : 'light')}
+                  trackColor={{ false: colors.border.subtle, true: withAlpha(colors.accent.primary, 0.5) }}
+                  thumbColor={isDark ? colors.accent.primary : colors.text.tertiary}
+                />
+              </View>
+            </View>
+
             {SETTINGS.map((item, i) => (
               <TouchableOpacity
                 key={item.label}
@@ -514,7 +537,9 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: Colors) => {
+  const elevation = getElevation(colors);
+  return StyleSheet.create({
   screen:  { flex: 1, backgroundColor: colors.bg.primary },
   content: { padding: spacing.base },
 
@@ -575,4 +600,5 @@ const styles = StyleSheet.create({
   version:       { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textAlign: 'center', marginTop: spacing.sm },
   devToggle:     { backgroundColor: colors.bg.elevated, borderRadius: radius.full, paddingVertical: 8, paddingHorizontal: spacing.xl, alignSelf: 'center', marginTop: spacing.sm, borderWidth: 1, borderColor: colors.border.default },
   devToggleText: { fontFamily: typography.fonts.mono, fontSize: typography.sizes.xs, color: colors.text.secondary },
-});
+  });
+};

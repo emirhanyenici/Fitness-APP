@@ -3,7 +3,7 @@ import { View, ActivityIndicator } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useAuthStore } from '../stores/authStore';
 import { useUserStore } from '../stores/userStore';
-import { colors } from '../constants/colors';
+import { useColors } from '../constants/useColors';
 
 /**
  * Give slow/broken secure storage a hard ceiling: if the session or persist
@@ -26,6 +26,7 @@ function useUserStoreHydrated(): boolean {
 }
 
 export default function RootIndex() {
+  const colors = useColors();
   const session         = useAuthStore((s) => s.session);
   const sessionResolved = useAuthStore((s) => s.sessionResolved);
   const isOnboarded     = useUserStore((s) => s.isOnboarded);

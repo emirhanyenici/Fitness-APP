@@ -1,5 +1,7 @@
+import { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, type StyleProp, type ViewStyle, type AccessibilityRole } from 'react-native';
-import { colors } from '../../constants/colors';
+import { type Colors } from '../../constants/colors';
+import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
 import { spacing } from '../../constants/spacing';
 
@@ -36,6 +38,8 @@ export function SegmentMeter({
   count, filled, color, height = 12, outlineIndex, labels,
   highlightLabelIndex, onPressSegment, segmentA11y, style,
 }: SegmentMeterProps) {
+  const colors = useColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const isFilled = typeof filled === 'function' ? filled : (i: number) => i < filled;
 
   return (
@@ -86,7 +90,7 @@ export function SegmentMeter({
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: Colors) => StyleSheet.create({
   row:   { flexDirection: 'row', gap: spacing.sm },
   col:   { flex: 1, alignItems: 'stretch', gap: 4 },
   pill:  { borderWidth: 1.5 },

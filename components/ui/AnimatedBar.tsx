@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
-import { colors } from '../../constants/colors';
+import { useColors } from '../../constants/useColors';
 
 /**
  * Horizontal progress bar whose fill animates to `pct` (finding T3 — progress
@@ -19,8 +19,10 @@ interface AnimatedBarProps {
 }
 
 export function AnimatedBar({
-  pct, color, height = 4, trackColor = colors.bg.elevated, style,
+  pct, color, height = 4, trackColor, style,
 }: AnimatedBarProps) {
+  const colors = useColors();
+  const resolvedTrackColor = trackColor ?? colors.bg.elevated;
   const fill = useSharedValue(0);
   useEffect(() => {
     fill.value = withTiming(Math.min(1, Math.max(0, pct)), {
@@ -35,7 +37,7 @@ export function AnimatedBar({
 
   return (
     <Animated.View
-      style={[styles.track, { height, borderRadius: height / 2, backgroundColor: trackColor }, style]}
+      style={[styles.track, { height, borderRadius: height / 2, backgroundColor: resolvedTrackColor }, style]}
     >
       <Animated.View
         style={[styles.fill, { borderRadius: height / 2, backgroundColor: color }, fillStyle]}

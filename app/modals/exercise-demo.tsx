@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, Image, ScrollView, StyleSheet,
   TouchableOpacity, ActivityIndicator, Linking,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { fetchExerciseDemo, demoImageSource, ExerciseDemo } from '../../services/exercisedb';
-import { colors, withAlpha } from '../../constants/colors';
+import { withAlpha, type Colors } from '../../constants/colors';
+import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { useT } from '../../constants/i18n';
@@ -14,6 +15,8 @@ import { Icon, Dumbbell, X, Target, MapPin, Wrench } from '../../components/ui/I
 export default function ExerciseDemoModal() {
   const { name, muscle } = useLocalSearchParams<{ name: string; muscle?: string }>();
   const t = useT();
+  const colors = useColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   const [demo,    setDemo]    = useState<ExerciseDemo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -140,7 +143,7 @@ export default function ExerciseDemoModal() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: Colors) => StyleSheet.create({
   screen:  { flex: 1, backgroundColor: colors.bg.primary },
 
   header:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.base, paddingTop: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.border.subtle, backgroundColor: colors.bg.secondary },

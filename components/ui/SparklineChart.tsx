@@ -1,7 +1,9 @@
+import { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Polyline, Circle, Line } from 'react-native-svg';
 import { typography } from '../../constants/typography';
-import { colors } from '../../constants/colors';
+import { type Colors } from '../../constants/colors';
+import { useColors } from '../../constants/useColors';
 
 interface Props {
   data: number[];        // 7 values 0–100
@@ -20,6 +22,8 @@ export function SparklineChart({
   height = 72,
   highlightLast = true,
 }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   if (!data || data.length < 2) return null;
 
   const padH = 10;
@@ -84,7 +88,7 @@ export function SparklineChart({
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: Colors) => StyleSheet.create({
   labels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
   label:  { fontFamily: typography.fonts.body, fontSize: 10, color: colors.text.tertiary },
 });

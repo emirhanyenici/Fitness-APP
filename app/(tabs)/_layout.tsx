@@ -1,11 +1,12 @@
 import { Tabs } from 'expo-router';
 import { View, Text, Platform } from 'react-native';
-import { colors } from '../../constants/colors';
+import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
 import { useT } from '../../constants/i18n';
 import { Icon, IconComponent, Home, Salad, Dumbbell, MoonStar, CircleUserRound } from '../../components/ui/Icon';
 
 function TabIcon({ icon, label, focused }: { icon: IconComponent; label: string; focused: boolean }) {
+  const colors = useColors();
   return (
     <View style={{ alignItems: 'center', justifyContent: 'center', paddingTop: 4, width: 64 }}>
       <Icon
@@ -33,6 +34,7 @@ function TabIcon({ icon, label, focused }: { icon: IconComponent; label: string;
 }
 
 export default function TabsLayout() {
+  const colors = useColors();
   const t = useT();
   return (
     <Tabs

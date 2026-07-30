@@ -16,7 +16,8 @@ import {
   computeWeekData, buildLocalSections, WeeklyReportData,
 } from '../../services/weeklyReport';
 import { exportReportPdf } from '../../services/reportPdf';
-import { colors, withAlpha } from '../../constants/colors';
+import { withAlpha, type Colors } from '../../constants/colors';
+import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { supabase } from '../../services/supabase';
@@ -27,7 +28,7 @@ import { AnimatedBar } from '../../components/ui/AnimatedBar';
 
 const EDGE_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/ai-coach`;
 
-const scoreColor = (score: number) =>
+const scoreColor = (colors: Colors, score: number) =>
   score >= 70 ? colors.score.excellent :
   score >= 50 ? colors.score.good :
   score >= 30 ? colors.score.fair :
@@ -37,6 +38,8 @@ export default function WeeklyReportModal() {
   const isPro   = useSubscriptionStore((s) => s.isPro);
   const profile = useUserStore((s) => s.profile);
   const t = useT();
+  const colors = useColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   const entries         = useNutritionStore((s) => s.entries);
   const recoveryEntries = useRecoveryStore((s) => s.entries);
@@ -225,7 +228,7 @@ Write a short motivating coach's summary (5-8 sentences) of their week: call out
             <View style={styles.cardHeaderRow}>
               <Text style={styles.cardTitle}>{t('weeklyReport.scoreTrend')}</Text>
               <View style={styles.avgScoreWrap}>
-                <Text style={[styles.avgScoreNum, { color: scoreColor(data.stats.avgScore) }]}>{data.stats.avgScore}</Text>
+                <Text style={[styles.avgScoreNum, { color: scoreColor(colors, data.stats.avgScore) }]}>{data.stats.avgScore}</Text>
                 <Text style={styles.avgScoreLabel}>{t('weeklyReport.avgScore')}</Text>
               </View>
             </View>
@@ -236,7 +239,7 @@ Write a short motivating coach's summary (5-8 sentences) of their week: call out
                     <View style={[
                       styles.trendBar,
                       d.hasData
-                        ? { height: `${Math.max(d.score, 6)}%`, backgroundColor: scoreColor(d.score) }
+                        ? { height: `${Math.max(d.score, 6)}%`, backgroundColor: scoreColor(colors, d.score) }
                         : { height: 4, backgroundColor: colors.border.subtle },
                     ]} />
                   </View>
@@ -423,7 +426,7 @@ Write a short motivating coach's summary (5-8 sentences) of their week: call out
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: Colors) => StyleSheet.create({
   screen:  { flex: 1, backgroundColor: colors.bg.primary },
   content: { padding: spacing.base, paddingTop: spacing.xl },
 

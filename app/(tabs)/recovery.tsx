@@ -12,10 +12,11 @@ import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { computeTargets } from '../../services/recommendations';
 import { computeFatigueScore } from '../../services/progressUtils';
 import { daysAgoStr } from '../../services/dateUtils';
-import { colors, withAlpha } from '../../constants/colors';
+import { type Colors, withAlpha } from '../../constants/colors';
+import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
-import { elevation } from '../../constants/elevation';
+import { getElevation } from '../../constants/elevation';
 import { AICoachBanner } from '../../components/ui/AICoachBanner';
 import { Button } from '../../components/ui/Button';
 import { AnimatedBar } from '../../components/ui/AnimatedBar';
@@ -30,13 +31,16 @@ import {
 
 type RatingKey = 'mood' | 'energy' | 'stress';
 
-const METRICS: { key: RatingKey; labelKey: string; low: IconComponent; high: IconComponent; color: string }[] = [
+const getMetrics = (colors: Colors): { key: RatingKey; labelKey: string; low: IconComponent; high: IconComponent; color: string }[] => [
   { key: 'mood',   labelKey: 'recovery.mood',   low: Frown,   high: Smile, color: colors.status.warning },
   { key: 'energy', labelKey: 'recovery.energy', low: Battery, high: Zap,   color: colors.accent.primary },
   { key: 'stress', labelKey: 'recovery.stress', low: Leaf,    high: Angry, color: colors.status.danger },
 ];
 
 export default function RecoveryScreen() {
+  const colors          = useColors();
+  const styles          = useMemo(() => getStyles(colors), [colors]);
+  const METRICS         = useMemo(() => getMetrics(colors), [colors]);
   const insets          = useSafeAreaInsets();
   const saveEntry       = useRecoveryStore((s) => s.saveEntry);
   const recoveryEntries = useRecoveryStore((s) => s.entries);
@@ -332,7 +336,9 @@ export default function RecoveryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: Colors) => {
+  const elevation = getElevation(colors);
+  return StyleSheet.create({
   screen:  { flex: 1, backgroundColor: colors.bg.primary },
   content: { padding: spacing.base },
 
@@ -393,4 +399,5 @@ const styles = StyleSheet.create({
   recoveryScore: { flexDirection: 'row', alignItems: 'baseline', gap: 2 },
   recoveryNum:   { fontFamily: typography.fonts.mono, fontSize: typography.sizes['2xl'] },
   recoveryMax:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.tertiary },
-});
+  });
+};

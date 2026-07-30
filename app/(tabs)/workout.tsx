@@ -14,10 +14,11 @@ import { WorkoutExercise } from '../../services/exercisedb';
 import { computeTargets, GOAL_LABELS } from '../../services/recommendations';
 import { getTodayPlan, recommendProgram, PROGRAMS, ProgramType } from '../../services/workoutPrograms';
 import { todayStr, daysAgoStr } from '../../services/dateUtils';
-import { colors, withAlpha } from '../../constants/colors';
+import { type Colors, withAlpha } from '../../constants/colors';
+import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
-import { elevation } from '../../constants/elevation';
+import { getElevation } from '../../constants/elevation';
 import { useAnalytics } from '../../services/analytics';
 import { AICoachBanner } from '../../components/ui/AICoachBanner';
 import { Button } from '../../components/ui/Button';
@@ -70,6 +71,8 @@ function groupByDate(history: CompletedWorkout[]): CompletedWorkout[] {
 }
 
 export default function WorkoutScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const isPro = useSubscriptionStore((s) => s.isPro);
   const profile = useUserStore((s) => s.profile);
@@ -579,7 +582,9 @@ export default function WorkoutScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: Colors) => {
+  const elevation = getElevation(colors);
+  return StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg.primary },
   content: { padding: spacing.base },
   stickyFooter: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: colors.bg.primary, paddingHorizontal: spacing.base, paddingTop: spacing.sm, paddingBottom: 26, borderTopWidth: 1, borderTopColor: colors.border.subtle },
@@ -681,4 +686,5 @@ const styles = StyleSheet.create({
   aiSuggestCard:   { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.19), borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base, ...elevation.card },
   aiSuggestHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
   aiSuggestText:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.primary, lineHeight: 20 },
-});
+  });
+};

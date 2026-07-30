@@ -6,7 +6,7 @@ import { useHealthStore } from '../stores/healthStore';
 import { useUserStore } from '../stores/userStore';
 import { computeTargets } from '../services/recommendations';
 import { daysAgoStr } from '../services/dateUtils';
-import { colors } from '../constants/colors';
+import { useColors } from '../constants/useColors';
 
 export interface ZenovaScore {
   /** Normalized 0-100 score: sum of the 4 pillars (Sleep/Food/Move/Mood, 0-25 each) */
@@ -121,6 +121,7 @@ export function formatDeltaLabel(delta: number, sameLabel: string): string {
 }
 
 export function useZenovaScore(): ZenovaScore {
+  const colors = useColors();
   const entries         = useNutritionStore((s) => s.entries);
   const selectedType    = useWorkoutStore((s) => s.selectedType);
   const workoutHistory  = useWorkoutStore((s) => s.history);

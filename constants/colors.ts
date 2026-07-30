@@ -8,7 +8,7 @@ export function withAlpha(hex: string, alpha: number): string {
   return hex + a.toString(16).padStart(2, '0').toUpperCase();
 }
 
-export const colors = {
+export const lightColors = {
   bg: {
     primary:   '#F2F6F3',   // Soft sage-tinted off-white — calm & natural
     secondary: '#FFFFFF',   // Pure white cards
@@ -56,17 +56,71 @@ export const colors = {
   },
 };
 
+export const darkColors = {
+  bg: {
+    primary:   '#0F1712',   // Near-black, faint sage/forest tint
+    secondary: '#182119',   // Card surface, one step up
+    tertiary:  '#1E2A20',   // Sheet / modal background
+    elevated:  '#22301F',   // Inputs, tooltips (add shadow)
+  },
+  accent: {
+    primary:   '#10B981',   // Emerald, nudged brighter for dark-bg legibility
+    soft:      '#34D399',
+    glow:      'rgba(16, 185, 129, 0.20)',
+    dim:       'rgba(16, 185, 129, 0.12)',
+  },
+  violet: {
+    primary:   '#8B5CF6',   // Promote old "soft" to primary — reads better on dark
+    soft:      '#A78BFA',
+    glow:      'rgba(139, 92, 246, 0.16)',
+  },
+  status: {
+    success:   '#22C55E',
+    warning:   '#F59E0B',
+    danger:    '#EF4444',
+    info:      '#2DD4BF',
+  },
+  score: {
+    excellent: '#10B981',
+    good:      '#2DD4BF',
+    fair:      '#F59E0B',
+    poor:      '#EF4444',
+  },
+  text: {
+    primary:   '#F2F6F3',   // Near-white, sage-tinted — mirrors light bg.primary
+    secondary: '#B9C7BC',
+    tertiary:  '#75887B',
+    inverse:   '#14261C',   // For text placed on light/accent chips within dark mode
+  },
+  border: {
+    subtle:    'rgba(242, 246, 243, 0.08)',
+    default:   'rgba(242, 246, 243, 0.12)',
+    strong:    'rgba(242, 246, 243, 0.22)',
+  },
+  shadow: {
+    card:      'rgba(0, 0, 0, 0.40)',
+    medium:    'rgba(0, 0, 0, 0.55)',
+    accent:    'rgba(16, 185, 129, 0.25)',
+  },
+};
+
+export type Colors = typeof lightColors;
+
+/** @deprecated Use useColors() for theme-reactive access. Kept for not-yet-migrated files (resolves to light palette only). */
+export const colors = lightColors;
+
 /**
  * The ONE BMI color scale (finding T8 — onboarding and profile each had their
  * own off-token variant). Underweight blue is intentionally off-palette:
- * a clinical category color, not UI chrome.
+ * a clinical category color, not UI chrome. Theme-independent by design —
+ * rendered on their own chips/badges, not raw text-on-bg.
  */
 export const bmiColors = {
   underweight: '#3B82F6',
-  normal:      colors.status.success,
-  overweight:  colors.status.warning,
+  normal:      lightColors.status.success,
+  overweight:  lightColors.status.warning,
   obese1:      '#F97316',   // 30-35 — between warning and danger
-  obese2:      colors.status.danger,
+  obese2:      lightColors.status.danger,
 } as const;
 
 export function bmiColor(bmi: number): string {

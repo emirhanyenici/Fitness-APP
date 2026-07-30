@@ -1,8 +1,10 @@
+import { useMemo } from 'react';
 import { TouchableOpacity, Text, ActivityIndicator, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import { colors } from '../../constants/colors';
+import { type Colors } from '../../constants/colors';
+import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
-import { elevation } from '../../constants/elevation';
+import { getElevation } from '../../constants/elevation';
 import { hapticTap } from '../../services/haptics';
 import { Icon, type IconComponent } from './Icon';
 
@@ -34,6 +36,8 @@ export function Button({
   label, onPress, variant = 'primary', size = 'lg', subLabel, icon,
   disabled = false, loading = false, haptic = 'light', accessibilityLabel, style,
 }: ButtonProps) {
+  const colors = useColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const inactive = disabled || loading;
   const handlePress = () => {
     if (haptic === 'light') hapticTap();
@@ -70,26 +74,29 @@ export function Button({
   );
 }
 
-const styles = StyleSheet.create({
-  base: {
-    borderRadius: radius.full,
-    paddingVertical: spacing.base,
-    paddingHorizontal: spacing.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  md: { paddingVertical: spacing.md },
-  inner:  { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  labels: { alignItems: 'center' },
+const getStyles = (colors: Colors) => {
+  const elevation = getElevation(colors);
+  return StyleSheet.create({
+    base: {
+      borderRadius: radius.full,
+      paddingVertical: spacing.base,
+      paddingHorizontal: spacing.lg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    md: { paddingVertical: spacing.md },
+    inner:  { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    labels: { alignItems: 'center' },
 
-  primary:   { backgroundColor: colors.accent.primary, ...elevation.card, shadowColor: colors.shadow.accent },
-  success:   { backgroundColor: colors.status.success, ...elevation.card },
-  secondary: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.default },
-  ghost:     { backgroundColor: 'transparent' },
-  danger:    { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.status.danger },
-  disabled:  { opacity: 0.45 },
+    primary:   { backgroundColor: colors.accent.primary, ...elevation.card, shadowColor: colors.shadow.accent },
+    success:   { backgroundColor: colors.status.success, ...elevation.card },
+    secondary: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.default },
+    ghost:     { backgroundColor: 'transparent' },
+    danger:    { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.status.danger },
+    disabled:  { opacity: 0.45 },
 
-  label:    { fontFamily: typography.fonts.display, fontSize: typography.sizes.base },
-  labelMd:  { fontSize: typography.sizes.sm },
-  subLabel: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, opacity: 0.75, marginTop: 3 },
-});
+    label:    { fontFamily: typography.fonts.display, fontSize: typography.sizes.base },
+    labelMd:  { fontSize: typography.sizes.sm },
+    subLabel: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, opacity: 0.75, marginTop: 3 },
+  });
+};

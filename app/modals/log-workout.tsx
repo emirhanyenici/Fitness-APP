@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { useWorkoutStore } from '../../stores/workoutStore';
@@ -5,7 +6,8 @@ import { useUserStore } from '../../stores/userStore';
 import { computeTargets } from '../../services/recommendations';
 import { getAvailablePrograms, recommendProgram, PROGRAMS, ProgramType } from '../../services/workoutPrograms';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
-import { colors, withAlpha } from '../../constants/colors';
+import { withAlpha, type Colors } from '../../constants/colors';
+import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { useT } from '../../constants/i18n';
@@ -13,6 +15,8 @@ import { Icon, workoutIcon, NotebookPen, Bed, ChevronRight } from '../../compone
 
 export default function LogWorkoutModal() {
   const t = useT();
+  const colors = useColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const setSelectedProgram = useWorkoutStore((s) => s.setSelectedProgram);
   const setSelectedType = useWorkoutStore((s) => s.setSelectedType);
   const currentProgram = useWorkoutStore((s) => s.selectedProgram);
@@ -155,7 +159,7 @@ export default function LogWorkoutModal() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: Colors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg.tertiary, padding: spacing.base, paddingTop: spacing.lg },
   handle: { width: 40, height: 4, backgroundColor: colors.border.default, borderRadius: 2, alignSelf: 'center', marginBottom: spacing.xl },
   title: { fontFamily: typography.fonts.display, fontSize: typography.sizes.xl, color: colors.text.primary, marginBottom: spacing.xs },

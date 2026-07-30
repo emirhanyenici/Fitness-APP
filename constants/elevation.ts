@@ -1,4 +1,4 @@
-import { colors } from './colors';
+import { lightColors, type Colors } from './colors';
 
 /**
  * Surface elevation presets (finding T4). The ONLY place shadows are defined —
@@ -10,27 +10,36 @@ import { colors } from './colors';
  *  - card:   default content card, sits just above the sage background
  *  - raised: emphasized card (AI plan, active toggle pill)
  *  - hero:   the one flagship surface per screen (LifeScore hero)
+ *
+ * getElevation(colors) is the theme-reactive form — call it inside a component
+ * with the value from useColors(). The static `elevation` export below is
+ * deprecated and only kept for not-yet-migrated files (resolves to light theme).
  */
-export const elevation = {
-  card: {
-    shadowColor: colors.shadow.card,
-    shadowOpacity: 1,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  raised: {
-    shadowColor: colors.shadow.medium,
-    shadowOpacity: 1,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
-  },
-  hero: {
-    shadowColor: colors.shadow.medium,
-    shadowOpacity: 1,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-  },
-} as const;
+export function getElevation(colors: Colors) {
+  return {
+    card: {
+      shadowColor: colors.shadow.card,
+      shadowOpacity: 1,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 2,
+    },
+    raised: {
+      shadowColor: colors.shadow.medium,
+      shadowOpacity: 1,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 3 },
+      elevation: 3,
+    },
+    hero: {
+      shadowColor: colors.shadow.medium,
+      shadowOpacity: 1,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 4,
+    },
+  } as const;
+}
+
+/** @deprecated Use getElevation(colors) with useColors() for theme-reactive access. */
+export const elevation = getElevation(lightColors);

@@ -9,7 +9,7 @@
  */
 import type { ComponentType } from 'react';
 import type { LucideProps } from 'lucide-react-native';
-import { colors } from '../../constants/colors';
+import { useColors } from '../../constants/useColors';
 
 export type IconComponent = ComponentType<LucideProps>;
 
@@ -26,9 +26,10 @@ interface IconProps {
   strokeWidth?: number;
 }
 
-export function Icon({ icon: I, size = 'md', color = colors.text.primary, strokeWidth = STROKE_WIDTH }: IconProps) {
+export function Icon({ icon: I, size = 'md', color, strokeWidth = STROKE_WIDTH }: IconProps) {
+  const colors = useColors();
   const px = typeof size === 'number' ? size : iconSizes[size];
-  return <I size={px} color={color} strokeWidth={strokeWidth} />;
+  return <I size={px} color={color ?? colors.text.primary} strokeWidth={strokeWidth} />;
 }
 
 import {

@@ -3,7 +3,7 @@ import { View, StyleSheet, type StyleProp, type ViewStyle, type DimensionValue }
 import Animated, {
   useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing,
 } from 'react-native-reanimated';
-import { colors } from '../../constants/colors';
+import { useColors } from '../../constants/useColors';
 import { spacing, radius } from '../../constants/spacing';
 
 /**
@@ -19,6 +19,7 @@ interface SkeletonProps {
 }
 
 export function Skeleton({ width = '100%', height = 14, borderRadius = radius.sm, style }: SkeletonProps) {
+  const colors = useColors();
   const pulse = useSharedValue(0.45);
   useEffect(() => {
     pulse.value = withRepeat(

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert,
 } from 'react-native';
@@ -6,7 +6,8 @@ import { router } from 'expo-router';
 import { useCustomProgramStore } from '../../stores/customProgramStore';
 import { useWorkoutStore } from '../../stores/workoutStore';
 import { WorkoutExercise } from '../../services/exercisedb';
-import { colors, withAlpha } from '../../constants/colors';
+import { withAlpha, type Colors } from '../../constants/colors';
+import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { useT } from '../../constants/i18n';
@@ -132,6 +133,8 @@ export default function CustomProgramModal() {
   const setSelectedProgram = useWorkoutStore((s) => s.setSelectedProgram);
   const setSelectedType    = useWorkoutStore((s) => s.setSelectedType);
   const t = useT();
+  const colors = useColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   const handleUse = () => {
     setSelectedProgram('custom' as any);
@@ -221,6 +224,8 @@ function DayEditor({ dayIndex, dayLabel, onBack }: {
   const setDay  = useCustomProgramStore((s) => s.setDay);
   const clearDay = useCustomProgramStore((s) => s.clearDay);
   const t = useT();
+  const colors = useColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   const current = days[dayIndex]?.exercises ?? [];
   const isAdded = (name: string) => current.some((e) => e.name === name);
@@ -349,7 +354,7 @@ function DayEditor({ dayIndex, dayLabel, onBack }: {
 
 // ─── Styles ───────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const getStyles = (colors: Colors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg.tertiary, padding: spacing.base, paddingTop: spacing.lg },
   handle:    { width: 40, height: 4, backgroundColor: colors.border.default, borderRadius: 2, alignSelf: 'center', marginBottom: spacing.xl },
 

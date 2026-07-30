@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
   StyleSheet, Platform, ActivityIndicator,
@@ -14,7 +14,8 @@ import { useAIChatStore, ChatMessage, WELCOME_MESSAGE } from '../../stores/aiCha
 import { useAuthStore } from '../../stores/authStore';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { getTodayUsage } from '../../stores/aiChatStore';
-import { colors, withAlpha } from '../../constants/colors';
+import { withAlpha, type Colors } from '../../constants/colors';
+import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { supabase } from '../../services/supabase';
@@ -72,6 +73,8 @@ export default function AICoachModal() {
   const addMessage      = useAIChatStore((s) => s.addMessage);
   const clearHistory    = useAIChatStore((s) => s.clearHistory);
   const t = useT();
+  const colors = useColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   const [input,   setInput]   = useState('');
   const [loading, setLoading] = useState(false);
@@ -302,7 +305,7 @@ export default function AICoachModal() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: Colors) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg.tertiary },
 
   header:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.base, paddingTop: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.border.subtle, backgroundColor: colors.bg.secondary },

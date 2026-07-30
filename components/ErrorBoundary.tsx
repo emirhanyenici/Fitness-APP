@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { colors } from '../constants/colors';
+import { darkColors, lightColors, type Colors } from '../constants/colors';
+import { useThemeStore } from '../stores/themeStore';
 import { typography } from '../constants/typography';
 import { spacing, radius } from '../constants/spacing';
 import { logError } from '../services/monitoring';
@@ -17,6 +18,10 @@ interface State {
  * reports them via `logError` (Sentry-ready), and shows a friendly fallback
  * instead of a white screen. "Try Again" clears the error and re-renders.
  * Persisted data is untouched, so users don't lose anything.
+ *
+ * Class component: reads the theme via a direct store snapshot (not a
+ * subscribed hook) since this only renders after a crash and doesn't need
+ * live-toggle reactivity.
  */
 export class ErrorBoundary extends React.Component<Props, State> {
   state: State = { hasError: false };
@@ -33,6 +38,9 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   render() {
     if (!this.state.hasError) return this.props.children;
+
+    const colors = useThemeStore.getState().mode === 'dark' ? darkColors : lightColors;
+    const styles = getStyles(colors);
 
     return (
       <View style={styles.container}>
@@ -55,7 +63,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: Colors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.bg.primary,

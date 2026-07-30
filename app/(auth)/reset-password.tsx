@@ -1,13 +1,16 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, Alert, ScrollView, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { supabase } from '../../services/supabase';
-import { colors } from '../../constants/colors';
+import { type Colors } from '../../constants/colors';
+import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { Button } from '../../components/ui/Button';
 
 export default function ResetPasswordScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const [password,  setPassword]  = useState('');
   const [confirm,   setConfirm]   = useState('');
   const [loading,   setLoading]   = useState(false);
@@ -102,7 +105,7 @@ export default function ResetPasswordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: Colors) => StyleSheet.create({
   screen:    { flex: 1, backgroundColor: colors.bg.primary },
   container: { padding: spacing['2xl'], justifyContent: 'center', flexGrow: 1, paddingTop: 80 },
 

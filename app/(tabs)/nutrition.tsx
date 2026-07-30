@@ -8,10 +8,11 @@ import { useUserStore } from '../../stores/userStore';
 import { computeTargets } from '../../services/recommendations';
 import { todayStr } from '../../services/dateUtils';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
-import { colors, withAlpha } from '../../constants/colors';
+import { type Colors, withAlpha } from '../../constants/colors';
+import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
-import { elevation } from '../../constants/elevation';
+import { getElevation } from '../../constants/elevation';
 import { useAnalytics } from '../../services/analytics';
 import { AICoachBanner } from '../../components/ui/AICoachBanner';
 import { AnimatedBar } from '../../components/ui/AnimatedBar';
@@ -30,6 +31,8 @@ const MEAL_META = [
 ];
 
 export default function NutritionScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const [expanded, setExpanded] = useState<string | null>('breakfast');
 
@@ -299,7 +302,9 @@ export default function NutritionScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: Colors) => {
+  const elevation = getElevation(colors);
+  return StyleSheet.create({
   screen:  { flex: 1, backgroundColor: colors.bg.primary },
   content: { padding: spacing.base },
 
@@ -352,4 +357,5 @@ const styles = StyleSheet.create({
   emptyText:  { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.tertiary, textAlign: 'center', paddingTop: spacing.base },
 
   hint: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textAlign: 'center', marginTop: spacing.xs },
-});
+  });
+};

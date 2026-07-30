@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
+import { useMemo } from 'react';
 import { View, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
-import { colors, withAlpha } from '../../constants/colors';
-import { elevation } from '../../constants/elevation';
+import { withAlpha, type Colors } from '../../constants/colors';
+import { useColors } from '../../constants/useColors';
+import { getElevation } from '../../constants/elevation';
 import { spacing, radius } from '../../constants/spacing';
 
 /**
@@ -22,22 +24,27 @@ interface CardProps {
 }
 
 export function Card({ variant = 'card', style, children }: CardProps) {
+  const colors = useColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   return <View style={[styles.base, styles[variant], style]}>{children}</View>;
 }
 
-const styles = StyleSheet.create({
-  base: {
-    backgroundColor: colors.bg.secondary,
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-    borderRadius: radius.xl,
-    padding: spacing.base,
-  },
-  card:   { ...elevation.card },
-  raised: { ...elevation.raised, borderColor: withAlpha(colors.accent.primary, 0.13) },
-  hero:   {
-    ...elevation.hero,
-    borderRadius: radius['2xl'],
-    borderColor: withAlpha(colors.accent.primary, 0.21),
-  },
-});
+const getStyles = (colors: Colors) => {
+  const elevation = getElevation(colors);
+  return StyleSheet.create({
+    base: {
+      backgroundColor: colors.bg.secondary,
+      borderWidth: 1,
+      borderColor: colors.border.subtle,
+      borderRadius: radius.xl,
+      padding: spacing.base,
+    },
+    card:   { ...elevation.card },
+    raised: { ...elevation.raised, borderColor: withAlpha(colors.accent.primary, 0.13) },
+    hero:   {
+      ...elevation.hero,
+      borderRadius: radius['2xl'],
+      borderColor: withAlpha(colors.accent.primary, 0.21),
+    },
+  });
+};

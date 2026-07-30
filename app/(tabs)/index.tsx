@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, useWindowDimensions, RefreshControl } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, withAlpha } from '../../constants/colors';
+import { type Colors, withAlpha } from '../../constants/colors';
+import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
-import { elevation } from '../../constants/elevation';
+import { getElevation } from '../../constants/elevation';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { useUserStore } from '../../stores/userStore';
 import { useNutritionStore } from '../../stores/nutritionStore';
@@ -34,7 +35,7 @@ import {
 } from '../../components/ui/Icon';
 
 // Same thresholds useZenovaScore applies to the daily hero score.
-function scoreToColor(score: number): string {
+function scoreToColor(score: number, colors: Colors): string {
   return score >= 70 ? colors.score.excellent :
          score >= 50 ? colors.score.good :
          score >= 30 ? colors.score.fair :
@@ -49,6 +50,8 @@ function greetingKey(): string {
 }
 
 export default function HomeScreen() {
+  const colors            = useColors();
+  const styles            = useMemo(() => getStyles(colors), [colors]);
   const insets           = useSafeAreaInsets();
   const { width: winW }  = useWindowDimensions();
   const t                = useT();
@@ -178,7 +181,7 @@ export default function HomeScreen() {
   );
 
   const weekAvg      = Math.round(weekScores.reduce((s, v) => s + v, 0) / weekScores.length);
-  const weekAvgColor = scoreToColor(weekAvg);
+  const weekAvgColor = scoreToColor(weekAvg, colors);
 
   const stepsToday       = stepsByDate[todayStr] ?? 0;
   const caloriesBurned    = caloriesByDate[todayStr] ?? 0;
@@ -494,7 +497,9 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: Colors) => {
+  const elevation = getElevation(colors);
+  return StyleSheet.create({
   screen:  { flex: 1, backgroundColor: colors.bg.primary },
   content: { padding: spacing.base },
 
@@ -573,4 +578,5 @@ const styles = StyleSheet.create({
   trendLockedTitle: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.primary },
   trendLockedSub:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 2 },
   trendLockedCta:   { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.accent.primary },
-});
+  });
+};

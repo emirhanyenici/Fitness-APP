@@ -1,18 +1,21 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Linking } from 'react-native';
 import { router } from 'expo-router';
 import Purchases from 'react-native-purchases';
 import { isPurchasesConfigured, planFromCustomerInfo } from '../services/purchases';
 import { useSubscriptionStore } from '../stores/subscriptionStore';
-import { colors, withAlpha } from '../constants/colors';
+import { withAlpha, type Colors } from '../constants/colors';
+import { useColors } from '../constants/useColors';
 import { typography } from '../constants/typography';
 import { spacing, radius } from '../constants/spacing';
-import { elevation } from '../constants/elevation';
+import { getElevation } from '../constants/elevation';
 import { useT } from '../constants/i18n';
 import { Button } from '../components/ui/Button';
 import { Icon, X, Crown, Brain, Camera, ChartColumn, TrendingUp, NotebookPen } from '../components/ui/Icon';
 
 export default function PaywallScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const [loading, setLoading] = useState(false);
   const setPlan = useSubscriptionStore((s) => s.setPlan);
   const t = useT();
@@ -184,30 +187,33 @@ export default function PaywallScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg.primary },
-  closeBtn: { position: 'absolute', top: 56, right: spacing.base, zIndex: 10, width: 36, height: 36, borderRadius: 18, backgroundColor: colors.bg.elevated, alignItems: 'center', justifyContent: 'center' },
-  content: { padding: spacing.base, paddingTop: 80, alignItems: 'center' },
-  crown: { marginBottom: spacing.sm, alignItems: 'center' },
-  title: { fontFamily: typography.fonts.display, fontSize: typography.sizes['2xl'], color: colors.text.primary, textAlign: 'center' },
-  sub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.base, color: colors.text.secondary, textAlign: 'center', marginTop: spacing.sm, marginBottom: spacing.xl },
-  features: { width: '100%', gap: spacing.sm, marginBottom: spacing.xl },
-  featureRow: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, flexDirection: 'row', alignItems: 'center', gap: spacing.base, ...elevation.card },
-  featureTitle: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.primary },
-  featureSub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, marginTop: 2 },
-  priceCard: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.25), borderRadius: radius.xl, padding: spacing.xl, width: '100%', alignItems: 'center', marginBottom: spacing.base, ...elevation.raised },
-  priceTopRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: spacing.sm },
-  saveBadge:     { backgroundColor: colors.status.success, borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 4 },
-  saveBadgeText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.text.inverse },
-  priceRef:      { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textDecorationLine: 'line-through' },
-  price: { fontFamily: typography.fonts.mono, fontSize: typography.sizes['3xl'], color: colors.text.primary },
-  pricePer: { fontFamily: typography.fonts.body, fontSize: typography.sizes.lg, color: colors.text.secondary },
-  priceSub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, marginTop: spacing.xs },
-  monthly: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.base, color: colors.accent.primary, marginVertical: spacing.base },
-  footer: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textAlign: 'center', marginTop: spacing.sm },
-  autoRenewNote: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textAlign: 'center', marginTop: spacing.base, paddingHorizontal: spacing.sm },
-  legalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, marginTop: spacing.xs },
-  legalLink: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.text.secondary, textDecorationLine: 'underline' },
-  legalDot: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary },
-  linkDisabled: { opacity: 0.4 },
-});
+const getStyles = (colors: Colors) => {
+  const elevation = getElevation(colors);
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.bg.primary },
+    closeBtn: { position: 'absolute', top: 56, right: spacing.base, zIndex: 10, width: 36, height: 36, borderRadius: 18, backgroundColor: colors.bg.elevated, alignItems: 'center', justifyContent: 'center' },
+    content: { padding: spacing.base, paddingTop: 80, alignItems: 'center' },
+    crown: { marginBottom: spacing.sm, alignItems: 'center' },
+    title: { fontFamily: typography.fonts.display, fontSize: typography.sizes['2xl'], color: colors.text.primary, textAlign: 'center' },
+    sub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.base, color: colors.text.secondary, textAlign: 'center', marginTop: spacing.sm, marginBottom: spacing.xl },
+    features: { width: '100%', gap: spacing.sm, marginBottom: spacing.xl },
+    featureRow: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, flexDirection: 'row', alignItems: 'center', gap: spacing.base, ...elevation.card },
+    featureTitle: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.primary },
+    featureSub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, marginTop: 2 },
+    priceCard: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.25), borderRadius: radius.xl, padding: spacing.xl, width: '100%', alignItems: 'center', marginBottom: spacing.base, ...elevation.raised },
+    priceTopRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: spacing.sm },
+    saveBadge:     { backgroundColor: colors.status.success, borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 4 },
+    saveBadgeText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.text.inverse },
+    priceRef:      { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textDecorationLine: 'line-through' },
+    price: { fontFamily: typography.fonts.mono, fontSize: typography.sizes['3xl'], color: colors.text.primary },
+    pricePer: { fontFamily: typography.fonts.body, fontSize: typography.sizes.lg, color: colors.text.secondary },
+    priceSub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, marginTop: spacing.xs },
+    monthly: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.base, color: colors.accent.primary, marginVertical: spacing.base },
+    footer: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textAlign: 'center', marginTop: spacing.sm },
+    autoRenewNote: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textAlign: 'center', marginTop: spacing.base, paddingHorizontal: spacing.sm },
+    legalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, marginTop: spacing.xs },
+    legalLink: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.text.secondary, textDecorationLine: 'underline' },
+    legalDot: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary },
+    linkDisabled: { opacity: 0.4 },
+  });
+};

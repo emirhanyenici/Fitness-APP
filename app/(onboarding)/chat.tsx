@@ -6,7 +6,8 @@ import { useAuthStore } from '../../stores/authStore';
 import { useUserStore } from '../../stores/userStore';
 import { supabase } from '../../services/supabase';
 import { isValidHeightCm, isValidWeightKg } from '../../services/recommendations';
-import { colors, withAlpha, bmiColors } from '../../constants/colors';
+import { withAlpha, bmiColors, type Colors } from '../../constants/colors';
+import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { useT } from '../../constants/i18n';
@@ -98,6 +99,8 @@ const STEPS = [
 ];
 
 export default function OnboardingChat() {
+  const colors = useColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const session = useAuthStore((s) => s.session);
   const t = useT();
@@ -149,7 +152,10 @@ export default function OnboardingChat() {
         console.warn('[onboarding] Supabase update failed:', e?.message);
         updateProfile({ ...final, onboarding_completed: true });
       }
-      setTimeout(() => router.replace('/(tabs)'), 1500);
+      setTimeout(() => {
+        router.replace('/(tabs)');
+        router.push('/paywall');
+      }, 1500);
     }
   };
 
@@ -354,7 +360,7 @@ export default function OnboardingChat() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: Colors) => StyleSheet.create({
   container:       { flex: 1, backgroundColor: colors.bg.primary },
   header:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.base },
   back:            { fontSize: 22, color: colors.text.secondary, paddingRight: spacing.sm },

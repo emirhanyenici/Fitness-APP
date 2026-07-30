@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
   StyleSheet, ActivityIndicator, Alert, ScrollView, Image, Platform,
@@ -11,7 +11,8 @@ import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { useUserStore, snapsUsedToday } from '../../stores/userStore';
 import { searchFoods, searchFoodsOFF, lookupBarcode, scaleFood, FoodItem } from '../../services/usda';
 import { analyzeFood, SnapResult, SnapItem } from '../../services/foodSnap';
-import { colors, withAlpha } from '../../constants/colors';
+import { withAlpha, type Colors } from '../../constants/colors';
+import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { useT } from '../../constants/i18n';
@@ -28,12 +29,6 @@ export const FREE_SNAP_LIMIT = 1;
  *  same scanning attempt (same or new photo) as free, see analyze-photo. */
 const genSnapSessionId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
-const CONFIDENCE_COLORS = {
-  high: colors.status.success,
-  medium: colors.status.warning,
-  low: colors.status.danger,
-} as const;
-
 export default function AddFoodModal() {
   const { mealType = 'snack' } = useLocalSearchParams<{ mealType: string }>();
   const [screen, setScreen] = useState<Screen>('home');
@@ -42,6 +37,8 @@ export default function AddFoodModal() {
   const snapsUsed = useUserStore((s) => snapsUsedToday(s));
   const snapsLeft = Math.max(0, FREE_SNAP_LIMIT - snapsUsed);
   const t = useT();
+  const colors = useColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   const handleAdd = useCallback((item: FoodItem) => {
     addEntry({
@@ -128,6 +125,8 @@ function SearchScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBa
   const [searched, setSearched] = useState(false);
   const [selected, setSelected] = useState<FoodItem | null>(null);
   const t = useT();
+  const colors = useColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   const handleSearch = async () => {
     if (!query.trim()) return;
@@ -237,6 +236,8 @@ function PortionStep({ item, onAdd, onBack }: { item: FoodItem; onAdd: (item: Fo
   const [unit, setUnit] = useState<PortionUnit>('g');
   const [qty,  setQty]  = useState('100');
   const t = useT();
+  const colors = useColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   const amount = parseFloat(qty) || 0;
   const factor = unit === 'g' ? amount / 100 : amount;
@@ -335,6 +336,8 @@ function ManualScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBa
   const [fat,      setFat]      = useState('');
   const [qty,      setQty]      = useState('1');
   const t = useT();
+  const colors = useColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   const handleAdd = () => {
     if (!name.trim() || !calories.trim()) {
@@ -407,6 +410,8 @@ function BarcodeScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onB
   const [found,    setFound]    = useState<FoodItem | null>(null);
   const [grams,    setGrams]    = useState('100');
   const t = useT();
+  const colors = useColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   // The native camera can fire onBarcodeScanned for several frames of the
   // same code before React commits the `scanned` state update that removes
@@ -593,6 +598,13 @@ function SnapScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBack
   const snapsUsed = useUserStore((s) => snapsUsedToday(s));
   const incrementFreeSnaps = useUserStore((s) => s.incrementFreeSnaps);
   const t = useT();
+  const colors = useColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
+  const CONFIDENCE_COLORS = {
+    high: colors.status.success,
+    medium: colors.status.warning,
+    low: colors.status.danger,
+  } as const;
 
   const applyResult = (r: SnapResult) => {
     setResult(r);
@@ -876,6 +888,8 @@ function SnapScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBack
 }
 
 function MacroChip({ label, value, color }: { label: string; value: string; color: string }) {
+  const colors = useColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   return (
     <View style={[styles.macroChip, { borderColor: color + '40' }]}>
       <Text style={[styles.macroChipVal, { color }]}>{value}</Text>
@@ -884,7 +898,7 @@ function MacroChip({ label, value, color }: { label: string; value: string; colo
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: Colors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg.tertiary, padding: spacing.base, paddingTop: spacing.lg },
   centered:  { justifyContent: 'center', alignItems: 'center' },
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, Pressable, Platform } from 'react-native';
 import { Icon, Eye, EyeOff, Check } from '../../components/ui/Icon';
 import { secureStorage } from '../../services/secureStorage';
@@ -6,10 +6,11 @@ import { router, useRootNavigationState } from 'expo-router';
 import { useAuthStore } from '../../stores/authStore';
 import { useUserStore } from '../../stores/userStore';
 import { supabase } from '../../services/supabase';
-import { colors, withAlpha } from '../../constants/colors';
+import { withAlpha, type Colors } from '../../constants/colors';
+import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
-import { elevation } from '../../constants/elevation';
+import { getElevation } from '../../constants/elevation';
 import { Button } from '../../components/ui/Button';
 import { useAnalytics } from '../../services/analytics';
 import { useT } from '../../constants/i18n';
@@ -17,6 +18,8 @@ import { useT } from '../../constants/i18n';
 const SAVED_EMAIL_KEY = 'zenova_saved_email';
 
 export default function LoginScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -385,60 +388,63 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg.primary },
-  container: { padding: spacing['2xl'], justifyContent: 'center', flexGrow: 1, paddingTop: 80 },
+const getStyles = (colors: Colors) => {
+  const elevation = getElevation(colors);
+  return StyleSheet.create({
+    screen: { flex: 1, backgroundColor: colors.bg.primary },
+    container: { padding: spacing['2xl'], justifyContent: 'center', flexGrow: 1, paddingTop: 80 },
 
-  logoWrap: { alignItems: 'center', marginBottom: spacing['2xl'] },
-  logo: { fontFamily: typography.fonts.display, fontSize: typography.sizes['3xl'], color: colors.text.primary, letterSpacing: 6 },
-  logoLine: { width: 60, height: 2, backgroundColor: colors.accent.primary, borderRadius: 1, marginTop: spacing.sm },
+    logoWrap: { alignItems: 'center', marginBottom: spacing['2xl'] },
+    logo: { fontFamily: typography.fonts.display, fontSize: typography.sizes['3xl'], color: colors.text.primary, letterSpacing: 6 },
+    logoLine: { width: 60, height: 2, backgroundColor: colors.accent.primary, borderRadius: 1, marginTop: spacing.sm },
 
-  modeToggle: { flexDirection: 'row', backgroundColor: colors.bg.tertiary, borderRadius: radius.full, padding: 3, marginBottom: spacing.base },
-  modeBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: radius.full },
-  modeBtnActive: { backgroundColor: colors.bg.secondary, ...elevation.card },
-  modeBtnText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.tertiary },
-  modeBtnTextActive: { color: colors.text.primary },
+    modeToggle: { flexDirection: 'row', backgroundColor: colors.bg.tertiary, borderRadius: radius.full, padding: 3, marginBottom: spacing.base },
+    modeBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: radius.full },
+    modeBtnActive: { backgroundColor: colors.bg.secondary, ...elevation.card },
+    modeBtnText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.tertiary },
+    modeBtnTextActive: { color: colors.text.primary },
 
-  sub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, textAlign: 'center', lineHeight: 20 },
+    sub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, textAlign: 'center', lineHeight: 20 },
 
-  input: {
-    backgroundColor: colors.bg.elevated,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    borderRadius: radius.lg,
-    paddingHorizontal: spacing.base,
-    paddingVertical: 14,
-    color: colors.text.primary,
-    fontFamily: typography.fonts.body,
-    fontSize: typography.sizes.base,
-  },
+    input: {
+      backgroundColor: colors.bg.elevated,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+      borderRadius: radius.lg,
+      paddingHorizontal: spacing.base,
+      paddingVertical: 14,
+      color: colors.text.primary,
+      fontFamily: typography.fonts.body,
+      fontSize: typography.sizes.base,
+    },
 
-  pwWrap:    { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: colors.border.default, borderRadius: radius.lg },
-  pwInput:   { flex: 1, paddingHorizontal: spacing.base, paddingVertical: 14, color: colors.text.primary, fontFamily: typography.fonts.body, fontSize: typography.sizes.base },
-  pwEye:     { paddingHorizontal: spacing.sm, paddingVertical: 14, justifyContent: 'center', alignItems: 'center' },
+    pwWrap:    { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: colors.border.default, borderRadius: radius.lg },
+    pwInput:   { flex: 1, paddingHorizontal: spacing.base, paddingVertical: 14, color: colors.text.primary, fontFamily: typography.fonts.body, fontSize: typography.sizes.base },
+    pwEye:     { paddingHorizontal: spacing.sm, paddingVertical: 14, justifyContent: 'center', alignItems: 'center' },
 
-  optionsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.sm },
-  rememberRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: colors.border.default, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg.elevated },
-  checkboxActive: { borderColor: colors.accent.primary, backgroundColor: colors.accent.primary },
-  rememberText: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary },
-  forgotText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.accent.primary },
+    optionsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.sm },
+    rememberRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+    checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: colors.border.default, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg.elevated },
+    checkboxActive: { borderColor: colors.accent.primary, backgroundColor: colors.accent.primary },
+    rememberText: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary },
+    forgotText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.accent.primary },
 
-  dividerRow:  { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginVertical: spacing.base },
-  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border.default },
-  dividerText: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.tertiary },
-  // Apple HIG: black fill, white system-font label with the Apple logo,
-  // min 44pt height. System font (no fontFamily) is intentional.
-  appleButton: {
-    width: '100%', height: 50, borderRadius: radius.lg, backgroundColor: '#000000',
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
-  },
-  appleLogo:       { color: '#FFFFFF', fontSize: 19, marginTop: -2 },
-  appleButtonText: { color: '#FFFFFF', fontSize: 17, fontWeight: '600' },
+    dividerRow:  { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginVertical: spacing.base },
+    dividerLine: { flex: 1, height: 1, backgroundColor: colors.border.default },
+    dividerText: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.tertiary },
+    // Apple HIG: black fill, white system-font label with the Apple logo,
+    // min 44pt height. System font (no fontFamily) is intentional.
+    appleButton: {
+      width: '100%', height: 50, borderRadius: radius.lg, backgroundColor: '#000000',
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+    },
+    appleLogo:       { color: '#FFFFFF', fontSize: 19, marginTop: -2 },
+    appleButtonText: { color: '#FFFFFF', fontSize: 17, fontWeight: '600' },
 
-  back: { fontFamily: typography.fonts.body, fontSize: typography.sizes.base, color: colors.text.tertiary, textAlign: 'center' },
-  inputError:      { borderColor: withAlpha(colors.status.danger, 0.5) },
-  inlineError:     { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.status.danger, marginTop: 4, marginLeft: 4 },
-  generalErrorBox: { backgroundColor: withAlpha(colors.status.danger, 0.06), borderWidth: 1, borderColor: withAlpha(colors.status.danger, 0.25), borderRadius: radius.lg, padding: spacing.sm, marginTop: spacing.sm },
-  generalErrorText:{ fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.status.danger, textAlign: 'center' },
-});
+    back: { fontFamily: typography.fonts.body, fontSize: typography.sizes.base, color: colors.text.tertiary, textAlign: 'center' },
+    inputError:      { borderColor: withAlpha(colors.status.danger, 0.5) },
+    inlineError:     { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.status.danger, marginTop: 4, marginLeft: 4 },
+    generalErrorBox: { backgroundColor: withAlpha(colors.status.danger, 0.06), borderWidth: 1, borderColor: withAlpha(colors.status.danger, 0.25), borderRadius: radius.lg, padding: spacing.sm, marginTop: spacing.sm },
+    generalErrorText:{ fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.status.danger, textAlign: 'center' },
+  });
+};

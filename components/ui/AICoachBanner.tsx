@@ -1,6 +1,8 @@
+import { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
-import { colors, withAlpha } from '../../constants/colors';
+import { withAlpha, type Colors } from '../../constants/colors';
+import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { Icon, Sparkles, ChevronRight } from './Icon';
@@ -11,6 +13,8 @@ interface Props {
 }
 
 export function AICoachBanner({ subtitle, style }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   return (
     <TouchableOpacity
       style={[styles.banner, style]}
@@ -31,7 +35,7 @@ export function AICoachBanner({ subtitle, style }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: Colors) => StyleSheet.create({
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
