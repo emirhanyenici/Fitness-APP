@@ -23,6 +23,7 @@
         }
       ],
       "expo-health-connect",
+      "expo-notifications",
       [
         "expo-build-properties",
         {
@@ -30,7 +31,9 @@
             "minSdkVersion": 26
           }
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker",
+      "@bacons/apple-targets"
     ],
     "splash": {
       "image": "./assets/splash.png",
@@ -42,6 +45,9 @@
       "usesAppleSignIn": true,
       "bundleIdentifier": "com.zenova.lifescore",
       "buildNumber": "1",
+      "entitlements": {
+        "com.apple.security.application-groups": ["group.com.zenova.lifescore"]
+      },
       "infoPlist": {
         "NSCameraUsageDescription": "Zenova uses the camera to snap photos of your meals so the AI can estimate their nutrition.",
         "NSPhotoLibraryUsageDescription": "Zenova needs access to your photo library so you can pick an existing meal photo for nutrition analysis or set a profile picture.",

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, ActivityIndicator } from 'react-native';
+import { View, Text, ActivityIndicator, AppState } from 'react-native';
 import * as Linking from 'expo-linking';
 import { useFonts, Outfit_600SemiBold, Outfit_700Bold } from '@expo-google-fonts/outfit';
 import { DMSans_400Regular, DMSans_500Medium } from '@expo-google-fonts/dm-sans';
@@ -12,10 +12,15 @@ import { PostHogProvider } from 'posthog-react-native';
 import { supabase } from '../services/supabase';
 import { startSync, stopSync } from '../services/sync';
 import { initPurchases, logInPurchases, logOutPurchases } from '../services/purchases';
+import { syncHealth } from '../services/health';
+import { initNotifications, syncAllNotifications } from '../services/notifications';
+import { publishScoreToWidget } from '../services/widgetBridge';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { useAuthStore } from '../stores/authStore';
 import { useSubscriptionStore } from '../stores/subscriptionStore';
-import { colors } from '../constants/colors';
+import { useUserStore } from '../stores/userStore';
+import { useZenovaScore } from '../hooks/useZenovaScore';
+import { useColors, useIsDark } from '../constants/useColors';
 
 const POSTHOG_KEY = process.env.EXPO_PUBLIC_POSTHOG_KEY ?? '';
 const POSTHOG_HOST = process.env.EXPO_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com';
@@ -45,6 +50,9 @@ const queryClient = new QueryClient();
 export default function RootLayout() {
   const setSession = useAuthStore((s) => s.setSession);
   const [appReady, setAppReady] = useState(false);
+  const colors = useColors();
+  const isDark = useIsDark();
+  const { score, scoreColor } = useZenovaScore();
 
   const [fontsLoaded, fontError] = useFonts({
     Outfit_700Bold,
@@ -59,6 +67,13 @@ export default function RootLayout() {
     // Without this, every Purchases.* call throws and the plan resets to
     // 'free' on each cold start.
     void initPurchases();
+
+    // Notifications: one-time channel/handler setup, then re-establish
+    // schedules from the persisted profile — covers a fresh install/reinstall
+    // where the OS-side schedule was wiped but the profile's reminder flags
+    // (synced from the cloud) still say "on".
+    initNotifications();
+    void syncAllNotifications(useUserStore.getState().profile);
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -122,6 +137,24 @@ export default function RootLayout() {
     return () => sub.remove();
   }, []);
 
+  // Re-pull HealthKit/Health Connect data every time the app returns to the
+  // foreground (no-op unless the user has connected Health) — Expo Router
+  // keeps tab screens mounted across background/foreground, so Home's own
+  // mount-time sync only fires once and never again on a simple app-switch.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') void syncHealth();
+    });
+    return () => sub.remove();
+  }, []);
+
+  // iOS Home Screen widget: republish whenever the score changes (any store
+  // mutation that feeds useZenovaScore, or the app coming back to the
+  // foreground). The widget only ever shows what was last published here.
+  useEffect(() => {
+    void publishScoreToWidget(score, scoreColor);
+  }, [score, scoreColor]);
+
   // Mark app as ready when fonts are loaded or errored (with timeout fallback)
   useEffect(() => {
     if (fontsLoaded || fontError) {
@@ -135,7 +168,7 @@ export default function RootLayout() {
   if (!appReady) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg.primary, alignItems: 'center', justifyContent: 'center' }}>
-        <StatusBar style="light" />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
         <ActivityIndicator size="large" color={colors.accent.primary} />
         <Text style={{ color: colors.text.secondary, marginTop: 16, fontSize: 14 }}>Loading...</Text>
       </View>
@@ -145,7 +178,7 @@ export default function RootLayout() {
   const inner = (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <QueryClientProvider client={queryClient}>
-        <StatusBar style="light" />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
         <ErrorBoundary>
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg.primary } }}>
             <Stack.Screen name="(auth)" />
