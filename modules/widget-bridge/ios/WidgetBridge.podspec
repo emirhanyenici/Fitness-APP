@@ -7,7 +7,8 @@ Pod::Spec.new do |s|
   s.version        = package['version']
   s.summary        = package['description']
   s.author         = package['author']
-  s.homepage       = package['homepage']
+  s.homepage       = 'https://zenovaapp.com/'
+  s.license        = 'UNLICENSED'
   s.platforms      = { ios: '15.1' }
   s.source         = { git: '' }
   s.static_framework = true
