@@ -449,7 +449,7 @@ export const en = {
   notifications: {
     title: 'Notifications',
     goBack: 'Go back',
-    sectionSub: "Choose which reminders you'd like to receive. Notification times shown are defaults.",
+    sectionSub: "Choose which reminders you'd like to receive, and tap a time to change it.",
     workoutLabel: 'Workout Reminder',
     workoutSub: "Daily nudge when you haven't started today's session",
     calorieLabel: 'Calorie Alert',
@@ -459,7 +459,10 @@ export const en = {
     sleepLabel: 'Sleep Reminder',
     sleepSub: 'Wind-down nudge to help you hit your sleep target',
     rowA11y: '{label}. {sub}',
-    infoText: 'ℹ️  Notification delivery is active in production builds. Toggles are saved immediately.',
+    infoText: 'ℹ️  Notification delivery is active in production builds. Toggles and times are saved immediately.',
+    permissionDeniedTitle: 'Notifications Disabled',
+    permissionDeniedBody: 'Enable notifications for Zenova in your device Settings to receive reminders.',
+    changeTimeA11y: 'Change {label} time',
   },
 
   exerciseDemo: {
@@ -691,6 +694,9 @@ export const en = {
     unitsImperial: 'Imperial (lbs, ft)',
     metric: 'Metric',
     imperial: 'Imperial',
+    darkMode: 'Dark Mode',
+    darkModeOn: 'On',
+    darkModeOff: 'Off',
     notifications: 'Notifications',
     weeklyReport: 'Weekly Report',
     aiPowered: 'AI-powered',

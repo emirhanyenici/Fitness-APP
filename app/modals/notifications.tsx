@@ -1,8 +1,14 @@
-import { View, Text, ScrollView, StyleSheet, Switch, TouchableOpacity } from 'react-native';
+import { useMemo, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, Switch, TouchableOpacity, Alert, Platform } from 'react-native';
+import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useUserStore } from '../../stores/userStore';
-import { colors, withAlpha } from '../../constants/colors';
+import {
+  NotifKey, NOTIF_KEYS, resolveTime, requestNotificationPermission, syncNotification,
+} from '../../services/notifications';
+import { withAlpha, type Colors } from '../../constants/colors';
+import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { useT } from '../../constants/i18n';
@@ -10,26 +16,65 @@ import {
   Icon, IconComponent, Dumbbell, UtensilsCrossed, Flame, Moon, ArrowLeft, Timer,
 } from '../../components/ui/Icon';
 
-type NotifKey = 'notif_workout' | 'notif_calorie' | 'notif_streak' | 'notif_sleep';
+const NOTIF_META: Record<NotifKey, { icon: IconComponent; labelKey: string; subKey: string }> = {
+  notif_workout: { icon: Dumbbell,        labelKey: 'notifications.workoutLabel', subKey: 'notifications.workoutSub' },
+  notif_calorie: { icon: UtensilsCrossed, labelKey: 'notifications.calorieLabel', subKey: 'notifications.calorieSub' },
+  notif_streak:  { icon: Flame,           labelKey: 'notifications.streakLabel',  subKey: 'notifications.streakSub' },
+  notif_sleep:   { icon: Moon,            labelKey: 'notifications.sleepLabel',   subKey: 'notifications.sleepSub' },
+};
 
-const NOTIF_ROWS: {
-  key: NotifKey;
-  icon: IconComponent;
-  labelKey: string;
-  subKey: string;
-  time: string;
-}[] = [
-  { key: 'notif_workout', icon: Dumbbell,        labelKey: 'notifications.workoutLabel', subKey: 'notifications.workoutSub', time: '09:00 AM' },
-  { key: 'notif_calorie', icon: UtensilsCrossed, labelKey: 'notifications.calorieLabel', subKey: 'notifications.calorieSub', time: '07:00 PM' },
-  { key: 'notif_streak',  icon: Flame,           labelKey: 'notifications.streakLabel',  subKey: 'notifications.streakSub',  time: '08:00 PM' },
-  { key: 'notif_sleep',   icon: Moon,            labelKey: 'notifications.sleepLabel',   subKey: 'notifications.sleepSub',   time: '10:00 PM' },
-];
+/** "HH:mm" -> a Date carrying that time (today's date is irrelevant, only hour/minute are read). */
+function timeToDate(time: string): Date {
+  const [h, m] = time.split(':').map(Number);
+  const d = new Date();
+  d.setHours(h || 0, m || 0, 0, 0);
+  return d;
+}
+
+function formatTime(time: string): string {
+  const d = timeToDate(time);
+  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
 
 export default function NotificationsModal() {
   const insets        = useSafeAreaInsets();
   const profile       = useUserStore((s) => s.profile);
   const updateProfile = useUserStore((s) => s.updateProfile);
   const t             = useT();
+  const colors        = useColors();
+  const styles        = useMemo(() => getStyles(colors), [colors]);
+  const [iosPickerKey, setIosPickerKey] = useState<NotifKey | null>(null);
+
+  const handleToggle = async (key: NotifKey, val: boolean) => {
+    if (val) {
+      const granted = await requestNotificationPermission();
+      if (!granted) {
+        Alert.alert(t('notifications.permissionDeniedTitle'), t('notifications.permissionDeniedBody'));
+        return;
+      }
+    }
+    updateProfile({ [key]: val });
+    void syncNotification(key, val, resolveTime(profile, key));
+  };
+
+  const commitTime = (key: NotifKey, date: Date) => {
+    const time = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+    updateProfile({ [`${key}_time`]: time });
+    if (profile?.[key]) void syncNotification(key, true, time);
+  };
+
+  const openTimePicker = (key: NotifKey) => {
+    const value = timeToDate(resolveTime(profile, key));
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({
+        value,
+        mode: 'time',
+        onChange: (_event, date) => { if (date) commitTime(key, date); },
+      });
+    } else {
+      setIosPickerKey(key);
+    }
+  };
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -48,35 +93,56 @@ export default function NotificationsModal() {
       </Text>
 
       <View style={styles.card}>
-        {NOTIF_ROWS.map((row, i) => {
-          const enabled = profile?.[row.key] ?? false;
+        {NOTIF_KEYS.map((key, i) => {
+          const meta = NOTIF_META[key];
+          const enabled = profile?.[key] ?? false;
+          const time = resolveTime(profile, key);
           return (
             <View
-              key={row.key}
-              style={[styles.row, i === NOTIF_ROWS.length - 1 && { borderBottomWidth: 0 }]}
+              key={key}
+              style={[styles.row, i === NOTIF_KEYS.length - 1 && { borderBottomWidth: 0 }]}
             >
               <View style={styles.iconWrap}>
-                <Icon icon={row.icon} size="md" color={colors.accent.primary} />
+                <Icon icon={meta.icon} size="md" color={colors.accent.primary} />
               </View>
               <View style={styles.rowMid}>
-                <Text style={styles.rowLabel}>{t(row.labelKey)}</Text>
-                <Text style={styles.rowSub}>{t(row.subKey)}</Text>
+                <Text style={styles.rowLabel}>{t(meta.labelKey)}</Text>
+                <Text style={styles.rowSub}>{t(meta.subKey)}</Text>
                 {enabled && (
-                  <View style={styles.timeBadge}>
+                  <TouchableOpacity
+                    style={styles.timeBadge}
+                    onPress={() => openTimePicker(key)}
+                    hitSlop={6}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('notifications.changeTimeA11y', { label: t(meta.labelKey) })}
+                  >
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                       <Icon icon={Timer} size={12} color={colors.accent.primary} />
-                      <Text style={styles.timeText}>{row.time}</Text>
+                      <Text style={styles.timeText}>{formatTime(time)}</Text>
                     </View>
+                  </TouchableOpacity>
+                )}
+                {Platform.OS === 'ios' && iosPickerKey === key && (
+                  <View style={styles.iosPickerWrap}>
+                    <DateTimePicker
+                      value={timeToDate(time)}
+                      mode="time"
+                      display="spinner"
+                      onChange={(_event, date) => { if (date) commitTime(key, date); }}
+                    />
+                    <TouchableOpacity style={styles.iosPickerDone} onPress={() => setIosPickerKey(null)} activeOpacity={0.8}>
+                      <Text style={styles.iosPickerDoneText}>{t('common.done')}</Text>
+                    </TouchableOpacity>
                   </View>
                 )}
               </View>
               <Switch
                 value={enabled}
-                onValueChange={(val) => updateProfile({ [row.key]: val })}
+                onValueChange={(val) => void handleToggle(key, val)}
                 trackColor={{ false: colors.border.subtle, true: withAlpha(colors.accent.primary, 0.5) }}
                 thumbColor={enabled ? colors.accent.primary : colors.text.tertiary}
                 accessibilityRole="switch"
-                accessibilityLabel={t('notifications.rowA11y', { label: t(row.labelKey), sub: t(row.subKey) })}
+                accessibilityLabel={t('notifications.rowA11y', { label: t(meta.labelKey), sub: t(meta.subKey) })}
                 accessibilityState={{ checked: enabled }}
               />
             </View>
@@ -95,7 +161,7 @@ export default function NotificationsModal() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: Colors) => StyleSheet.create({
   screen:  { flex: 1, backgroundColor: colors.bg.primary },
   content: { padding: spacing.base },
 
@@ -113,6 +179,10 @@ const styles = StyleSheet.create({
   rowSub:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, lineHeight: 16 },
   timeBadge: { marginTop: 5, alignSelf: 'flex-start', backgroundColor: colors.accent.dim, borderRadius: radius.full, paddingHorizontal: 10, paddingVertical: 3 },
   timeText:  { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.accent.primary },
+
+  iosPickerWrap: { marginTop: spacing.sm, backgroundColor: colors.bg.tertiary, borderRadius: radius.lg, padding: spacing.xs, alignItems: 'center' },
+  iosPickerDone: { alignSelf: 'stretch', backgroundColor: colors.accent.primary, borderRadius: radius.full, paddingVertical: 8, alignItems: 'center', marginTop: spacing.xs },
+  iosPickerDoneText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.text.inverse },
 
   infoBox:  { backgroundColor: colors.bg.elevated, borderRadius: radius.lg, padding: spacing.base },
   infoText: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, lineHeight: 18 },

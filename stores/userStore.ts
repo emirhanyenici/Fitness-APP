@@ -27,6 +27,11 @@ export interface UserProfile {
   notif_calorie?: boolean;
   notif_streak?: boolean;
   notif_sleep?: boolean;
+  /** 24h "HH:mm" local time; falls back to services/notifications.ts DEFAULT_TIMES when unset */
+  notif_workout_time?: string;
+  notif_calorie_time?: string;
+  notif_streak_time?: string;
+  notif_sleep_time?: string;
 }
 
 interface UserStore {
