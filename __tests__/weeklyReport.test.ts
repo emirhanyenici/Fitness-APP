@@ -84,7 +84,7 @@ describe('buildLocalSections', () => {
 
 describe('computeWeekData', () => {
   const emptyInputs: WeekDataInputs = {
-    entries: [], workoutHistory: [], recoveryEntries: [], weightEntries: [],
+    entries: [], workoutHistory: [], recoveryEntries: [], weightEntries: [], measurementEntries: [],
     targets: { calories: 2000, sleepHours: 8 },
   };
 
@@ -93,6 +93,7 @@ describe('computeWeekData', () => {
     expect(stats.daysLogged).toBe(0);
     expect(stats.avgScore).toBe(0);
     expect(stats.weightDelta).toBeNull();
+    expect(stats.measurementDeltas).toEqual({});
     expect(stats.activityAvgs).toBeNull();
     expect(daily).toHaveLength(7);
     expect(daily.every((d) => !d.hasData && d.score === 0)).toBe(true);
@@ -133,6 +134,10 @@ describe('computeWeekData', () => {
         { date: daysAgoStr(5), weight_kg: 81.2 },
         { date: today, weight_kg: 80.4 },
       ],
+      measurementEntries: [
+        { date: daysAgoStr(5), waist_cm: 85, arm_cm: 34 },
+        { date: today, waist_cm: 83.5 },
+      ],
       targets: { calories: 2000, sleepHours: 8 },
     };
 
@@ -148,6 +153,8 @@ describe('computeWeekData', () => {
     expect(stats.workoutBreakdown[0]).toEqual({ bodyPart: 'chest', count: 2, minutes: 77, calories: 550 });
     expect(stats.workoutBreakdown[1]).toEqual({ bodyPart: 'legs', count: 1, minutes: 50, calories: 400 });
     expect(stats.weightDelta).toBe(-0.8);
+    // waist has 2 points in-window (delta computed); arm has only 1 (omitted)
+    expect(stats.measurementDeltas).toEqual({ waist_cm: -1.5 });
 
     // Today: food 25 + move 25 + mood 20 + sleep 25 = 95
     expect(daily[6].score).toBe(95);
@@ -164,8 +171,13 @@ describe('computeWeekData', () => {
         { date: daysAgoStr(30), weight_kg: 85 },
         { date: daysAgoStr(9), weight_kg: 84 },
       ],
+      measurementEntries: [
+        { date: daysAgoStr(30), waist_cm: 90 },
+        { date: daysAgoStr(9), waist_cm: 88 },
+      ],
     });
     expect(stats.daysLogged).toBe(0);
     expect(stats.weightDelta).toBeNull();
+    expect(stats.measurementDeltas).toEqual({});
   });
 });

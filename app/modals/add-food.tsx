@@ -16,7 +16,7 @@ import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { useT } from '../../constants/i18n';
-import { Icon, Search, ScanBarcode, Keyboard, Camera, ImageIcon } from '../../components/ui/Icon';
+import { Icon, Search, ScanBarcode, Keyboard, Camera, ImageIcon, Zap, ZapOff } from '../../components/ui/Icon';
 import { SkeletonRow } from '../../components/ui/Skeleton';
 
 type Screen = 'home' | 'search' | 'manual' | 'barcode' | 'snap';
@@ -580,6 +580,7 @@ function SnapScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBack
   // photos came out visibly blurrier than the live preview.
   const [showCamera, setShowCamera] = useState(false);
   const [capturing,  setCapturing]  = useState(false);
+  const [flash, setFlash] = useState<'off' | 'on'>('off');
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   // One id for this whole scanning attempt — retries (same photo re-analyzed,
@@ -734,12 +735,21 @@ function SnapScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBack
     return (
       // Intentional raw #000/#fff, matching the barcode camera viewport.
       <View style={{ flex: 1, backgroundColor: '#000' }}>
-        <CameraView ref={cameraRef} style={{ flex: 1 }} facing="back" autofocus="on" />
+        <CameraView ref={cameraRef} style={{ flex: 1 }} facing="back" autofocus="on" flash={flash} />
         {capturing && (
           <View style={styles.scanOverlay}>
             <ActivityIndicator size="large" color="#fff" />
           </View>
         )}
+        <TouchableOpacity
+          style={styles.flashBtn}
+          onPress={() => setFlash((f) => (f === 'off' ? 'on' : 'off'))}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel={flash === 'on' ? t('addFood.flashOnA11y') : t('addFood.flashOffA11y')}
+        >
+          <Icon icon={flash === 'on' ? Zap : ZapOff} size="md" color="#fff" />
+        </TouchableOpacity>
         <View style={styles.scanBar}>
           <TouchableOpacity onPress={() => setShowCamera(false)} accessibilityRole="button" accessibilityLabel={t('addFood.goBack')} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
             <Text style={styles.scanBarBack}>← {t('common.back')}</Text>
@@ -960,6 +970,7 @@ const getStyles = (colors: Colors) => StyleSheet.create({
   scanBarHint:  { color: 'rgba(255,255,255,0.65)', fontFamily: typography.fonts.body, fontSize: typography.sizes.sm },
   shutterBtn:      { width: 60, height: 60, borderRadius: 30, borderWidth: 3, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   shutterBtnInner: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#fff' },
+  flashBtn: { position: 'absolute', top: 50, right: spacing.lg, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center' },
 
   snapPickRow:    { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.xl },
   snapPickBtn:    { flex: 1, backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, paddingVertical: spacing.xl, alignItems: 'center', gap: spacing.sm },

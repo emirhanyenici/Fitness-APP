@@ -14,6 +14,7 @@
 import { logError } from './monitoring';
 import type { TFunction } from '../constants/i18n';
 import type { WeeklyReportData } from './weeklyReport';
+import { MEASUREMENT_FIELDS } from '../stores/measurementLogStore';
 
 const C = {
   emerald: '#059669',
@@ -142,6 +143,16 @@ export function buildReportHtml(data: WeeklyReportData, t: TFunction): string {
       )
     : '';
 
+  const measurementRows = MEASUREMENT_FIELDS
+    .filter((f) => s.measurementDeltas[f.key] !== undefined)
+    .map((f) => {
+      const d = s.measurementDeltas[f.key]!;
+      return `${esc(t(f.labelKey))}: <span style="color:${d > 0 ? C.warning : C.emerald};">${d > 0 ? '+' : ''}${d} cm</span>`;
+    });
+  const measurementsCell = measurementRows.length > 0
+    ? statCell(t('weeklyReport.measurementsChange'), measurementRows.join('<br/>'), '')
+    : '';
+
   const coachNotes = data.aiNarrative
     ? `
       <div style="margin-top:16px; background:${C.white}; border:1px solid ${C.border}; border-left:4px solid ${C.emerald}; border-radius:12px; padding:14px 16px;">
@@ -217,7 +228,7 @@ export function buildReportHtml(data: WeeklyReportData, t: TFunction): string {
       </tr>${(() => {
         // Extra stat cells (activity, weight) are optional — pair them up two
         // per row, padding a lone trailing cell with an empty spacer.
-        const extra = [activityCell, weightCell].filter(Boolean);
+        const extra = [activityCell, weightCell, measurementsCell].filter(Boolean);
         const rows: string[] = [];
         for (let i = 0; i < extra.length; i += 2) {
           rows.push(`<tr>${extra[i]}${extra[i + 1] ?? '<td style="width:50%;"></td>'}</tr>`);

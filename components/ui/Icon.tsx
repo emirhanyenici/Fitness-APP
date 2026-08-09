@@ -68,7 +68,7 @@ export {
   // Tab bar
   Home, Salad, Dumbbell, MoonStar, CircleUserRound,
   // Home screen
-  Footprints, Flame, Zap, Target, TrendingUp, MessageCircle, Moon, Apple,
+  Footprints, Flame, Zap, ZapOff, Target, TrendingUp, MessageCircle, Moon, Apple,
   ClipboardCheck, Sparkles,
   // Navigation / chrome
   ChevronRight, ChevronLeft, ChevronDown, ChevronUp, X, ArrowLeft, ArrowUp,

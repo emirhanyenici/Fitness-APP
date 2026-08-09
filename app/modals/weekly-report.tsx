@@ -8,6 +8,7 @@ import { useNutritionStore } from '../../stores/nutritionStore';
 import { useRecoveryStore } from '../../stores/recoveryStore';
 import { useWorkoutStore } from '../../stores/workoutStore';
 import { useWeightLogStore } from '../../stores/weightLogStore';
+import { useMeasurementLogStore, MEASUREMENT_FIELDS } from '../../stores/measurementLogStore';
 import { useHealthStore } from '../../stores/healthStore';
 import { useUserStore } from '../../stores/userStore';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
@@ -46,6 +47,7 @@ export default function WeeklyReportModal() {
   const workoutHistory  = useWorkoutStore((s) => s.history);
   const selectedType    = useWorkoutStore((s) => s.selectedType);
   const weightEntries   = useWeightLogStore((s) => s.entries);
+  const measurementEntries = useMeasurementLogStore((s) => s.entries);
   const healthConnected    = useHealthStore((s) => s.connected);
   const stepsByDate        = useHealthStore((s) => s.stepsByDate);
   const caloriesByDate     = useHealthStore((s) => s.caloriesByDate);
@@ -71,10 +73,11 @@ export default function WeeklyReportModal() {
     workoutHistory,
     recoveryEntries,
     weightEntries,
+    measurementEntries,
     targets: { calories: targets.calories, sleepHours: targets.sleepHours },
     restDaySelected: selectedType === 'rest',
     health: healthConnected ? { stepsByDate, caloriesByDate, distanceByDate, exerciseMinByDate } : undefined,
-  }), [entries, workoutHistory, recoveryEntries, weightEntries, targets, selectedType,
+  }), [entries, workoutHistory, recoveryEntries, weightEntries, measurementEntries, targets, selectedType,
        healthConnected, stepsByDate, caloriesByDate, distanceByDate, exerciseMinByDate]);
 
   const generateReport = async () => {
@@ -349,6 +352,30 @@ Write a short motivating coach's summary (5-8 sentences) of their week: call out
                 {data.stats.weightDelta > 0 ? '+' : ''}{data.stats.weightDelta} kg
               </Text>
               <Text style={styles.bigStatLabel}>{t('weeklyReport.weightThisWeek')}</Text>
+            </View>
+          )}
+
+          {/* Body Measurements */}
+          {Object.keys(data.stats.measurementDeltas).length > 0 && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>{t('weeklyReport.measurementsChange')}</Text>
+              <View style={styles.macroRow}>
+                {MEASUREMENT_FIELDS.map((f) => {
+                  const delta = data.stats.measurementDeltas[f.key];
+                  if (delta === undefined) return null;
+                  return (
+                    <View key={f.key} style={styles.macroChip}>
+                      <Text style={[
+                        styles.macroVal,
+                        { color: delta > 0 ? colors.status.warning : colors.accent.primary },
+                      ]}>
+                        {delta > 0 ? '+' : ''}{delta} cm
+                      </Text>
+                      <Text style={styles.macroLabel}>{t(f.labelKey)}</Text>
+                    </View>
+                  );
+                })}
+              </View>
             </View>
           )}
 

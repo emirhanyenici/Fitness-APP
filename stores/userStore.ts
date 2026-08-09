@@ -10,6 +10,7 @@ export interface UserProfile {
   age?: number;
   height_cm?: number;
   weight_kg?: number;
+  goal_weight_kg?: number;
   bmi?: number;
   primary_goal?: string;
   activity_level?: string;

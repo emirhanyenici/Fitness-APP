@@ -31,3 +31,18 @@ export function daysAgoStr(n: number): string {
   d.setDate(d.getDate() - n);
   return dateStr(d);
 }
+
+/**
+ * Consecutive-day streak ending today (or yesterday, if today has no entry
+ * yet), walking backward through `activeDates` until the first gap. Shared by
+ * the home screen's streak display and the achievement system so both agree
+ * on the exact same count.
+ */
+export function computeStreak(activeDates: Set<string>, today = todayStr()): number {
+  const startFrom = activeDates.has(today) ? 0 : 1;
+  let count = 0;
+  for (let i = startFrom; i <= 365; i++) {
+    if (activeDates.has(daysAgoStr(i))) { count++; } else { break; }
+  }
+  return count;
+}

@@ -17,6 +17,7 @@ const baseData: WeeklyReportData = {
     macroAvgs: { protein: 130, carbs: 210, fat: 65 },
     workoutBreakdown: [{ bodyPart: 'chest', count: 2, minutes: 80, calories: 550 }],
     weightDelta: -0.6,
+    measurementDeltas: { waist_cm: -1.2 },
     activityAvgs: null,
   },
   daily: Array.from({ length: 7 }, (_, i) => ({

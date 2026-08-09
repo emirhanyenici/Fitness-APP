@@ -80,18 +80,24 @@ Deno.serve(async (req) => {
 
   // Per-user daily rate limit — protects against unbounded AI-provider spend.
   // Tier-aware via public.subscriptions (mirrored by revenuecat-webhook fn;
-  // missing row = free). Free 1/day backs the client's 1/day taste quota
+  // missing row = free). Free 3/day backs the client's 3/day taste quota
   // (FREE_SNAP_LIMIT in add-food.tsx — keep in sync); snap is otherwise a Pro
   // feature. Counts in the 'photo' bucket, independent from ai-coach's 'chat'.
   // sessionId (set once per Snap screen mount, client-side) lets the same
   // scanning attempt retry — same photo re-analyzed, or a new photo swapped
   // in before the user confirms — without burning additional quota; only the
   // first charged request per session increments the counter.
+  // FORCE_PRO: TestFlight-only override mirroring the client's
+  // EXPO_PUBLIC_FORCE_PRO (services/purchases.ts) — real purchases can't be
+  // tested pre-launch, so RevenueCat's webhook never populates `subscriptions`
+  // for these installs. MUST be unset together with the client flag before
+  // App Store review, or every request is treated as paid.
+  const FORCE_PRO = Deno.env.get('FORCE_PRO') === 'true';
   const { data: subRow } = await supabase.from('subscriptions').select('plan').maybeSingle();
-  const isPaid = subRow?.plan === 'pro' || subRow?.plan === 'elite';
+  const isPaid = FORCE_PRO || subRow?.plan === 'pro' || subRow?.plan === 'elite';
   const PHOTO_DAILY_LIMIT = isPaid
-    ? Number(Deno.env.get('PHOTO_LIMIT_PRO') ?? '30')
-    : Number(Deno.env.get('PHOTO_LIMIT_FREE') ?? '1');
+    ? Number(Deno.env.get('PHOTO_LIMIT_PRO') ?? '10')
+    : Number(Deno.env.get('PHOTO_LIMIT_FREE') ?? '3');
   const { data: allowed, error: limitError } = sessionId
     ? await supabase.rpc(
         'check_and_increment_ai_usage_session',
@@ -204,6 +210,11 @@ contains no food, return {"name": null}.`;
         { status: 500, headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' } },
       );
     }
+
+    // Token accounting — lets us pull real cost data from function logs
+    // instead of estimating. usage.prompt_tokens_details.image_tokens (if
+    // present) isolates the vision-tile cost from the text prompt.
+    console.log('xAI usage (analyze-photo):', JSON.stringify(data.usage ?? {}));
 
     const raw: string = data.choices?.[0]?.message?.content?.trim() ?? '';
     const clean = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();

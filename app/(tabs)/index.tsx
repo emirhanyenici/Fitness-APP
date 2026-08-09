@@ -16,7 +16,7 @@ import { useHealthStore } from '../../stores/healthStore';
 import { syncHealth } from '../../services/health';
 import { GOAL_TO_BODY_PART, TYPE_TO_BODY_PART, BODY_PART_LABEL } from '../../services/exercisedb';
 import { computeTargets, GOAL_LABELS } from '../../services/recommendations';
-import { dateStr, daysAgoStr } from '../../services/dateUtils';
+import { dateStr, daysAgoStr, computeStreak } from '../../services/dateUtils';
 import { useZenovaScore, computeDayScore, formatDeltaLabel } from '../../hooks/useZenovaScore';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { AICoachBanner } from '../../components/ui/AICoachBanner';
@@ -97,18 +97,7 @@ export default function HomeScreen() {
     ...recoveryEntries.map((e) => e.date),
   ]), [entries, recoveryEntries]);
 
-  const streak = useMemo(() => {
-    const startFrom = activeDates.has(todayStr) ? 0 : 1;
-    let count = 0;
-    // Walks back day-by-day and breaks on the first gap, so it allocates only
-    // `streak + 1` date strings in practice — not 365. The 365 cap is just a
-    // safety bound for the (unreachable) case of a full year of unbroken logging.
-    for (let i = startFrom; i <= 365; i++) {
-      const d = daysAgoStr(i);
-      if (activeDates.has(d)) { count++; } else { break; }
-    }
-    return count;
-  }, [activeDates, todayStr]);
+  const streak = useMemo(() => computeStreak(activeDates, todayStr), [activeDates, todayStr]);
 
   // ── Current week Mon→Sun ──
   const weekDates = useMemo(() => {

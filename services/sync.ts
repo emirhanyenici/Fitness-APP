@@ -26,6 +26,8 @@ import { useExerciseWeightStore } from '../stores/exerciseWeightStore';
 import { useCustomProgramStore } from '../stores/customProgramStore';
 import { useAISuggestionsStore } from '../stores/aiSuggestionsStore';
 import { useAIChatStore } from '../stores/aiChatStore';
+import { useAchievementStore } from '../stores/achievementStore';
+import { useMeasurementLogStore } from '../stores/measurementLogStore';
 
 type AnyStore = UseBoundStore<StoreApi<any>>;
 
@@ -47,6 +49,8 @@ const ADAPTERS: Adapter[] = [
   { store: 'customProgram',   hook: useCustomProgramStore as AnyStore,  keys: ['days'] },
   { store: 'aiSuggestions',   hook: useAISuggestionsStore as AnyStore,  keys: ['nutrition', 'workout'] },
   { store: 'aiChat',          hook: useAIChatStore as AnyStore,         keys: ['chats', 'dailyCounts'] },
+  { store: 'achievement',     hook: useAchievementStore as AnyStore,    keys: ['unlocked'] },
+  { store: 'measurementLog',  hook: useMeasurementLogStore as AnyStore, keys: ['entries'] },
 ];
 
 /** True while applying remote data, so change-subscriptions don't echo it back. */

@@ -240,13 +240,27 @@ Deno.serve(async (req) => {
   // from a leaked JWT or abusive client. Tier-aware: the plan is mirrored into
   // public.subscriptions by the revenuecat-webhook fn; missing row = free.
   // Free matches the client's 5/day gate (UTC-day vs local-day may drift near
-  // midnight); pro's 100/day is a fair-use ceiling behind the "unlimited"
-  // promise. Counts in the 'chat' bucket (weekly report shares it); photo
+  // midnight). Counts in the 'chat' bucket (weekly report shares it); photo
   // analysis has its own bucket in analyze-photo.
+  //
+  // Pro limit sized from REAL measured xAI cost (2026-07-28, from function
+  // logs' cost_in_usd_ticks — see [[pro-tiering]] memory): a chat turn that
+  // triggers the nutrition-lookup tool (2 xAI round-trips) costs up to
+  // ~$0.0025 worst case. At the old 100/day ceiling, a user maxing out every
+  // day with every message hitting the tool costs up to $7.50/mo in chat
+  // alone (+ up to $0.84/mo for 10 photo scans/day) — that can exceed the
+  // $7.99/mo subscription's net-of-Apple-cut revenue (~$5.59-6.79). 50/day
+  // caps worst-case chat spend at ~$3.75/mo, keeping total AI cost safely
+  // under net revenue even under adversarial/bot usage.
+  // FORCE_PRO: TestFlight-only override mirroring the client's
+  // EXPO_PUBLIC_FORCE_PRO (services/purchases.ts) — see analyze-photo/index.ts
+  // for the full rationale. MUST be unset together with the client flag
+  // before App Store review.
+  const FORCE_PRO = Deno.env.get('FORCE_PRO') === 'true';
   const { data: subRow } = await supabase.from('subscriptions').select('plan').maybeSingle();
-  const isPaid = subRow?.plan === 'pro' || subRow?.plan === 'elite';
+  const isPaid = FORCE_PRO || subRow?.plan === 'pro' || subRow?.plan === 'elite';
   const AI_DAILY_LIMIT = isPaid
-    ? Number(Deno.env.get('AI_COACH_LIMIT_PRO') ?? '100')
+    ? Number(Deno.env.get('AI_COACH_LIMIT_PRO') ?? '50')
     : Number(Deno.env.get('AI_COACH_LIMIT_FREE') ?? '5');
   const { data: allowed, error: limitError } = await supabase.rpc(
     'check_and_increment_ai_usage', { p_limit: AI_DAILY_LIMIT, p_feature: 'chat' },
@@ -313,6 +327,10 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Token accounting — lets us pull real cost data from function logs
+    // instead of estimating.
+    console.log('xAI usage (ai-coach, initial):', JSON.stringify(data.usage ?? {}));
+
     const toolCalls = data.choices?.[0]?.message?.tool_calls;
     if (Array.isArray(toolCalls) && toolCalls.length > 0) {
       const toolCall = toolCalls[0];
@@ -352,6 +370,8 @@ Deno.serve(async (req) => {
           { status: 500, headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' } }
         );
       }
+
+      console.log('xAI usage (ai-coach, tool-followup):', JSON.stringify(followUpData.usage ?? {}));
 
       const followUpContent = followUpData.choices?.[0]?.message?.content ?? '';
       return new Response(

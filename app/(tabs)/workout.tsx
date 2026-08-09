@@ -14,6 +14,7 @@ import { WorkoutExercise } from '../../services/exercisedb';
 import { computeTargets, GOAL_LABELS } from '../../services/recommendations';
 import { getTodayPlan, recommendProgram, PROGRAMS, ProgramType } from '../../services/workoutPrograms';
 import { todayStr, daysAgoStr } from '../../services/dateUtils';
+import { formatWorkoutDate, groupByDate } from '../../services/workoutHistory';
 import { type Colors, withAlpha } from '../../constants/colors';
 import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
@@ -29,46 +30,6 @@ import {
   Icon, workoutIcon, X, NotebookPen, Bed, Sparkles, Timer, Flame, Dumbbell,
   Check, ChevronRight, Lock, TrendingUp, Battery, Activity, CircleCheck,
 } from '../../components/ui/Icon';
-
-function formatWorkoutDate(dateStr: string): string {
-  const today = todayStr();
-  const yesterday = daysAgoStr(1);
-  if (dateStr === today) return 'Today';
-  if (dateStr === yesterday) return 'Yesterday';
-  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' });
-}
-
-/** Merge multiple workouts from the same day into one summary entry */
-function groupByDate(history: CompletedWorkout[]): CompletedWorkout[] {
-  const map = new Map<string, CompletedWorkout>();
-  for (const w of history) {
-    const existing = map.get(w.date);
-    if (!existing) {
-      map.set(w.date, { ...w, exerciseWeights: { ...w.exerciseWeights } });
-    } else {
-      const isSamePlan = existing.name === w.name;
-      existing.calories += w.calories;
-      const merged = { ...existing.exerciseWeights };
-      for (const [name, kg] of Object.entries(w.exerciseWeights ?? {})) {
-        if (kg > 0) merged[name] = kg;
-      }
-      existing.exerciseWeights = merged;
-
-      if (isSamePlan) {
-        // Same plan repeated — cap done at plan size, keep total fixed
-        existing.exercisesDone  = Math.min(existing.exercisesDone + w.exercisesDone, existing.exercisesTotal);
-      } else {
-        // Different plan — accumulate both counts
-        existing.exercisesDone  += w.exercisesDone;
-        existing.exercisesTotal += w.exercisesTotal;
-        // Use the stored dayLabel; fall back to legacy string-parse for old records.
-        const dayPart = w.dayLabel ?? w.name.split('—')[1]?.trim() ?? w.name;
-        existing.name = existing.name + ' + ' + dayPart;
-      }
-    }
-  }
-  return Array.from(map.values());
-}
 
 export default function WorkoutScreen() {
   const colors = useColors();
@@ -519,7 +480,19 @@ export default function WorkoutScreen() {
       </TouchableOpacity>
 
       {/* ── Recent Workouts ── */}
-      <Text style={styles.sectionTitle}>{t('workout.recentWorkouts')}</Text>
+      <View style={styles.recentHeaderRow}>
+        <Text style={styles.sectionTitle}>{t('workout.recentWorkouts')}</Text>
+        {history.length > 0 && (
+          <TouchableOpacity
+            onPress={() => router.push({ pathname: '/modals/history', params: { tab: 'workouts' } })}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={t('workout.seeFullHistory')}
+          >
+            <Text style={styles.recentSeeAll}>{t('workout.seeFullHistory')}</Text>
+          </TouchableOpacity>
+        )}
+      </View>
       <View style={styles.recentList}>
         {history.length > 0 ? (
           groupByDate(history).slice(0, 10).map((w) => {
@@ -659,6 +632,9 @@ const getStyles = (colors: Colors) => {
   logDiffText: { fontFamily: typography.fonts.body, fontSize: typography.sizes.base, color: colors.text.secondary },
 
   sectionTitle: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.primary, marginBottom: spacing.sm },
+
+  recentHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  recentSeeAll: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.accent.primary, marginBottom: spacing.sm },
 
   recentList: { gap: spacing.sm },
   recentRow: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

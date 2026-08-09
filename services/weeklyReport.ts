@@ -1,6 +1,7 @@
 import type { TFunction } from '../constants/i18n';
 import { computeDayScore, DayScoreInputs } from '../hooks/useZenovaScore';
 import { daysAgoStr } from './dateUtils';
+import { MEASUREMENT_FIELDS, type MeasurementField } from '../stores/measurementLogStore';
 
 /**
  * Weekly report data + rule-based text generation, fully on-device.
@@ -41,6 +42,8 @@ export interface WeekStatsExtended extends WeekStats {
   workoutBreakdown: { bodyPart: string; count: number; minutes: number; calories: number }[];
   /** Weight change (kg) across the week's entries; null when fewer than 2. */
   weightDelta: number | null;
+  /** Per-field measurement change (cm) across the week's entries; a field is omitted when it has fewer than 2 dated values in-window. */
+  measurementDeltas: Partial<Record<MeasurementField, number>>;
   /** Averages across days with any synced health-app data; null when Health
    *  isn't connected (no data supplied at all). */
   activityAvgs: { steps: number; caloriesBurned: number; distanceKm: number; exerciseMin: number } | null;
@@ -77,6 +80,7 @@ export interface WeekDataInputs {
   }[];
   recoveryEntries: { date: string; mood: number; sleepHours?: number }[];
   weightEntries: { date: string; weight_kg: number }[];
+  measurementEntries: ({ date: string } & Partial<Record<MeasurementField, number>>)[];
   targets: { calories: number; sleepHours: number };
   restDaySelected?: boolean;
   /** Apple Health / Health Connect daily caches, keyed by local YYYY-MM-DD.
@@ -174,6 +178,17 @@ export function computeWeekData(inp: WeekDataInputs): {
     .filter((e) => e.date >= period.start && e.date <= period.end)
     .sort((a, b) => a.date.localeCompare(b.date));
 
+  const weekMeasurements = inp.measurementEntries
+    .filter((e) => e.date >= period.start && e.date <= period.end)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const measurementDeltas: Partial<Record<MeasurementField, number>> = {};
+  for (const f of MEASUREMENT_FIELDS) {
+    const points = weekMeasurements.filter((e) => e[f.key] != null).map((e) => e[f.key] as number);
+    if (points.length >= 2) {
+      measurementDeltas[f.key] = round1(points[points.length - 1] - points[0]);
+    }
+  }
+
   // Health-app averages: only days the health app actually synced something
   // count, so a partial week (e.g. connected mid-week) doesn't drag the
   // average down with phantom zero days.
@@ -221,6 +236,7 @@ export function computeWeekData(inp: WeekDataInputs): {
     weightDelta: weekWeights.length >= 2
       ? round1(weekWeights[weekWeights.length - 1].weight_kg - weekWeights[0].weight_kg)
       : null,
+    measurementDeltas,
     activityAvgs,
   };
 

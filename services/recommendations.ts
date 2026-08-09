@@ -44,6 +44,15 @@ export function isValidWeightKg(w: number): boolean {
   return Number.isFinite(w) && w >= WEIGHT_KG_MIN && w <= WEIGHT_KG_MAX;
 }
 
+// Body-part circumference range — covers everything from a child's arm to an
+// adult's hips/waist/chest, generous enough not to reject real measurements.
+export const MEASUREMENT_CM_MIN = 10;
+export const MEASUREMENT_CM_MAX = 200;
+
+export function isValidMeasurementCm(v: number): boolean {
+  return Number.isFinite(v) && v >= MEASUREMENT_CM_MIN && v <= MEASUREMENT_CM_MAX;
+}
+
 const DEFAULTS: DailyTargets = {
   calories: 2000, protein: 160, carbs: 200, fat: 65,
   sleepHours: 8, workoutDaysPerWeek: 3, workoutMinutes: 45, waterGlasses: 8,

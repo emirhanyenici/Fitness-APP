@@ -20,6 +20,8 @@ import { useAuthStore } from '../stores/authStore';
 import { useSubscriptionStore } from '../stores/subscriptionStore';
 import { useUserStore } from '../stores/userStore';
 import { useZenovaScore } from '../hooks/useZenovaScore';
+import { useAchievementCheck } from '../hooks/useAchievementCheck';
+import { AchievementUnlockModal } from '../components/ui/AchievementUnlockModal';
 import { useColors, useIsDark } from '../constants/useColors';
 
 const POSTHOG_KEY = process.env.EXPO_PUBLIC_POSTHOG_KEY ?? '';
@@ -53,6 +55,7 @@ export default function RootLayout() {
   const colors = useColors();
   const isDark = useIsDark();
   const { score, scoreColor } = useZenovaScore();
+  const { current: unlockedAchievement, dismiss: dismissAchievement } = useAchievementCheck();
 
   const [fontsLoaded, fontError] = useFonts({
     Outfit_700Bold,
@@ -192,8 +195,11 @@ export default function RootLayout() {
             <Stack.Screen name="modals/weekly-report" options={{ presentation: 'modal' }} />
             <Stack.Screen name="modals/exercise-demo" options={{ presentation: 'modal' }} />
             <Stack.Screen name="modals/custom-program" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="modals/add-measurement" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="modals/history" />
           </Stack>
         </ErrorBoundary>
+        <AchievementUnlockModal achievement={unlockedAchievement} onDismiss={dismissAchievement} />
       </QueryClientProvider>
     </GestureHandlerRootView>
   );

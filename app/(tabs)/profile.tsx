@@ -11,6 +11,9 @@ import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { useWeightLogStore } from '../../stores/weightLogStore';
 import { useHealthStore } from '../../stores/healthStore';
 import { useThemeStore } from '../../stores/themeStore';
+import { useAchievementStore } from '../../stores/achievementStore';
+import { ACHIEVEMENTS } from '../../constants/achievements';
+import { useMeasurementLogStore, MEASUREMENT_FIELDS } from '../../stores/measurementLogStore';
 import { connectHealth, disconnectHealth } from '../../services/health';
 import { useZenovaScore, formatDeltaLabel } from '../../hooks/useZenovaScore';
 import { type Colors, withAlpha, bmiColor } from '../../constants/colors';
@@ -22,7 +25,7 @@ import { MEDICAL_DISCLAIMER } from '../../constants/legal';
 import { isValidHeightCm, isValidWeightKg } from '../../services/recommendations';
 import {
   Icon, Bell, ChartColumn, Heart, CreditCard, Stethoscope, Lock, FileText,
-  Ruler, ChevronRight, CircleUserRound, Pencil, Settings, Trash2, Moon, Sun,
+  Ruler, ChevronRight, CircleUserRound, Pencil, Settings, Trash2, Moon, Sun, History,
 } from '../../components/ui/Icon';
 import { supabase } from '../../services/supabase';
 import { logError } from '../../services/monitoring';
@@ -42,6 +45,7 @@ function cmToFtIn(cm: number) {
   const inch = Math.round(totalIn % 12);
   return `${ft}'${inch}"`;
 }
+function cmToInDecimal(cm: number) { return Math.round((cm / 2.54) * 10) / 10; }
 
 export default function ProfileScreen() {
   const colors = useColors();
@@ -58,9 +62,16 @@ export default function ProfileScreen() {
   const t = useT();
   const [deleting, setDeleting] = useState(false);
   const healthConnected = useHealthStore((s) => s.connected);
+  const unlockedAchievements = useAchievementStore((s) => s.unlocked);
+  const measurementEntries = useMeasurementLogStore((s) => s.entries);
+  const latestMeasurement = useMemo(
+    () => [...measurementEntries].sort((a, b) => b.date.localeCompare(a.date))[0],
+    [measurementEntries],
+  );
 
   const SETTINGS = [
     { icon: Bell,        label: t('profile.notifications'), sub: '',                                                        action: 'notifications', pro: false },
+    { icon: History,     label: t('profile.history'),       sub: '',                                                        action: 'history',       pro: false },
     { icon: ChartColumn, label: t('profile.weeklyReport'),  sub: isPro ? t('profile.aiPowered') : '',                       action: 'weeklyReport',  pro: !isPro },
     { icon: Heart,       label: HEALTH_APP,                  sub: healthConnected ? t('profile.healthConnected') : t('profile.connect'), action: 'health', pro: false },
     { icon: CreditCard,  label: t('profile.subscription'),  sub: plan === 'free' ? t('profile.freePlan') : plan.toUpperCase(), action: 'subscription', pro: false },
@@ -77,15 +88,18 @@ export default function ProfileScreen() {
   const [draftName,   setDraftName]   = useState('');
   const [draftWeight, setDraftWeight] = useState('');
   const [draftHeight, setDraftHeight] = useState('');
+  const [draftGoalWeight, setDraftGoalWeight] = useState('');
 
   const openEdit = () => {
     setDraftName(profile?.name ?? '');
     if (units === 'imperial') {
       setDraftWeight(profile?.weight_kg ? String(kgToLbs(profile.weight_kg)) : '');
       setDraftHeight(profile?.height_cm ? String(cmToInTotal(profile.height_cm)) : '');
+      setDraftGoalWeight(profile?.goal_weight_kg ? String(kgToLbs(profile.goal_weight_kg)) : '');
     } else {
       setDraftWeight(profile?.weight_kg ? String(profile.weight_kg) : '');
       setDraftHeight(profile?.height_cm ? String(profile.height_cm) : '');
+      setDraftGoalWeight(profile?.goal_weight_kg ? String(profile.goal_weight_kg) : '');
     }
     setEditing(true);
   };
@@ -94,19 +108,22 @@ export default function ProfileScreen() {
     const name = draftName.trim() || undefined;
     const rawW = parseFloat(draftWeight) || undefined;
     const rawH = parseFloat(draftHeight) || undefined;
+    const rawGW = parseFloat(draftGoalWeight) || undefined;
     const weight_kg = rawW ? (units === 'imperial' ? lbsToKg(rawW) : rawW) : undefined;
     const height_cm = rawH ? (units === 'imperial' ? inToCm(rawH)  : rawH) : undefined;
+    const goal_weight_kg = rawGW ? (units === 'imperial' ? lbsToKg(rawGW) : rawGW) : undefined;
     // Validate in metric after unit conversion — implausible values corrupt
     // BMI/TDEE targets everywhere downstream (finding F13).
     if ((weight_kg !== undefined && !isValidWeightKg(weight_kg)) ||
-        (height_cm !== undefined && !isValidHeightCm(height_cm))) {
+        (height_cm !== undefined && !isValidHeightCm(height_cm)) ||
+        (goal_weight_kg !== undefined && !isValidWeightKg(goal_weight_kg))) {
       Alert.alert(t('common.error'), t('profile.rangeError'));
       return;
     }
     const bmi = (weight_kg && height_cm)
       ? parseFloat((weight_kg / Math.pow(height_cm / 100, 2)).toFixed(1))
       : profile?.bmi;
-    updateProfile({ name, weight_kg, height_cm, bmi });
+    updateProfile({ name, weight_kg, height_cm, goal_weight_kg, bmi });
     // Log weight change to history
     if (weight_kg) addWeightEntry(weight_kg);
     setEditing(false);
@@ -119,6 +136,9 @@ export default function ProfileScreen() {
         break;
       case 'notifications':
         router.push('/modals/notifications');
+        break;
+      case 'history':
+        router.push('/modals/history');
         break;
       case 'weeklyReport':
         if (!isPro) { router.push('/paywall'); return; }
@@ -351,7 +371,24 @@ export default function ProfileScreen() {
               </View>
             </View>
           </View>
-        ) : (
+        ) : null}
+        {editing && (
+          <View style={styles.editStatsRow}>
+            <View style={styles.editStatField}>
+              <Text style={styles.editStatLabel}>{units === 'imperial' ? t('profile.goalWeightLbs') : t('profile.goalWeightKg')}</Text>
+              <TextInput
+                style={styles.editStatInput}
+                value={draftGoalWeight}
+                onChangeText={setDraftGoalWeight}
+                placeholder={units === 'imperial' ? '143' : '65'}
+                placeholderTextColor={colors.text.tertiary}
+                keyboardType="decimal-pad"
+                returnKeyType="done"
+              />
+            </View>
+          </View>
+        )}
+        {!editing && (
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
               <Text style={styles.statVal}>
@@ -416,6 +453,79 @@ export default function ProfileScreen() {
             <ProgressRing progress={score / 100} size={54} strokeWidth={5} color={scoreColor}>
               <Text style={[styles.scoreRingNum, { color: scoreColor }]}>{score}</Text>
             </ProgressRing>
+          </View>
+        )}
+
+        {/* ── Achievements ── */}
+        {!editing && (
+          <View style={styles.achievementsCard}>
+            <Text style={styles.scoreTitle}>{t('achievements.sectionTitle')}</Text>
+            <View style={styles.badgeGrid}>
+              {ACHIEVEMENTS.map((a) => {
+                const unlockedAt = unlockedAchievements[a.id];
+                return (
+                  <TouchableOpacity
+                    key={a.id}
+                    style={styles.badgeItem}
+                    activeOpacity={0.7}
+                    onPress={() => Alert.alert(
+                      t(a.titleKey),
+                      unlockedAt ? `${t(a.descKey)}\n\n${t('achievements.unlockedOn', { date: new Date(unlockedAt).toLocaleDateString() })}` : `${t(a.descKey)}\n\n${t('achievements.locked')}`,
+                    )}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t(a.titleKey)}${unlockedAt ? '' : ', ' + t('achievements.locked')}`}
+                  >
+                    <View style={[styles.badgeCircle, !unlockedAt && styles.badgeCircleLocked]}>
+                      <Icon icon={a.icon} size="md" color={unlockedAt ? colors.accent.primary : colors.text.tertiary} />
+                    </View>
+                    <Text style={[styles.badgeLabel, !unlockedAt && styles.badgeLabelLocked]} numberOfLines={2}>
+                      {t(a.titleKey)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* ── Body Measurements ── */}
+        {!editing && (
+          <View style={styles.achievementsCard}>
+            <View style={styles.measurementsHeader}>
+              <Text style={styles.scoreTitle}>{t('measurements.sectionTitle')}</Text>
+              <View style={{ flexDirection: 'row', gap: spacing.base }}>
+                <TouchableOpacity
+                  onPress={() => router.push({ pathname: '/modals/history', params: { tab: 'measurements' } })}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('measurements.history')}
+                >
+                  <Text style={styles.measurementsLogLink}>{t('measurements.history')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => router.push('/modals/add-measurement')}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('measurements.addTitle')}
+                >
+                  <Text style={styles.measurementsLogLink}>{t('measurements.log')}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            <View style={styles.badgeGrid}>
+              {MEASUREMENT_FIELDS.map((f) => {
+                const cm = latestMeasurement?.[f.key];
+                const display = cm
+                  ? units === 'imperial' ? `${cmToInDecimal(cm)} in` : `${cm} cm`
+                  : '—';
+                return (
+                  <View key={f.key} style={styles.measurementItem}>
+                    <Text style={styles.statVal}>{display}</Text>
+                    <Text style={styles.statLabel}>{t(f.labelKey)}</Text>
+                  </View>
+                );
+              })}
+            </View>
           </View>
         )}
 
@@ -582,6 +692,18 @@ const getStyles = (colors: Colors) => {
   scoreTitle:   { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.primary },
   scoreSub:     { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, marginTop: 2 },
   scoreRingNum: { fontFamily: typography.fonts.mono, fontSize: typography.sizes.md },
+
+  achievementsCard: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base, gap: spacing.sm, ...elevation.card },
+  badgeGrid:        { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  badgeItem:        { width: '22%', alignItems: 'center', gap: 4 },
+  badgeCircle:      { width: 48, height: 48, borderRadius: radius.full, backgroundColor: withAlpha(colors.accent.primary, 0.13), alignItems: 'center', justifyContent: 'center' },
+  badgeCircleLocked: { backgroundColor: colors.bg.elevated },
+  badgeLabel:       { fontFamily: typography.fonts.body, fontSize: 10, color: colors.text.secondary, textAlign: 'center' },
+  badgeLabelLocked: { color: colors.text.tertiary },
+
+  measurementsHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  measurementsLogLink: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.accent.primary },
+  measurementItem:     { width: '30%', alignItems: 'center', gap: 3, paddingVertical: spacing.sm },
 
   settingsCard: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, marginBottom: spacing.base, overflow: 'hidden', ...elevation.card },
   settingRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15, paddingHorizontal: spacing.base, borderBottomWidth: 1, borderBottomColor: colors.border.subtle },
