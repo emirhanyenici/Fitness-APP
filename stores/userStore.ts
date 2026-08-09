@@ -33,6 +33,10 @@ export interface UserProfile {
   notif_calorie_time?: string;
   notif_streak_time?: string;
   notif_sleep_time?: string;
+  /** Self-chosen public display name — never the real `name`/email. Required to opt in. */
+  leaderboard_nickname?: string;
+  /** Presence of a row in Supabase leaderboard_stats mirrors this — see services/leaderboard.ts */
+  leaderboard_optin?: boolean;
 }
 
 interface UserStore {

@@ -15,6 +15,7 @@ import { logError } from './monitoring';
 import type { TFunction } from '../constants/i18n';
 import type { WeeklyReportData } from './weeklyReport';
 import { MEASUREMENT_FIELDS } from '../stores/measurementLogStore';
+import { kgToLbs, cmToIn } from './units';
 
 const C = {
   emerald: '#059669',
@@ -118,7 +119,7 @@ function statCell(label: string, value: string, sub = ''): string {
     </td>`;
 }
 
-export function buildReportHtml(data: WeeklyReportData, t: TFunction): string {
+export function buildReportHtml(data: WeeklyReportData, t: TFunction, units: 'metric' | 'imperial' = 'metric'): string {
   const s = data.stats;
 
   const workoutsSub = s.workoutBreakdown.length
@@ -135,19 +136,25 @@ export function buildReportHtml(data: WeeklyReportData, t: TFunction): string {
       )
     : '';
 
-  const weightCell = s.weightDelta !== null
+  const weightDeltaDisplay = s.weightDelta !== null
+    ? (units === 'imperial' ? kgToLbs(s.weightDelta, 1) : s.weightDelta)
+    : null;
+  const weightUnitLabel = units === 'imperial' ? 'lbs' : 'kg';
+  const weightCell = weightDeltaDisplay !== null
     ? statCell(
         t('weeklyReport.weightChange'),
-        `<span style="color:${s.weightDelta > 0 ? C.warning : C.emerald};">${s.weightDelta > 0 ? '+' : ''}${s.weightDelta} kg</span>`,
+        `<span style="color:${weightDeltaDisplay > 0 ? C.warning : C.emerald};">${weightDeltaDisplay > 0 ? '+' : ''}${weightDeltaDisplay} ${weightUnitLabel}</span>`,
         esc(t('weeklyReport.weightThisWeek')),
       )
     : '';
 
+  const measurementUnitLabel = units === 'imperial' ? 'in' : 'cm';
   const measurementRows = MEASUREMENT_FIELDS
     .filter((f) => s.measurementDeltas[f.key] !== undefined)
     .map((f) => {
-      const d = s.measurementDeltas[f.key]!;
-      return `${esc(t(f.labelKey))}: <span style="color:${d > 0 ? C.warning : C.emerald};">${d > 0 ? '+' : ''}${d} cm</span>`;
+      const raw = s.measurementDeltas[f.key]!;
+      const d = units === 'imperial' ? cmToIn(raw) : raw;
+      return `${esc(t(f.labelKey))}: <span style="color:${d > 0 ? C.warning : C.emerald};">${d > 0 ? '+' : ''}${d} ${measurementUnitLabel}</span>`;
     });
   const measurementsCell = measurementRows.length > 0
     ? statCell(t('weeklyReport.measurementsChange'), measurementRows.join('<br/>'), '')
@@ -258,14 +265,14 @@ export function reportFileName(data: WeeklyReportData): string {
  * Render the report HTML to a PDF file and open the OS share sheet.
  * Throws on failure (after logging) so the modal can surface `pdfError`.
  */
-export async function exportReportPdf(data: WeeklyReportData, t: TFunction): Promise<void> {
+export async function exportReportPdf(data: WeeklyReportData, t: TFunction, units: 'metric' | 'imperial' = 'metric'): Promise<void> {
   try {
     // Lazy imports: native modules absent from older dev builds must not crash
     // the modal at load time — only when the button is pressed.
     const Print = await import('expo-print');
     const Sharing = await import('expo-sharing');
 
-    const { uri } = await Print.printToFileAsync({ html: buildReportHtml(data, t) });
+    const { uri } = await Print.printToFileAsync({ html: buildReportHtml(data, t, units) });
 
     // printToFileAsync names the file randomly (e.g. Print-1A2B.pdf); rename it
     // so the share sheet / Files app show a meaningful name.

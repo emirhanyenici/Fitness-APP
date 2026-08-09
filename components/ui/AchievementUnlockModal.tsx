@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { Modal, View, Text, StyleSheet } from 'react-native';
+import { useEffect, useMemo } from 'react';
+import { AccessibilityInfo, Modal, View, Text, StyleSheet } from 'react-native';
 import { type Colors, withAlpha } from '../../constants/colors';
 import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
@@ -22,8 +22,16 @@ export function AchievementUnlockModal({ achievement, onDismiss }: AchievementUn
   const styles = useMemo(() => getStyles(colors), [colors]);
   const t = useT();
 
+  // The modal pops in silently otherwise — a screen-reader user gets no cue
+  // that a celebratory overlay just appeared over whatever screen they were on.
+  useEffect(() => {
+    if (achievement) {
+      AccessibilityInfo.announceForAccessibility(`${t('achievements.unlockedBanner')}: ${t(achievement.titleKey)}`);
+    }
+  }, [achievement, t]);
+
   return (
-    <Modal visible={achievement !== null} transparent animationType="fade" onRequestClose={onDismiss}>
+    <Modal visible={achievement !== null} transparent animationType="fade" onRequestClose={onDismiss} accessibilityViewIsModal>
       <View style={styles.overlay}>
         {achievement && (
           <Card variant="hero" style={styles.card}>

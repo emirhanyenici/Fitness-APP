@@ -36,6 +36,8 @@ interface WorkoutStore {
 
   /** Completed workout history */
   history: CompletedWorkout[];
+  /** Lifetime count of workouts ever logged — never trimmed, unlike `history` (capped at 50). Powers workout-count achievements. */
+  totalWorkoutsLogged: number;
   addWorkout: (workout: Omit<CompletedWorkout, 'id' | 'date' | 'timestamp'>) => void;
   /** Replace an existing entry's data in place (same id + date, fresh timestamp) */
   updateWorkout: (id: string, workout: Omit<CompletedWorkout, 'id' | 'date' | 'timestamp'>) => void;
@@ -54,6 +56,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
       setSelectedProgram: (program) => set({ selectedProgram: program }),
 
       history: [],
+      totalWorkoutsLogged: 0,
       addWorkout: (workout) =>
         set((state) => ({
           history: [
@@ -65,6 +68,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
             },
             ...state.history,
           ].slice(0, 50), // keep last 50 workouts
+          totalWorkoutsLogged: state.totalWorkoutsLogged + 1,
         })),
       updateWorkout: (id, workout) =>
         set((state) => ({
@@ -81,10 +85,11 @@ export const useWorkoutStore = create<WorkoutStore>()(
             history: [...fresh, ...state.history]
               .sort((a, b) => b.timestamp - a.timestamp)
               .slice(0, 50),
+            totalWorkoutsLogged: state.totalWorkoutsLogged + fresh.length,
           };
         }),
 
-      clearHistory: () => set({ history: [], selectedType: null, selectedProgram: null }),
+      clearHistory: () => set({ history: [], selectedType: null, selectedProgram: null, totalWorkoutsLogged: 0 }),
     }),
     {
       name: 'zenova-workout-storage',

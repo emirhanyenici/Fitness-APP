@@ -42,7 +42,7 @@ interface Adapter {
 const ADAPTERS: Adapter[] = [
   { store: 'user',            hook: useUserStore as AnyStore,           keys: ['profile', 'isOnboarded', 'freeSnapsUsed', 'freeSnapsDate'] },
   { store: 'nutrition',       hook: useNutritionStore as AnyStore,      keys: ['entries', 'waterByDate'] },
-  { store: 'workout',         hook: useWorkoutStore as AnyStore,        keys: ['history', 'selectedType', 'selectedProgram'] },
+  { store: 'workout',         hook: useWorkoutStore as AnyStore,        keys: ['history', 'selectedType', 'selectedProgram', 'totalWorkoutsLogged'] },
   { store: 'recovery',        hook: useRecoveryStore as AnyStore,       keys: ['entries'] },
   { store: 'weightLog',       hook: useWeightLogStore as AnyStore,      keys: ['entries'] },
   { store: 'exerciseWeight',  hook: useExerciseWeightStore as AnyStore, keys: ['logs'] },

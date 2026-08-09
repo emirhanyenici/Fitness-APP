@@ -3,26 +3,19 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Alert 
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useUserStore } from '../../stores/userStore';
-import { useMeasurementLogStore, type MeasurementEntry, type MeasurementField } from '../../stores/measurementLogStore';
+import { useMeasurementLogStore, MEASUREMENT_FIELDS, type MeasurementEntry, type MeasurementField } from '../../stores/measurementLogStore';
 import { isValidMeasurementCm } from '../../services/recommendations';
+import { cmToIn, inToCm } from '../../services/units';
 import { withAlpha, type Colors } from '../../constants/colors';
 import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
-import { spacing, radius } from '../../constants/spacing';
+import { spacing } from '../../constants/spacing';
 import { useT } from '../../constants/i18n';
 import { Icon, ArrowLeft } from '../../components/ui/Icon';
 import { Button } from '../../components/ui/Button';
+import { Card } from '../../components/ui/Card';
 
-const FIELDS: { key: MeasurementField; labelKey: string }[] = [
-  { key: 'waist_cm', labelKey: 'measurements.waist' },
-  { key: 'chest_cm', labelKey: 'measurements.chest' },
-  { key: 'arm_cm',   labelKey: 'measurements.arm' },
-  { key: 'hips_cm',  labelKey: 'measurements.hips' },
-  { key: 'thigh_cm', labelKey: 'measurements.thigh' },
-];
-
-function cmToIn(cm: number) { return Math.round((cm / 2.54) * 10) / 10; }
-function inToCm(inch: number) { return Math.round(inch * 2.54 * 10) / 10; }
+const FIELDS = MEASUREMENT_FIELDS;
 
 function latestEntry(entries: MeasurementEntry[]): MeasurementEntry | undefined {
   return [...entries].sort((a, b) => b.date.localeCompare(a.date))[0];
@@ -55,9 +48,9 @@ export default function AddMeasurementModal() {
       if (!raw) continue;
       const parsed = parseFloat(raw);
       if (!Number.isFinite(parsed)) continue;
-      const cm = units === 'imperial' ? inToCm(parsed) : parsed;
+      const cm = units === 'imperial' ? inToCm(parsed, 1) : parsed;
       if (!isValidMeasurementCm(cm)) {
-        Alert.alert(t('common.error'), t('measurements.rangeError'));
+        Alert.alert(t('common.error'), t('measurements.rangeErrorField', { field: t(f.labelKey) }));
         return;
       }
       fields[f.key] = cm;
@@ -82,7 +75,7 @@ export default function AddMeasurementModal() {
 
       <Text style={styles.sectionSub}>{t('measurements.sectionSub')}</Text>
 
-      <View style={styles.card}>
+      <Card style={styles.card}>
         {FIELDS.map((f, i) => (
           <View key={f.key} style={[styles.row, i === FIELDS.length - 1 && { borderBottomWidth: 0 }]}>
             <Text style={styles.rowLabel}>{t(f.labelKey)}</Text>
@@ -94,10 +87,11 @@ export default function AddMeasurementModal() {
               placeholderTextColor={colors.text.tertiary}
               keyboardType="decimal-pad"
               returnKeyType="done"
+              accessibilityLabel={t(f.labelKey)}
             />
           </View>
         ))}
-      </View>
+      </Card>
 
       <Button label={t('common.save')} onPress={handleSave} style={{ marginTop: spacing.base }} />
     </ScrollView>
@@ -114,7 +108,7 @@ const getStyles = (colors: Colors) =>
 
     sectionSub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, lineHeight: 20, marginBottom: spacing.base },
 
-    card: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, overflow: 'hidden' },
+    card: { padding: 0, overflow: 'hidden' },
     row: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
       paddingVertical: spacing.base, paddingHorizontal: spacing.base,

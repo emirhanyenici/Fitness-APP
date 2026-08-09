@@ -21,6 +21,7 @@ import { useSubscriptionStore } from '../stores/subscriptionStore';
 import { useUserStore } from '../stores/userStore';
 import { useZenovaScore } from '../hooks/useZenovaScore';
 import { useAchievementCheck } from '../hooks/useAchievementCheck';
+import { useLeaderboardSync } from '../hooks/useLeaderboardSync';
 import { AchievementUnlockModal } from '../components/ui/AchievementUnlockModal';
 import { useColors, useIsDark } from '../constants/useColors';
 
@@ -56,6 +57,7 @@ export default function RootLayout() {
   const isDark = useIsDark();
   const { score, scoreColor } = useZenovaScore();
   const { current: unlockedAchievement, dismiss: dismissAchievement } = useAchievementCheck();
+  useLeaderboardSync();
 
   const [fontsLoaded, fontError] = useFonts({
     Outfit_700Bold,
@@ -197,6 +199,7 @@ export default function RootLayout() {
             <Stack.Screen name="modals/custom-program" options={{ presentation: 'modal' }} />
             <Stack.Screen name="modals/add-measurement" options={{ presentation: 'modal' }} />
             <Stack.Screen name="modals/history" />
+            <Stack.Screen name="modals/leaderboard" />
           </Stack>
         </ErrorBoundary>
         <AchievementUnlockModal achievement={unlockedAchievement} onDismiss={dismissAchievement} />

@@ -13,6 +13,7 @@ import { useHealthStore } from '../../stores/healthStore';
 import { useUserStore } from '../../stores/userStore';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { computeTargets } from '../../services/recommendations';
+import { kgToLbs, cmToIn } from '../../services/units';
 import {
   computeWeekData, buildLocalSections, WeeklyReportData,
 } from '../../services/weeklyReport';
@@ -38,6 +39,7 @@ const scoreColor = (colors: Colors, score: number) =>
 export default function WeeklyReportModal() {
   const isPro   = useSubscriptionStore((s) => s.isPro);
   const profile = useUserStore((s) => s.profile);
+  const units = profile?.units ?? 'metric';
   const t = useT();
   const colors = useColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
@@ -149,7 +151,7 @@ Write a short motivating coach's summary (5-8 sentences) of their week: call out
     if (!data || exporting) return;
     setExporting(true);
     try {
-      await exportReportPdf(data, t);
+      await exportReportPdf(data, t, units);
     } catch {
       Alert.alert(t('common.error'), t('weeklyReport.pdfError'));
     } finally {
@@ -342,18 +344,22 @@ Write a short motivating coach's summary (5-8 sentences) of their week: call out
           )}
 
           {/* Weight */}
-          {data.stats.weightDelta !== null && (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>{t('weeklyReport.weightChange')}</Text>
-              <Text style={[
-                styles.bigStat,
-                { color: data.stats.weightDelta > 0 ? colors.status.warning : colors.accent.primary },
-              ]}>
-                {data.stats.weightDelta > 0 ? '+' : ''}{data.stats.weightDelta} kg
-              </Text>
-              <Text style={styles.bigStatLabel}>{t('weeklyReport.weightThisWeek')}</Text>
-            </View>
-          )}
+          {data.stats.weightDelta !== null && (() => {
+            const delta = units === 'imperial' ? kgToLbs(data.stats.weightDelta, 1) : data.stats.weightDelta;
+            const unitLabel = units === 'imperial' ? 'lbs' : 'kg';
+            return (
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>{t('weeklyReport.weightChange')}</Text>
+                <Text style={[
+                  styles.bigStat,
+                  { color: delta > 0 ? colors.status.warning : colors.accent.primary },
+                ]}>
+                  {delta > 0 ? '+' : ''}{delta} {unitLabel}
+                </Text>
+                <Text style={styles.bigStatLabel}>{t('weeklyReport.weightThisWeek')}</Text>
+              </View>
+            );
+          })()}
 
           {/* Body Measurements */}
           {Object.keys(data.stats.measurementDeltas).length > 0 && (
@@ -361,15 +367,17 @@ Write a short motivating coach's summary (5-8 sentences) of their week: call out
               <Text style={styles.cardTitle}>{t('weeklyReport.measurementsChange')}</Text>
               <View style={styles.macroRow}>
                 {MEASUREMENT_FIELDS.map((f) => {
-                  const delta = data.stats.measurementDeltas[f.key];
-                  if (delta === undefined) return null;
+                  const rawDelta = data.stats.measurementDeltas[f.key];
+                  if (rawDelta === undefined) return null;
+                  const delta = units === 'imperial' ? cmToIn(rawDelta) : rawDelta;
+                  const unitLabel = units === 'imperial' ? 'in' : 'cm';
                   return (
                     <View key={f.key} style={styles.macroChip}>
                       <Text style={[
                         styles.macroVal,
                         { color: delta > 0 ? colors.status.warning : colors.accent.primary },
                       ]}>
-                        {delta > 0 ? '+' : ''}{delta} cm
+                        {delta > 0 ? '+' : ''}{delta} {unitLabel}
                       </Text>
                       <Text style={styles.macroLabel}>{t(f.labelKey)}</Text>
                     </View>

@@ -9,6 +9,7 @@ import { useMeasurementLogStore, MEASUREMENT_FIELDS } from '../../stores/measure
 import { useWorkoutStore } from '../../stores/workoutStore';
 import { useExerciseWeightStore } from '../../stores/exerciseWeightStore';
 import { groupByDate, formatWorkoutDate } from '../../services/workoutHistory';
+import { kgToLbs, cmToIn } from '../../services/units';
 import { withAlpha, type Colors } from '../../constants/colors';
 import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
@@ -16,6 +17,7 @@ import { spacing, radius } from '../../constants/spacing';
 import { getElevation } from '../../constants/elevation';
 import { useT } from '../../constants/i18n';
 import { SparklineChart } from '../../components/ui/SparklineChart';
+import { Card } from '../../components/ui/Card';
 import {
   Icon, type IconComponent, ArrowLeft, UtensilsCrossed, Scale, Ruler, Dumbbell,
   ChevronDown, ChevronUp, workoutIcon,
@@ -23,9 +25,8 @@ import {
 
 type HistoryTab = 'nutrition' | 'weight' | 'measurements' | 'workouts';
 const TAB_KEYS: HistoryTab[] = ['nutrition', 'weight', 'measurements', 'workouts'];
-
-function kgToLbs(kg: number) { return Math.round(kg * 2.20462 * 10) / 10; }
-function cmToInDecimal(cm: number) { return Math.round((cm / 2.54) * 10) / 10; }
+/** nutritionStore/weightLogStore entries are never rotated — cap what History renders so years of daily use don't degrade this screen. */
+const HISTORY_RENDER_CAP = 90;
 
 export default function HistoryScreen() {
   const insets = useSafeAreaInsets();
@@ -68,20 +69,24 @@ export default function HistoryScreen() {
       row.items.push(e);
       map.set(e.date, row);
     }
-    return [...map.values()].sort((a, b) => b.date.localeCompare(a.date));
+    // Cap rendered days — nutritionStore never rotates entries, so an app used
+    // for years could otherwise accumulate thousands of day-rows here.
+    return [...map.values()].sort((a, b) => b.date.localeCompare(a.date)).slice(0, HISTORY_RENDER_CAP);
   }, [nutritionEntries]);
 
   const weightSorted = useMemo(
-    () => [...weightEntries].sort((a, b) => a.date.localeCompare(b.date)),
+    // Most recent N points, kept ascending for the chart; weightLogStore is
+    // also never rotated, so this bounds both the chart and the list below it.
+    () => [...weightEntries].sort((a, b) => a.date.localeCompare(b.date)).slice(-HISTORY_RENDER_CAP),
     [weightEntries],
   );
-  const weightChartData = weightSorted.map((e) => (units === 'imperial' ? kgToLbs(e.weight_kg) : e.weight_kg));
+  const weightChartData = weightSorted.map((e) => (units === 'imperial' ? kgToLbs(e.weight_kg, 1) : e.weight_kg));
 
   const measurementSeries = useMemo(() => MEASUREMENT_FIELDS.map((f) => {
     const points = measurementEntries
       .filter((e) => e[f.key] != null)
       .sort((a, b) => a.date.localeCompare(b.date))
-      .map((e) => (units === 'imperial' ? cmToInDecimal(e[f.key] as number) : (e[f.key] as number)));
+      .map((e) => (units === 'imperial' ? cmToIn(e[f.key] as number) : (e[f.key] as number)));
     return { ...f, points };
   }), [measurementEntries, units]);
 
@@ -95,7 +100,7 @@ export default function HistoryScreen() {
     [exerciseLogs],
   );
   const exerciseChartData = selectedExercise
-    ? [...getExerciseHistory(selectedExercise)].reverse().map((e) => (units === 'imperial' ? kgToLbs(e.weightKg) : e.weightKg))
+    ? [...getExerciseHistory(selectedExercise)].reverse().map((e) => (units === 'imperial' ? kgToLbs(e.weightKg, 1) : e.weightKg))
     : [];
 
   return (
@@ -134,16 +139,17 @@ export default function HistoryScreen() {
             {nutritionByDay.map((day) => {
               const expanded = expandedDate === day.date;
               return (
-                <View key={day.date} style={styles.card}>
+                <Card key={day.date} style={styles.card}>
                   <TouchableOpacity
                     style={styles.dayRow}
                     onPress={() => setExpandedDate(expanded ? null : day.date)}
                     activeOpacity={0.7}
                     accessibilityRole="button"
                     accessibilityState={{ expanded }}
+                    accessibilityLabel={t('history.dayRowA11y', { date: day.date, calories: Math.round(day.calories) })}
                   >
                     <View>
-                      <Text style={styles.dayDate}>{day.date}</Text>
+                      <Text style={styles.dayDate}>{formatWorkoutDate(day.date)} · {day.date}</Text>
                       <Text style={styles.daySub}>{t('history.macroSummary', { protein: Math.round(day.protein), carbs: Math.round(day.carbs), fat: Math.round(day.fat) })}</Text>
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
@@ -161,7 +167,7 @@ export default function HistoryScreen() {
                       ))}
                     </View>
                   )}
-                </View>
+                </Card>
               );
             })}
           </View>
@@ -173,41 +179,49 @@ export default function HistoryScreen() {
         weightSorted.length === 0 ? (
           <EmptyState colors={colors} styles={styles} icon={Scale} title={t('history.weightEmpty')} sub={t('history.weightEmptySub')} />
         ) : (
-          <View style={styles.card}>
+          <Card style={styles.card}>
             {weightChartData.length >= 2 ? (
-              <SparklineChart data={weightChartData} color={colors.accent.primary} width={300} />
+              <View accessible accessibilityLabel={t('history.weightChartA11y', { from: weightChartData[0], to: weightChartData[weightChartData.length - 1], unit: weightUnit })}>
+                <SparklineChart data={weightChartData} color={colors.accent.primary} width={300} />
+              </View>
             ) : (
               <Text style={styles.placeholderText}>{t('history.needMoreData')}</Text>
             )}
             <View style={styles.list}>
               {[...weightSorted].reverse().map((e) => (
                 <View key={e.date} style={styles.itemRow}>
-                  <Text style={styles.itemName}>{e.date}</Text>
-                  <Text style={styles.itemCals}>{units === 'imperial' ? kgToLbs(e.weight_kg) : e.weight_kg} {weightUnit}</Text>
+                  <Text style={styles.itemName}>{formatWorkoutDate(e.date)} · {e.date}</Text>
+                  <Text style={styles.itemCals}>{units === 'imperial' ? kgToLbs(e.weight_kg, 1) : e.weight_kg} {weightUnit}</Text>
                 </View>
               ))}
             </View>
-          </View>
+          </Card>
         )
       )}
 
       {/* ── Measurements ── */}
       {tab === 'measurements' && (
-        <View style={styles.list}>
-          {measurementSeries.map((s) => (
-            <View key={s.key} style={styles.card}>
-              <Text style={styles.cardTitle}>{t(s.labelKey)}</Text>
-              {s.points.length >= 2 ? (
-                <SparklineChart data={s.points} color={colors.accent.primary} width={300} />
-              ) : (
-                <Text style={styles.placeholderText}>{t('history.needMoreData')}</Text>
-              )}
-              {s.points.length > 0 && (
-                <Text style={styles.daySub}>{t('history.latestValue', { value: s.points[s.points.length - 1], unit: measurementUnit })}</Text>
-              )}
-            </View>
-          ))}
-        </View>
+        measurementEntries.length === 0 ? (
+          <EmptyState colors={colors} styles={styles} icon={Ruler} title={t('history.measurementsEmpty')} sub={t('history.measurementsEmptySub')} />
+        ) : (
+          <View style={styles.list}>
+            {measurementSeries.map((s) => (
+              <Card key={s.key} style={styles.card}>
+                <Text style={styles.cardTitle}>{t(s.labelKey)}</Text>
+                {s.points.length >= 2 ? (
+                  <View accessible accessibilityLabel={t('history.measurementChartA11y', { field: t(s.labelKey), from: s.points[0], to: s.points[s.points.length - 1], unit: measurementUnit })}>
+                    <SparklineChart data={s.points} color={colors.accent.primary} width={300} />
+                  </View>
+                ) : (
+                  <Text style={styles.placeholderText}>{t('history.needMoreData')}</Text>
+                )}
+                {s.points.length > 0 && (
+                  <Text style={styles.daySub}>{t('history.latestValue', { value: s.points[s.points.length - 1], unit: measurementUnit })}</Text>
+                )}
+              </Card>
+            ))}
+          </View>
+        )
       )}
 
       {/* ── Workouts ── */}
@@ -217,7 +231,7 @@ export default function HistoryScreen() {
         ) : (
           <>
             {exerciseNames.length > 0 && (
-              <View style={styles.card}>
+              <Card style={styles.card}>
                 <Text style={styles.cardTitle}>{t('history.exerciseProgress')}</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm, paddingVertical: spacing.sm }}>
                   {exerciseNames.map((name) => (
@@ -226,6 +240,10 @@ export default function HistoryScreen() {
                       style={[styles.exerciseChip, selectedExercise === name && styles.exerciseChipActive]}
                       onPress={() => setSelectedExercise(selectedExercise === name ? null : name)}
                       activeOpacity={0.75}
+                      hitSlop={{ top: 8, bottom: 8 }}
+                      accessibilityRole="button"
+                      accessibilityLabel={name}
+                      accessibilityState={{ selected: selectedExercise === name }}
                     >
                       <Text style={[styles.exerciseChipText, selectedExercise === name && styles.exerciseChipTextActive]} numberOfLines={1}>{name}</Text>
                     </TouchableOpacity>
@@ -233,12 +251,14 @@ export default function HistoryScreen() {
                 </ScrollView>
                 {selectedExercise && (
                   exerciseChartData.length >= 2 ? (
-                    <SparklineChart data={exerciseChartData} color={colors.accent.primary} width={300} />
+                    <View accessible accessibilityLabel={t('history.exerciseChartA11y', { name: selectedExercise, from: exerciseChartData[0], to: exerciseChartData[exerciseChartData.length - 1], unit: weightUnit })}>
+                      <SparklineChart data={exerciseChartData} color={colors.accent.primary} width={300} />
+                    </View>
                   ) : (
                     <Text style={styles.placeholderText}>{t('history.needMoreData')}</Text>
                   )
                 )}
-              </View>
+              </Card>
             )}
             <View style={styles.list}>
               {groupedWorkouts.map((w) => {
@@ -253,7 +273,7 @@ export default function HistoryScreen() {
                         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
                           {weightEntriesList.map(([name, kg]) => (
                             <View key={name} style={styles.exerciseChip}>
-                              <Text style={styles.exerciseChipText}>{name.split(' ')[0]} {units === 'imperial' ? kgToLbs(kg) : kg}{weightUnit}</Text>
+                              <Text style={styles.exerciseChipText}>{name.split(' ')[0]} {units === 'imperial' ? kgToLbs(kg, 1) : kg}{weightUnit}</Text>
                             </View>
                           ))}
                         </View>
@@ -299,7 +319,7 @@ const getStyles = (colors: Colors) => {
     tabPillTextActive: { color: colors.accent.primary, fontFamily: typography.fonts.bodyMed },
 
     list: { gap: spacing.sm },
-    card: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, gap: spacing.sm },
+    card: { gap: spacing.sm },
     cardTitle: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.primary },
 
     dayRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

@@ -18,7 +18,7 @@ import { hapticSuccess } from '../services/haptics';
 export function useAchievementCheck() {
   const entries = useNutritionStore((s) => s.entries);
   const recoveryEntries = useRecoveryStore((s) => s.entries);
-  const workoutHistory = useWorkoutStore((s) => s.history);
+  const totalWorkoutsLogged = useWorkoutStore((s) => s.totalWorkoutsLogged);
   const profile = useUserStore((s) => s.profile);
   const unlocked = useAchievementStore((s) => s.unlocked);
   const unlock = useAchievementStore((s) => s.unlock);
@@ -34,7 +34,7 @@ export function useAchievementCheck() {
 
     const newlyUnlockedIds = evaluateAchievements({
       streakDays,
-      workoutCount: workoutHistory.length,
+      workoutCount: totalWorkoutsLogged,
       nutritionCount: entries.length,
       weightKg: profile?.weight_kg,
       goalWeightKg: profile?.goal_weight_kg,
@@ -48,7 +48,7 @@ export function useAchievementCheck() {
     defs.forEach((d) => unlock(d.id));
     hapticSuccess();
     setQueue((q) => [...q, ...defs]);
-  }, [entries, recoveryEntries, workoutHistory, profile?.weight_kg, profile?.goal_weight_kg, unlocked, unlock]);
+  }, [entries, recoveryEntries, totalWorkoutsLogged, profile?.weight_kg, profile?.goal_weight_kg, unlocked, unlock]);
 
   return {
     current: queue[0] ?? null,

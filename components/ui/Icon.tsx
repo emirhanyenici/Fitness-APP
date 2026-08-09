@@ -87,6 +87,8 @@ export {
   Frown, Smile, Angry, Leaf,
   // Exercise demo metadata
   MapPin, Wrench,
+  // Leaderboard moderation
+  Flag,
   // Weekly report
   Download,
   // Photo picker (renamed to avoid clashing with react-native's Image)

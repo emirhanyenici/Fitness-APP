@@ -23,9 +23,10 @@ import { spacing, radius } from '../../constants/spacing';
 import { getElevation } from '../../constants/elevation';
 import { MEDICAL_DISCLAIMER } from '../../constants/legal';
 import { isValidHeightCm, isValidWeightKg } from '../../services/recommendations';
+import { kgToLbs, lbsToKg, cmToIn, inToCm, cmToFtIn } from '../../services/units';
 import {
   Icon, Bell, ChartColumn, Heart, CreditCard, Stethoscope, Lock, FileText,
-  Ruler, ChevronRight, CircleUserRound, Pencil, Settings, Trash2, Moon, Sun, History,
+  Ruler, ChevronRight, CircleUserRound, Pencil, Settings, Trash2, Moon, Sun, History, Trophy,
 } from '../../components/ui/Icon';
 import { supabase } from '../../services/supabase';
 import { logError } from '../../services/monitoring';
@@ -35,17 +36,7 @@ import { ProgressRing } from '../../components/ui/ProgressRing';
 const DELETE_ACCOUNT_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-account`;
 
 // ── Unit helpers ──────────────────────────────────────────────────────────────
-function kgToLbs(kg: number)  { return Math.round(kg * 2.20462); }
-function lbsToKg(lbs: number) { return Math.round((lbs / 2.20462) * 10) / 10; }
-function cmToInTotal(cm: number) { return Math.round(cm / 2.54); }
-function inToCm(totalIn: number) { return Math.round(totalIn * 2.54); }
-function cmToFtIn(cm: number) {
-  const totalIn = cm / 2.54;
-  const ft = Math.floor(totalIn / 12);
-  const inch = Math.round(totalIn % 12);
-  return `${ft}'${inch}"`;
-}
-function cmToInDecimal(cm: number) { return Math.round((cm / 2.54) * 10) / 10; }
+const cmToInTotal = (cm: number) => cmToIn(cm, 0);
 
 export default function ProfileScreen() {
   const colors = useColors();
@@ -72,6 +63,7 @@ export default function ProfileScreen() {
   const SETTINGS = [
     { icon: Bell,        label: t('profile.notifications'), sub: '',                                                        action: 'notifications', pro: false },
     { icon: History,     label: t('profile.history'),       sub: '',                                                        action: 'history',       pro: false },
+    { icon: Trophy,      label: t('profile.leaderboard'),   sub: '',                                                        action: 'leaderboard',   pro: false },
     { icon: ChartColumn, label: t('profile.weeklyReport'),  sub: isPro ? t('profile.aiPowered') : '',                       action: 'weeklyReport',  pro: !isPro },
     { icon: Heart,       label: HEALTH_APP,                  sub: healthConnected ? t('profile.healthConnected') : t('profile.connect'), action: 'health', pro: false },
     { icon: CreditCard,  label: t('profile.subscription'),  sub: plan === 'free' ? t('profile.freePlan') : plan.toUpperCase(), action: 'subscription', pro: false },
@@ -139,6 +131,9 @@ export default function ProfileScreen() {
         break;
       case 'history':
         router.push('/modals/history');
+        break;
+      case 'leaderboard':
+        router.push('/modals/leaderboard');
         break;
       case 'weeklyReport':
         if (!isPro) { router.push('/paywall'); return; }
@@ -497,6 +492,7 @@ export default function ProfileScreen() {
                 <TouchableOpacity
                   onPress={() => router.push({ pathname: '/modals/history', params: { tab: 'measurements' } })}
                   activeOpacity={0.7}
+                  hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
                   accessibilityRole="button"
                   accessibilityLabel={t('measurements.history')}
                 >
@@ -505,6 +501,7 @@ export default function ProfileScreen() {
                 <TouchableOpacity
                   onPress={() => router.push('/modals/add-measurement')}
                   activeOpacity={0.7}
+                  hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
                   accessibilityRole="button"
                   accessibilityLabel={t('measurements.addTitle')}
                 >
@@ -516,7 +513,7 @@ export default function ProfileScreen() {
               {MEASUREMENT_FIELDS.map((f) => {
                 const cm = latestMeasurement?.[f.key];
                 const display = cm
-                  ? units === 'imperial' ? `${cmToInDecimal(cm)} in` : `${cm} cm`
+                  ? units === 'imperial' ? `${cmToIn(cm)} in` : `${cm} cm`
                   : '—';
                 return (
                   <View key={f.key} style={styles.measurementItem}>
@@ -703,7 +700,7 @@ const getStyles = (colors: Colors) => {
 
   measurementsHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   measurementsLogLink: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.accent.primary },
-  measurementItem:     { width: '30%', alignItems: 'center', gap: 3, paddingVertical: spacing.sm },
+  measurementItem:     { width: '18%', alignItems: 'center', gap: 3, paddingVertical: spacing.sm },
 
   settingsCard: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, marginBottom: spacing.base, overflow: 'hidden', ...elevation.card },
   settingRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15, paddingHorizontal: spacing.base, borderBottomWidth: 1, borderBottomColor: colors.border.subtle },
