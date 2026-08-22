@@ -6,6 +6,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useUserStore } from '../../stores/userStore';
 import { supabase } from '../../services/supabase';
 import { isValidHeightCm, isValidWeightKg } from '../../services/recommendations';
+import { parseLocaleFloat } from '../../services/units';
 import { withAlpha, bmiColors, type Colors } from '../../constants/colors';
 import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
@@ -123,8 +124,8 @@ export default function OnboardingChat() {
 
   // BMI is computed live as user types — no separate "Calculate" button
   const liveBmi = useMemo(() => {
-    const h = parseFloat(height);
-    const w = parseFloat(weight);
+    const h = parseLocaleFloat(height);
+    const w = parseLocaleFloat(weight);
     return calcBMI(w, h);
   }, [height, weight]);
   const liveCat = useMemo(() => bmiCategory(liveBmi), [liveBmi]);
@@ -234,8 +235,8 @@ export default function OnboardingChat() {
                   onChangeText={setHeight}
                   placeholder={t('onboarding.heightEg')}
                   placeholderTextColor={colors.text.tertiary}
-                  keyboardType="numeric"
-                  maxLength={3}
+                  keyboardType="decimal-pad"
+                  maxLength={6}
                   accessibilityLabel={t('onboarding.heightA11y')}
                 />
               </View>
@@ -247,8 +248,8 @@ export default function OnboardingChat() {
                   onChangeText={setWeight}
                   placeholder={t('onboarding.weightEg')}
                   placeholderTextColor={colors.text.tertiary}
-                  keyboardType="numeric"
-                  maxLength={4}
+                  keyboardType="decimal-pad"
+                  maxLength={6}
                   accessibilityLabel={t('onboarding.weightA11y')}
                 />
               </View>
@@ -308,8 +309,8 @@ export default function OnboardingChat() {
                 style={[styles.calcBtn, liveBmi === null && styles.calcBtnDisabled]}
                 onPress={() => {
                   if (liveBmi === null || liveCat === null) return;
-                  const h = parseFloat(height);
-                  const w = parseFloat(weight);
+                  const h = parseLocaleFloat(height);
+                  const w = parseLocaleFloat(weight);
                   updateProfile({ height_cm: h, weight_kg: w, bmi: liveBmi });
                   goNext(answers);
                 }}

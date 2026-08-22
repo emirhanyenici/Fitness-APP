@@ -12,6 +12,7 @@ import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { computeTargets } from '../../services/recommendations';
 import { computeFatigueScore } from '../../services/progressUtils';
 import { daysAgoStr } from '../../services/dateUtils';
+import { parseLocaleFloat } from '../../services/units';
 import { type Colors, withAlpha } from '../../constants/colors';
 import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
@@ -101,7 +102,7 @@ export default function RecoveryScreen() {
       Alert.alert(t('recovery.completeCheckin'), t('recovery.rateAllMetrics'));
       return;
     }
-    const sleepHours = sleepInput ? parseFloat(sleepInput) || undefined : undefined;
+    const sleepHours = sleepInput ? parseLocaleFloat(sleepInput) || undefined : undefined;
     saveEntry({ ...ratings, sleepHours });
     setSaved(true);
     const avgScore = Math.round((ratings.mood + ratings.energy + (6 - ratings.stress)) / 3);
@@ -248,7 +249,7 @@ export default function RecoveryScreen() {
                 value={sleepInput}
                 onChangeText={(txt) => {
                   // Allow only valid sleep hours (0-24)
-                  const parsed = parseFloat(txt);
+                  const parsed = parseLocaleFloat(txt);
                   if (txt !== '' && (isNaN(parsed) || parsed < 0 || parsed > 24)) return;
                   setSleepInput(txt);
                   setSaved(false);
@@ -264,11 +265,11 @@ export default function RecoveryScreen() {
           </View>
           {sleepInput ? (
             <AnimatedBar
-              pct={parseFloat(sleepInput) / targets.sleepHours}
+              pct={parseLocaleFloat(sleepInput) / targets.sleepHours}
               color={
-                parseFloat(sleepInput) >= targets.sleepHours
+                parseLocaleFloat(sleepInput) >= targets.sleepHours
                   ? colors.status.success
-                  : parseFloat(sleepInput) >= targets.sleepHours * 0.8
+                  : parseLocaleFloat(sleepInput) >= targets.sleepHours * 0.8
                   ? colors.status.warning
                   : colors.status.danger
               }
@@ -278,9 +279,9 @@ export default function RecoveryScreen() {
           ) : null}
           {sleepInput ? (
             <Text style={styles.sleepBarLabel}>
-              {parseFloat(sleepInput) >= targets.sleepHours
+              {parseLocaleFloat(sleepInput) >= targets.sleepHours
                 ? t('recovery.sleepMet', { hours: targets.sleepHours })
-                : t('recovery.sleepShort', { diff: (targets.sleepHours - parseFloat(sleepInput)).toFixed(1), hours: targets.sleepHours })}
+                : t('recovery.sleepShort', { diff: (targets.sleepHours - parseLocaleFloat(sleepInput)).toFixed(1), hours: targets.sleepHours })}
             </Text>
           ) : null}
         </View>

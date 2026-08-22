@@ -34,6 +34,19 @@ interface WorkoutStore {
   selectedProgram: ProgramType | null;
   setSelectedProgram: (program: ProgramType | null) => void;
 
+  /**
+   * Ad-hoc "swap today's split" override — e.g. do Legs today instead of the
+   * auto-picked Push. Scoped to a single calendar day: readers must check
+   * `date === todayStr()` before applying it, so a stale override from a
+   * previous day is simply ignored (no cleanup job needed). `dayLabel` is used
+   * for built-in rotations (PPL/Upper-Lower/Bro Split); `dayOfWeekIndex` is
+   * used instead when `programType === 'custom'`, to borrow another weekday's
+   * template for today without editing the template itself.
+   */
+  dayOverride: { date: string; dayLabel?: string; dayOfWeekIndex?: number } | null;
+  setDayOverride: (override: { dayLabel?: string; dayOfWeekIndex?: number }) => void;
+  clearDayOverride: () => void;
+
   /** Completed workout history */
   history: CompletedWorkout[];
   /** Lifetime count of workouts ever logged — never trimmed, unlike `history` (capped at 50). Powers workout-count achievements. */
@@ -54,6 +67,10 @@ export const useWorkoutStore = create<WorkoutStore>()(
 
       selectedProgram: null,
       setSelectedProgram: (program) => set({ selectedProgram: program }),
+
+      dayOverride: null,
+      setDayOverride: (override) => set({ dayOverride: { date: todayStr(), ...override } }),
+      clearDayOverride: () => set({ dayOverride: null }),
 
       history: [],
       totalWorkoutsLogged: 0,

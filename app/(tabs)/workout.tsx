@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, Pressable, TextInput, Platform } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, Pressable, TextInput, Platform, Modal } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
@@ -12,8 +12,9 @@ import { useRecoveryStore } from '../../stores/recoveryStore';
 import { detectPlateau, suggestAdjustment, computeFatigueScore } from '../../services/progressUtils';
 import { WorkoutExercise } from '../../services/exercisedb';
 import { computeTargets, GOAL_LABELS } from '../../services/recommendations';
-import { getTodayPlan, recommendProgram, PROGRAMS, ProgramType } from '../../services/workoutPrograms';
+import { getTodayPlan, getRotationDays, getPlanByLabel, recommendProgram, PROGRAMS, ProgramType } from '../../services/workoutPrograms';
 import { todayStr, daysAgoStr } from '../../services/dateUtils';
+import { parseLocaleFloat } from '../../services/units';
 import { formatWorkoutDate, groupByDate } from '../../services/workoutHistory';
 import { type Colors, withAlpha } from '../../constants/colors';
 import { useColors } from '../../constants/useColors';
@@ -28,7 +29,7 @@ import { useCustomProgramStore } from '../../stores/customProgramStore';
 import { useT } from '../../constants/i18n';
 import {
   Icon, workoutIcon, X, NotebookPen, Bed, Sparkles, Timer, Flame, Dumbbell,
-  Check, ChevronRight, Lock, TrendingUp, Battery, Activity, CircleCheck,
+  Check, ChevronRight, Lock, TrendingUp, Battery, Activity, CircleCheck, RefreshCw,
 } from '../../components/ui/Icon';
 
 export default function WorkoutScreen() {
@@ -40,6 +41,10 @@ export default function WorkoutScreen() {
   const primaryGoal = profile?.primary_goal ?? 'general_health';
   const selectedType = useWorkoutStore((s) => s.selectedType);
   const selectedProgram = useWorkoutStore((s) => s.selectedProgram);
+  const dayOverride = useWorkoutStore((s) => s.dayOverride);
+  const setDayOverride = useWorkoutStore((s) => s.setDayOverride);
+  const clearDayOverride = useWorkoutStore((s) => s.clearDayOverride);
+  const [swapOpen, setSwapOpen] = useState(false);
   const history = useWorkoutStore((s) => s.history);
   const addWorkout = useWorkoutStore((s) => s.addWorkout);
   const updateWorkout = useWorkoutStore((s) => s.updateWorkout);
@@ -110,28 +115,41 @@ export default function WorkoutScreen() {
 
   const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+  const activeOverride = dayOverride?.date === today ? dayOverride : null;
+
+  // Days available to swap to today — used both for the picker and to decide whether to show the "Swap" button.
+  const rotationDays = getRotationDays(programType);
+  const configuredCustomDays = Object.entries(customDays)
+    .filter(([, d]) => d.exercises.length > 0)
+    .map(([k]) => parseInt(k))
+    .sort((a, b) => a - b);
+  const canSwap = programType === 'custom' ? configuredCustomDays.length > 1 : rotationDays.length > 1;
+
   const todayPlan = useMemo(() => {
     if (programType === 'custom') {
-      // Try today first
-      const todayCustom = customDays[dayOfWeek];
-      if (todayCustom && todayCustom.exercises.length > 0) {
-        const exs = todayCustom.exercises;
-        return { dayLabel: DAY_SHORT[dayOfWeek], muscleGroup: 'Custom Plan', exercises: exs, intensity: 'Custom', duration: `~${exs.length * 5} min` };
+      const targetDay = activeOverride?.dayOfWeekIndex ?? dayOfWeek;
+      // Try target day first
+      const targetCustom = customDays[targetDay];
+      if (targetCustom && targetCustom.exercises.length > 0) {
+        const exs = targetCustom.exercises;
+        return { dayLabel: DAY_SHORT[targetDay], muscleGroup: 'Custom Plan', exercises: exs, intensity: 'Custom', duration: `~${exs.length * 5} min` };
       }
-      // Today not configured — find next scheduled day (circular)
-      const configuredDays = Object.entries(customDays)
-        .filter(([, d]) => d.exercises.length > 0)
-        .map(([k]) => parseInt(k))
-        .sort((a, b) => a - b);
-      if (configuredDays.length > 0) {
-        const next = configuredDays.find(d => d > dayOfWeek) ?? configuredDays[0];
+      // Not configured — find next scheduled day (circular), same fallback as before
+      if (configuredCustomDays.length > 0) {
+        const next = configuredCustomDays.find(d => d > targetDay) ?? configuredCustomDays[0];
         const exs  = customDays[next].exercises;
         return { dayLabel: DAY_SHORT[next], muscleGroup: 'Custom Plan', exercises: exs, intensity: 'Custom', duration: `~${exs.length * 5} min` };
       }
-      return { dayLabel: DAY_SHORT[dayOfWeek], muscleGroup: 'Custom Plan', exercises: [], intensity: 'Custom', duration: '—' };
+      return { dayLabel: DAY_SHORT[targetDay], muscleGroup: 'Custom Plan', exercises: [], intensity: 'Custom', duration: '—' };
+    }
+    if (activeOverride?.dayLabel) {
+      const overridden = getPlanByLabel(programType, activeOverride.dayLabel, 6, env);
+      if (overridden) return overridden;
     }
     return getTodayPlan(programType, dayOfWeek, 6, env);
-  }, [programType, dayOfWeek, env, customDays]);
+  }, [programType, dayOfWeek, env, customDays, activeOverride, configuredCustomDays]);
+
+  const autoDayLabel = programType === 'custom' ? DAY_SHORT[dayOfWeek] : getTodayPlan(programType, dayOfWeek, 1, env).dayLabel;
 
   const exercises: WorkoutExercise[] = todayPlan.exercises;
 
@@ -167,7 +185,7 @@ export default function WorkoutScreen() {
     // Collect exercise weights (always stored as kg); persisted only on commit
     const exerciseWeights: Record<string, number> = {};
     exercises.forEach((ex) => {
-      const raw = parseFloat(weights[ex.name] ?? '');
+      const raw = parseLocaleFloat(weights[ex.name] ?? '');
       const kg  = isNaN(raw) ? 0 : fromDisplay(raw);
       if (kg > 0) exerciseWeights[ex.name] = kg;
     });
@@ -349,11 +367,32 @@ export default function WorkoutScreen() {
         /* ── Today's Plan ── */
         <View style={styles.aiCard}>
           <View style={styles.aiCardTop}>
-            <View style={[styles.aiBadge, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
-              <Icon icon={Sparkles} size={12} color={colors.accent.primary} />
-              <Text style={styles.aiBadgeText}>{todayPlan.dayLabel}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={[styles.aiBadge, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+                <Icon icon={Sparkles} size={12} color={colors.accent.primary} />
+                <Text style={styles.aiBadgeText}>{todayPlan.dayLabel}</Text>
+              </View>
+              {activeOverride && (
+                <View style={styles.aiBadge}>
+                  <Text style={styles.aiBadgeText}>{t('workout.swappedBadge')}</Text>
+                </View>
+              )}
             </View>
-            {isPro && <Text style={styles.proTag}>PRO</Text>}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              {canSwap && (
+                <TouchableOpacity
+                  onPress={() => { hapticTap(); setSwapOpen(true); }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('workout.swapDayA11y')}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                >
+                  <Icon icon={RefreshCw} size={14} color={colors.accent.primary} />
+                  <Text style={styles.demoBtnText}>{t('workout.swapDay')}</Text>
+                </TouchableOpacity>
+              )}
+              {isPro && <Text style={styles.proTag}>PRO</Text>}
+            </View>
           </View>
 
           <Text style={styles.workoutName}>{todayPlan.muscleGroup}</Text>
@@ -551,6 +590,49 @@ export default function WorkoutScreen() {
         )}
       </View>
     )}
+
+    {/* ── Swap today's split ── */}
+    <Modal visible={swapOpen} transparent animationType="fade" onRequestClose={() => setSwapOpen(false)}>
+      <Pressable style={styles.swapOverlay} onPress={() => setSwapOpen(false)}>
+        <Pressable style={styles.swapSheet} onPress={(e) => e.stopPropagation()}>
+          <Text style={styles.swapTitle}>{t('workout.swapDayTitle')}</Text>
+          <Text style={styles.swapSub}>{t('workout.swapDaySub')}</Text>
+          <View style={styles.swapList}>
+            {programType === 'custom'
+              ? configuredCustomDays.map((d) => (
+                  <TouchableOpacity
+                    key={d}
+                    style={styles.swapRow}
+                    onPress={() => { hapticTap(); setDayOverride({ dayOfWeekIndex: d }); setSwapOpen(false); }}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.swapRowText}>{DAY_SHORT[d]}</Text>
+                  </TouchableOpacity>
+                ))
+              : rotationDays.map((d) => (
+                  <TouchableOpacity
+                    key={d.dayLabel}
+                    style={styles.swapRow}
+                    onPress={() => { hapticTap(); setDayOverride({ dayLabel: d.dayLabel }); setSwapOpen(false); }}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.swapRowText}>{d.dayLabel}</Text>
+                    <Text style={styles.swapRowSub}>{d.muscleGroup}</Text>
+                  </TouchableOpacity>
+                ))}
+            {activeOverride && (
+              <TouchableOpacity
+                style={styles.swapRow}
+                onPress={() => { hapticTap(); clearDayOverride(); setSwapOpen(false); }}
+                accessibilityRole="button"
+              >
+                <Text style={[styles.swapRowText, { color: colors.accent.primary }]}>{t('workout.resetToAuto', { day: autoDayLabel })}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
     </View>
   );
 }
@@ -662,5 +744,14 @@ const getStyles = (colors: Colors) => {
   aiSuggestCard:   { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.19), borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base, ...elevation.card },
   aiSuggestHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
   aiSuggestText:   { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.primary, lineHeight: 20 },
+
+  swapOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  swapSheet: { backgroundColor: colors.bg.primary, borderTopLeftRadius: radius['2xl'], borderTopRightRadius: radius['2xl'], padding: spacing.xl, paddingBottom: spacing['2xl'], gap: spacing.sm, ...elevation.raised },
+  swapTitle: { fontFamily: typography.fonts.display, fontSize: typography.sizes.xl, color: colors.text.primary },
+  swapSub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, marginBottom: spacing.sm },
+  swapList: { gap: spacing.xs },
+  swapRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, paddingHorizontal: spacing.base, paddingVertical: spacing.base },
+  swapRowText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.base, color: colors.text.primary },
+  swapRowSub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary },
   });
 };

@@ -177,6 +177,12 @@ export const en = {
     alreadyFinishedTitle: 'Already finished today',
     alreadyFinishedBody: "You've already finished this workout today. Update the existing record? (Calories and minutes won't be counted twice.)",
     updateRecord: 'Update',
+    swapDay: 'Swap',
+    swapDayA11y: "Swap today's workout for a different day",
+    swapDayTitle: "Swap today's workout",
+    swapDaySub: 'Pick a different split for today — resets automatically tomorrow.',
+    resetToAuto: 'Reset to auto ({day})',
+    swappedBadge: 'Swapped',
   },
 
   recovery: {

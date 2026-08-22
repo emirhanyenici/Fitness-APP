@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useUserStore } from '../../stores/userStore';
 import { useMeasurementLogStore, MEASUREMENT_FIELDS, type MeasurementEntry, type MeasurementField } from '../../stores/measurementLogStore';
 import { isValidMeasurementCm } from '../../services/recommendations';
-import { cmToIn, inToCm } from '../../services/units';
+import { cmToIn, inToCm, parseLocaleFloat } from '../../services/units';
 import { withAlpha, type Colors } from '../../constants/colors';
 import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
@@ -46,7 +46,7 @@ export default function AddMeasurementModal() {
     for (const f of FIELDS) {
       const raw = drafts[f.key].trim();
       if (!raw) continue;
-      const parsed = parseFloat(raw);
+      const parsed = parseLocaleFloat(raw);
       if (!Number.isFinite(parsed)) continue;
       const cm = units === 'imperial' ? inToCm(parsed, 1) : parsed;
       if (!isValidMeasurementCm(cm)) {

@@ -11,6 +11,7 @@ import { useSubscriptionStore } from '../../stores/subscriptionStore';
 import { useUserStore, snapsUsedToday } from '../../stores/userStore';
 import { searchFoods, searchFoodsOFF, lookupBarcode, scaleFood, FoodItem } from '../../services/usda';
 import { analyzeFood, SnapResult, SnapItem } from '../../services/foodSnap';
+import { parseLocaleFloat } from '../../services/units';
 import { withAlpha, type Colors } from '../../constants/colors';
 import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
@@ -239,7 +240,7 @@ function PortionStep({ item, onAdd, onBack }: { item: FoodItem; onAdd: (item: Fo
   const colors = useColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
-  const amount = parseFloat(qty) || 0;
+  const amount = parseLocaleFloat(qty) || 0;
   const factor = unit === 'g' ? amount / 100 : amount;
   const scaled = scaleFood(item, factor);
 
@@ -479,7 +480,7 @@ function BarcodeScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onB
   }
 
   if (found) {
-    const g      = parseFloat(grams) || 0;
+    const g      = parseLocaleFloat(grams) || 0;
     const scale  = g / 100;
     const scaled = {
       calories: Math.round(found.calories * scale),
@@ -625,7 +626,7 @@ function SnapScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBack
   const updateItemGrams = (index: number, gramsStr: string) => {
     const original = result?.items?.[index];
     if (!original) return;
-    const newGrams = parseFloat(gramsStr) || 0;
+    const newGrams = parseLocaleFloat(gramsStr) || 0;
     const ratio = original.grams > 0 ? newGrams / original.grams : 0;
 
     setItems((prev) => {

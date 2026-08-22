@@ -34,3 +34,13 @@ export function cmToFtIn(cm: number): string {
   const inch = Math.round(totalIn % 12);
   return `${ft}'${inch}"`;
 }
+
+/**
+ * Parse a user-typed numeric string that may use either `.` or `,` as the
+ * decimal separator (e.g. "74,6" from a Turkish-locale keyboard, or "74.6").
+ * Behaves like `parseFloat` otherwise (leading-numeric-prefix, NaN on no match).
+ */
+export function parseLocaleFloat(raw: string): number {
+  if (!raw) return NaN;
+  return parseFloat(raw.trim().replace(',', '.'));
+}

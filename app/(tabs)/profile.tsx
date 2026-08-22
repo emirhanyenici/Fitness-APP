@@ -23,7 +23,7 @@ import { spacing, radius } from '../../constants/spacing';
 import { getElevation } from '../../constants/elevation';
 import { MEDICAL_DISCLAIMER } from '../../constants/legal';
 import { isValidHeightCm, isValidWeightKg } from '../../services/recommendations';
-import { kgToLbs, lbsToKg, cmToIn, inToCm, cmToFtIn } from '../../services/units';
+import { kgToLbs, lbsToKg, cmToIn, inToCm, cmToFtIn, parseLocaleFloat } from '../../services/units';
 import {
   Icon, Bell, ChartColumn, Heart, CreditCard, Stethoscope, Lock, FileText,
   Ruler, ChevronRight, CircleUserRound, Pencil, Settings, Trash2, Moon, Sun, History, Trophy,
@@ -98,9 +98,9 @@ export default function ProfileScreen() {
 
   const saveEdit = () => {
     const name = draftName.trim() || undefined;
-    const rawW = parseFloat(draftWeight) || undefined;
-    const rawH = parseFloat(draftHeight) || undefined;
-    const rawGW = parseFloat(draftGoalWeight) || undefined;
+    const rawW = parseLocaleFloat(draftWeight) || undefined;
+    const rawH = parseLocaleFloat(draftHeight) || undefined;
+    const rawGW = parseLocaleFloat(draftGoalWeight) || undefined;
     const weight_kg = rawW ? (units === 'imperial' ? lbsToKg(rawW) : rawW) : undefined;
     const height_cm = rawH ? (units === 'imperial' ? inToCm(rawH)  : rawH) : undefined;
     const goal_weight_kg = rawGW ? (units === 'imperial' ? lbsToKg(rawGW) : rawGW) : undefined;
@@ -242,8 +242,8 @@ export default function ProfileScreen() {
   const planColor = isPro ? colors.accent.primary : colors.text.tertiary;
 
   const computedBmi = (() => {
-    const raw_w = parseFloat(draftWeight);
-    const raw_h = parseFloat(draftHeight);
+    const raw_w = parseLocaleFloat(draftWeight);
+    const raw_h = parseLocaleFloat(draftHeight);
     if (!raw_w || !raw_h) return null;
     const w = units === 'imperial' ? lbsToKg(raw_w) : raw_w;
     const h = units === 'imperial' ? inToCm(raw_h)  : raw_h;

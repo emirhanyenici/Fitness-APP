@@ -252,6 +252,33 @@ export function getTodayPlan(
     };
 }
 
+/** Programs that rotate through multiple distinct days (single-day programs return []). */
+export function getRotationDays(program: ProgramType): DayPlan[] {
+    switch (program) {
+        case 'push_pull_legs': return PPL_ROTATION;
+        case 'upper_lower':    return UL_ROTATION;
+        case 'bro_split':      return BRO_ROTATION;
+        default:                return [];
+    }
+}
+
+/** Look up one specific day in a program's rotation by dayLabel — used for manual "swap today's split" overrides. */
+export function getPlanByLabel(
+    program: ProgramType,
+    dayLabel: string,
+    exerciseCount = 6,
+    environment: 'gym' | 'home' = 'gym',
+): DayPlan | null {
+    const plan = getRotationDays(program).find(d => d.dayLabel === dayLabel);
+    if (!plan) return null;
+
+    const pool = environment === 'home'
+        ? plan.exercises.filter(e => HOME_EQUIPMENT.includes(e.equipment))
+        : plan.exercises;
+
+    return { ...plan, exercises: pool.slice(0, exerciseCount) };
+}
+
 /**
  * Recommend the best program type based on user's goal and days/week.
  */
