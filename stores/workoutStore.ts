@@ -106,7 +106,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
           };
         }),
 
-      clearHistory: () => set({ history: [], selectedType: null, selectedProgram: null, totalWorkoutsLogged: 0 }),
+      clearHistory: () => set({ history: [], selectedType: null, selectedProgram: null, totalWorkoutsLogged: 0, dayOverride: null }),
     }),
     {
       name: 'zenova-workout-storage',
