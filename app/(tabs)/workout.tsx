@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, Pressable, TextInput, Platform, Modal } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, Pressable, TextInput, Platform, Modal, AccessibilityInfo } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
@@ -592,38 +592,65 @@ export default function WorkoutScreen() {
     )}
 
     {/* ── Swap today's split ── */}
-    <Modal visible={swapOpen} transparent animationType="fade" onRequestClose={() => setSwapOpen(false)}>
+    <Modal visible={swapOpen} transparent animationType="fade" onRequestClose={() => setSwapOpen(false)} accessibilityViewIsModal>
       <Pressable style={styles.swapOverlay} onPress={() => setSwapOpen(false)}>
         <Pressable style={styles.swapSheet} onPress={(e) => e.stopPropagation()}>
           <Text style={styles.swapTitle}>{t('workout.swapDayTitle')}</Text>
           <Text style={styles.swapSub}>{t('workout.swapDaySub')}</Text>
           <View style={styles.swapList}>
             {programType === 'custom'
-              ? configuredCustomDays.map((d) => (
-                  <TouchableOpacity
-                    key={d}
-                    style={styles.swapRow}
-                    onPress={() => { hapticTap(); setDayOverride({ dayOfWeekIndex: d }); setSwapOpen(false); }}
-                    accessibilityRole="button"
-                  >
-                    <Text style={styles.swapRowText}>{DAY_SHORT[d]}</Text>
-                  </TouchableOpacity>
-                ))
-              : rotationDays.map((d) => (
-                  <TouchableOpacity
-                    key={d.dayLabel}
-                    style={styles.swapRow}
-                    onPress={() => { hapticTap(); setDayOverride({ dayLabel: d.dayLabel }); setSwapOpen(false); }}
-                    accessibilityRole="button"
-                  >
-                    <Text style={styles.swapRowText}>{d.dayLabel}</Text>
-                    <Text style={styles.swapRowSub}>{d.muscleGroup}</Text>
-                  </TouchableOpacity>
-                ))}
+              ? configuredCustomDays.map((d) => {
+                  const isActive = activeOverride ? activeOverride.dayOfWeekIndex === d : dayOfWeek === d;
+                  return (
+                    <TouchableOpacity
+                      key={d}
+                      style={[styles.swapRow, isActive && styles.swapRowActive]}
+                      onPress={() => {
+                        hapticTap();
+                        setDayOverride({ dayOfWeekIndex: d });
+                        setSwapOpen(false);
+                        AccessibilityInfo.announceForAccessibility(`${t('workout.swappedBadge')}: ${DAY_SHORT[d]}`);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isActive }}
+                    >
+                      <Text style={styles.swapRowText}>{DAY_SHORT[d]}</Text>
+                      {isActive && <Icon icon={Check} size={16} color={colors.accent.primary} />}
+                    </TouchableOpacity>
+                  );
+                })
+              : rotationDays.map((d) => {
+                  const isActive = activeOverride ? activeOverride.dayLabel === d.dayLabel : autoDayLabel === d.dayLabel;
+                  return (
+                    <TouchableOpacity
+                      key={d.dayLabel}
+                      style={[styles.swapRow, isActive && styles.swapRowActive]}
+                      onPress={() => {
+                        hapticTap();
+                        setDayOverride({ dayLabel: d.dayLabel });
+                        setSwapOpen(false);
+                        AccessibilityInfo.announceForAccessibility(`${t('workout.swappedBadge')}: ${d.dayLabel}`);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isActive }}
+                    >
+                      <View>
+                        <Text style={styles.swapRowText}>{d.dayLabel}</Text>
+                        <Text style={styles.swapRowSub}>{d.muscleGroup}</Text>
+                      </View>
+                      {isActive && <Icon icon={Check} size={16} color={colors.accent.primary} />}
+                    </TouchableOpacity>
+                  );
+                })}
             {activeOverride && (
               <TouchableOpacity
                 style={styles.swapRow}
-                onPress={() => { hapticTap(); clearDayOverride(); setSwapOpen(false); }}
+                onPress={() => {
+                  hapticTap();
+                  clearDayOverride();
+                  setSwapOpen(false);
+                  AccessibilityInfo.announceForAccessibility(`${t('workout.resetToAuto', { day: autoDayLabel })}`);
+                }}
                 accessibilityRole="button"
               >
                 <Text style={[styles.swapRowText, { color: colors.accent.primary }]}>{t('workout.resetToAuto', { day: autoDayLabel })}</Text>
@@ -751,6 +778,7 @@ const getStyles = (colors: Colors) => {
   swapSub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, marginBottom: spacing.sm },
   swapList: { gap: spacing.xs },
   swapRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, paddingHorizontal: spacing.base, paddingVertical: spacing.base },
+  swapRowActive: { borderColor: colors.accent.primary, borderWidth: 1.5 },
   swapRowText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.base, color: colors.text.primary },
   swapRowSub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary },
   });

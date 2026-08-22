@@ -42,4 +42,9 @@ describe('isNicknameBlocked', () => {
   it('blocks a substring match, not just exact match', () => {
     expect(isNicknameBlocked('xxbitchxx')).toBe(true);
   });
+
+  it('is diacritic-insensitive (accented bypass attempt)', () => {
+    expect(isNicknameBlocked('nàzi')).toBe(true);
+    expect(isNicknameBlocked('fück')).toBe(true);
+  });
 });

@@ -545,6 +545,9 @@ export default function ProfileScreen() {
                   onValueChange={(val) => updateProfile({ units: val ? 'imperial' : 'metric' })}
                   trackColor={{ false: colors.border.subtle, true: withAlpha(colors.accent.primary, 0.5) }}
                   thumbColor={units === 'imperial' ? colors.accent.primary : colors.text.tertiary}
+                  accessibilityRole="switch"
+                  accessibilityLabel={t('profile.units')}
+                  accessibilityState={{ checked: units === 'imperial' }}
                 />
               </View>
             </View>
@@ -562,6 +565,9 @@ export default function ProfileScreen() {
                   onValueChange={(val) => setThemeMode(val ? 'dark' : 'light')}
                   trackColor={{ false: colors.border.subtle, true: withAlpha(colors.accent.primary, 0.5) }}
                   thumbColor={isDark ? colors.accent.primary : colors.text.tertiary}
+                  accessibilityRole="switch"
+                  accessibilityLabel={t('profile.darkMode')}
+                  accessibilityState={{ checked: isDark }}
                 />
               </View>
             </View>

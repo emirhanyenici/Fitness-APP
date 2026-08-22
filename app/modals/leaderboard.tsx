@@ -194,7 +194,7 @@ export default function LeaderboardScreen() {
                   {row.user_id !== userId && (
                     <TouchableOpacity
                       onPress={() => handleReport(row)}
-                      hitSlop={8}
+                      hitSlop={12}
                       activeOpacity={0.7}
                       accessibilityRole="button"
                       accessibilityLabel={t('leaderboard.reportA11y', { name: formatHandle(row.nickname, row.tag) })}

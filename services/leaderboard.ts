@@ -32,7 +32,10 @@ export function sanitizeNickname(raw: string): string {
 
 /** True if the (already-sanitized) nickname contains a blocked term. */
 export function isNicknameBlocked(nickname: string): boolean {
-  const normalized = nickname.toLowerCase();
+  // Decompose accented characters (e.g. "à" -> "a" + combining grave accent)
+  // and strip the combining marks (U+0300-U+036F) so accented bypass attempts
+  // (e.g. "nàzi") are still caught by the plain-ASCII blocklist below.
+  const normalized = nickname.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   return BLOCKED_SUBSTRINGS.some((word) => normalized.includes(word));
 }
 
