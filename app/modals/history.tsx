@@ -86,6 +86,7 @@ export default function HistoryScreen() {
     const points = measurementEntries
       .filter((e) => e[f.key] != null)
       .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(-HISTORY_RENDER_CAP)
       .map((e) => (units === 'imperial' ? cmToIn(e[f.key] as number) : (e[f.key] as number)));
     return { ...f, points };
   }), [measurementEntries, units]);

@@ -105,11 +105,12 @@ export async function reportUser(
   reportedUserId: string,
   reportedNickname: string,
 ): Promise<boolean> {
-  const { error } = await supabase.from('leaderboard_reports').insert({
+  const { error } = await supabase.from('leaderboard_reports').upsert({
     reporter_id: reporterId,
     reported_user_id: reportedUserId,
     reported_nickname: reportedNickname,
-  });
+    created_at: new Date().toISOString(),
+  }, { onConflict: 'reporter_id,reported_user_id' });
   if (error) {
     console.warn('[leaderboard] report failed:', error.message);
     return false;

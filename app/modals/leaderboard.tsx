@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../stores/authStore';
 import { useUserStore } from '../../stores/userStore';
+import { hapticSuccess } from '../../services/haptics';
 import {
   type LeaderboardMetric, type LeaderboardRow,
   fetchTop, fetchMine, fetchMyRank, upsertMyStats, leaveLeaderboard, reportUser,
@@ -84,6 +85,7 @@ export default function LeaderboardScreen() {
         return;
       }
       updateProfile({ leaderboard_optin: true, leaderboard_nickname: nickname });
+      hapticSuccess();
     } finally {
       setJoining(false);
     }
