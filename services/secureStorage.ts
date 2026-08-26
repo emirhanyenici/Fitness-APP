@@ -80,26 +80,36 @@ async function removeSecure(key: string): Promise<void> {
 export const secureStorage = {
   getItem: async (key: string): Promise<string | null> => {
     if (IS_SECURE_AVAILABLE) {
-      try { return await getSecure(key); } catch (e) {
-        // Surface the silent fallback via monitoring — an encrypted-store failure
-        // in production would otherwise be invisible. Key name only, never values.
+      try {
+        return await getSecure(key);
+      } catch (e) {
+        // Fail CLOSED: never fall back to plaintext AsyncStorage once the native
+        // secure store is expected to be available — a Keychain/EncryptedSharedPreferences
+        // failure must surface as an error, not silently degrade to unencrypted storage.
         logError(e, { scope: 'secureStorage', op: 'getItem', key });
+        throw e;
       }
     }
     return AsyncStorage.getItem(key);
   },
   setItem: async (key: string, value: string): Promise<void> => {
     if (IS_SECURE_AVAILABLE) {
-      try { return await setSecure(key, value); } catch (e) {
+      try {
+        return await setSecure(key, value);
+      } catch (e) {
         logError(e, { scope: 'secureStorage', op: 'setItem', key });
+        throw e;
       }
     }
     return AsyncStorage.setItem(key, value);
   },
   removeItem: async (key: string): Promise<void> => {
     if (IS_SECURE_AVAILABLE) {
-      try { return await removeSecure(key); } catch (e) {
+      try {
+        return await removeSecure(key);
+      } catch (e) {
         logError(e, { scope: 'secureStorage', op: 'removeItem', key });
+        throw e;
       }
     }
     return AsyncStorage.removeItem(key);

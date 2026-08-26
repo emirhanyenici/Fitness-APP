@@ -18,6 +18,22 @@ const SERVICE_ROLE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Max accepted body size — RevenueCat webhook payloads are small JSON events;
+// this is a generous ceiling against abuse, not a real-world payload size.
+const MAX_BODY_LEN = 100_000;
+
+/** Constant-time string compare (avoids leaking secret length/prefix via timing). */
+function timingSafeEqual(a: string, b: string): boolean {
+  const ea = new TextEncoder().encode(a);
+  const eb = new TextEncoder().encode(b);
+  const len = Math.max(ea.length, eb.length, 1);
+  let diff = ea.length ^ eb.length;
+  for (let i = 0; i < len; i++) {
+    diff |= (ea[i] ?? 0) ^ (eb[i] ?? 0);
+  }
+  return diff === 0;
+}
+
 /** Map a RevenueCat event to the plan it implies, or null to ignore the event. */
 export function planFromEvent(event: Record<string, unknown>): 'free' | 'pro' | 'elite' | null {
   const type = String(event.type ?? '');
@@ -40,14 +56,20 @@ export function planFromEvent(event: Record<string, unknown>): 'free' | 'pro' | 
 Deno.serve(async (req) => {
   // Fail closed: no secret configured, or header mismatch → reject.
   const auth = req.headers.get('authorization') ?? '';
-  if (!RC_WEBHOOK_SECRET || auth !== RC_WEBHOOK_SECRET) {
+  if (!RC_WEBHOOK_SECRET || !timingSafeEqual(auth, RC_WEBHOOK_SECRET)) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401, headers: { 'Content-Type': 'application/json' },
     });
   }
 
   try {
-    const body = await req.json();
+    const raw = await req.text();
+    if (raw.length > MAX_BODY_LEN) {
+      return new Response(JSON.stringify({ error: 'payload too large' }), {
+        status: 413, headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    const body = JSON.parse(raw);
     const event = (body?.event ?? {}) as Record<string, unknown>;
     const appUserId = String(event.app_user_id ?? '');
 

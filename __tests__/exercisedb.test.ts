@@ -23,15 +23,24 @@ jest.mock('../services/secureStorage', () => ({
   },
 }));
 jest.mock('../services/monitoring', () => ({ logError: jest.fn() }));
+jest.mock('../services/supabase', () => ({
+  supabase: {
+    auth: {
+      getSession: jest.fn().mockResolvedValue({ data: { session: { access_token: 'test-token' } } }),
+    },
+  },
+}));
 
 const mockFetch = jest.fn();
-process.env.EXPO_PUBLIC_RAPIDAPI_KEY = 'test-key';
 
+const EXERCISE_MEDIA_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/exercise-media`;
+
+// exercise-media edge function's search-mode response shape: { demo: {...} | null }
 const edbHit = (name: string, id = '0031') => ({
   ok: true,
-  json: async () => [
-    { id, name, bodyPart: 'chest', target: 'pecs', equipment: 'barbell', instructions: ['Step one.'] },
-  ],
+  json: async () => ({
+    demo: { exerciseId: id, bodyPart: 'chest', target: 'pecs', equipment: 'barbell', instructions: ['Step one.'] },
+  }),
 });
 
 describe('normalizeExerciseName', () => {
@@ -95,10 +104,9 @@ describe('fetchExerciseDemo', () => {
     _clearDemoCacheForTests();
   });
 
-  const gifUrlFor = (id: string) =>
-    `https://exercisedb.p.rapidapi.com/image?exerciseId=${id}&resolution=360`;
+  const gifUrlFor = (id: string) => `${EXERCISE_MEDIA_URL}?exerciseId=${id}`;
 
-  it('returns a demo from ExerciseDB and caches it', async () => {
+  it('returns a demo from the exercise-media proxy and caches it', async () => {
     mockFetch.mockResolvedValueOnce(edbHit('deadlift', '0032'));
     const demo = await fetchExerciseDemo('Deadlift');
     expect(demo).toMatchObject({ gifUrl: gifUrlFor('0032'), bodyPart: 'chest' });
@@ -108,18 +116,6 @@ describe('fetchExerciseDemo', () => {
     const again = await fetchExerciseDemo('Deadlift');
     expect(again?.gifUrl).toBe(gifUrlFor('0032'));
     expect(mockFetch).toHaveBeenCalledTimes(1);
-  });
-
-  it('prefers exact normalized-name match over first result', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => [
-        { id: '0100', name: 'barbell deadlift (side pov)' },
-        { id: '0200', name: 'deadlift' },
-      ],
-    });
-    const demo = await fetchExerciseDemo('Deadlift');
-    expect(demo?.gifUrl).toBe(gifUrlFor('0200'));
   });
 
   it('never calls the network for youtube-only exercises', async () => {

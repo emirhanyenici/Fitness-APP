@@ -1,15 +1,13 @@
-// ExerciseDB (RapidAPI) key. Like the USDA key, this is EXPO_PUBLIC_* by design
-// (bundled into the client): free-tier, read-only exercise lookups only.
-// Accepted low risk; hardening path if ever warranted is a Supabase edge proxy.
-// Sent as a header (never in the URL), and results are cached on-device
-// (services/exerciseDemoCache.ts) so the monthly quota is spent ~once per name.
+// ExerciseDB (RapidAPI) is proxied through the exercise-media edge function —
+// RAPIDAPI_KEY lives server-side only, never bundled into the client. Results
+// are cached on-device (services/exerciseDemoCache.ts) so the daily quota is
+// spent ~once per name.
+import { supabase } from './supabase';
 import { fetchWithTimeout } from './http';
 import { logError } from './monitoring';
 import { getCachedDemo, setCachedDemo } from './exerciseDemoCache';
 
-// Read lazily (not at module load) so tests can inject a key via process.env.
-const getRapidApiKey = () => process.env.EXPO_PUBLIC_RAPIDAPI_KEY ?? '';
-const EDB_BASE = 'https://exercisedb.p.rapidapi.com';
+const EXERCISE_MEDIA_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/exercise-media`;
 
 /** wger.de — free exercise API, no key required (secondary fallback) */
 const WGER_BASE = 'https://wger.de/api/v2';
@@ -159,34 +157,24 @@ export function resolveSearchTerm(name: string): string | null {
   return key;
 }
 
-// ── ExerciseDB (RapidAPI) — primary source, animated GIFs ────────────────────
-
-interface EdbExercise {
-  id?: string;
-  name?: string;
-  bodyPart?: string;
-  target?: string;
-  equipment?: string;
-  instructions?: string[];
-}
+// ── ExerciseDB (RapidAPI, proxied) — primary source, animated GIFs ───────────
 
 /**
- * The current ExerciseDB API serves GIFs from a separate authenticated
- * endpoint (no `gifUrl` field on exercises anymore). The URL is stable per
- * exercise id; the Image component must send the RapidAPI headers — use
+ * The exercise-media edge function serves GIFs from its own authenticated
+ * image-proxy endpoint. The URL is stable per exercise id; the Image
+ * component must send a Supabase session header — use
  * `demoImageSource(gifUrl)` when rendering.
  */
-const edbGifUrl = (id: string) => `${EDB_BASE}/image?exerciseId=${encodeURIComponent(id)}&resolution=360`;
+const edbGifUrl = (id: string) => `${EXERCISE_MEDIA_URL}?exerciseId=${encodeURIComponent(id)}`;
 
 /** Build an <Image> source for a demo gifUrl, attaching auth headers when needed. */
-export function demoImageSource(gifUrl: string): { uri: string; headers?: Record<string, string> } {
-  if (gifUrl.startsWith(EDB_BASE)) {
+export async function demoImageSource(gifUrl: string): Promise<{ uri: string; headers?: Record<string, string> }> {
+  if (gifUrl.startsWith(EXERCISE_MEDIA_URL)) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return { uri: gifUrl };
     return {
       uri: gifUrl,
-      headers: {
-        'X-RapidAPI-Key':  getRapidApiKey(),
-        'X-RapidAPI-Host': 'exercisedb.p.rapidapi.com',
-      },
+      headers: { 'Authorization': `Bearer ${session.access_token}` },
     };
   }
   return { uri: gifUrl };
@@ -197,41 +185,39 @@ export function demoImageSource(gifUrl: string): { uri: string; headers?: Record
 let _lastDemoFetch = 0;
 const DEMO_COOLDOWN_MS = 800;
 
-async function fetchFromExerciseDb(term: string, displayName: string): Promise<ExerciseDemo | null> {
-  const isIdLookup = term.startsWith('id:');
-  const url = isIdLookup
-    ? `${EDB_BASE}/exercises/exercise/${encodeURIComponent(term.slice(3))}`
-    : `${EDB_BASE}/exercises/name/${encodeURIComponent(term)}?limit=10`;
+interface ExerciseMediaSearchResponse {
+  demo?: {
+    exerciseId: string;
+    instructions: string[];
+    bodyPart: string;
+    target: string;
+    equipment: string;
+  } | null;
+  error?: string;
+}
 
-  const res = await fetchWithTimeout(url, {
+async function fetchFromExerciseDb(term: string, displayName: string): Promise<ExerciseDemo | null> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('You must be signed in to use this feature.');
+
+  const res = await fetchWithTimeout(EXERCISE_MEDIA_URL, {
+    method: 'POST',
     headers: {
-      'X-RapidAPI-Key':  getRapidApiKey(),
-      'X-RapidAPI-Host': 'exercisedb.p.rapidapi.com',
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
     },
+    body: JSON.stringify({ term, displayName }),
   });
   if (!res.ok) throw new Error(`exercisedb ${res.status}`);
-  const json = await res.json();
-  const list: EdbExercise[] = isIdLookup ? [json as EdbExercise] : json;
-  if (!Array.isArray(list) || list.length === 0) return null;
+  const data: ExerciseMediaSearchResponse = await res.json();
+  if (!data.demo) return null;
 
-  // Best hit: exact match on the display name, else on the search term (so an
-  // alias pinned to a full catalog name wins over shorter variants), else the
-  // shortest name (least-qualified variant, e.g. "barbell squat" over
-  // "barbell squat (side pov)").
-  const wantedDisplay = normalizeExerciseName(displayName);
-  const wantedTerm = normalizeExerciseName(term);
-  const best =
-    list.find((e) => normalizeExerciseName(e.name ?? '') === wantedDisplay) ??
-    list.find((e) => normalizeExerciseName(e.name ?? '') === wantedTerm) ??
-    [...list].sort((a, b) => (a.name?.length ?? 999) - (b.name?.length ?? 999))[0];
-
-  if (!best?.id) return null;
   return {
-    gifUrl:       edbGifUrl(best.id),
-    instructions: (best.instructions ?? []).filter((s) => s.trim().length > 0).slice(0, 6),
-    bodyPart:     best.bodyPart  ?? '',
-    target:       best.target    ?? '',
-    equipment:    best.equipment ?? '',
+    gifUrl:       edbGifUrl(data.demo.exerciseId),
+    instructions: data.demo.instructions,
+    bodyPart:     data.demo.bodyPart,
+    target:       data.demo.target,
+    equipment:    data.demo.equipment,
   };
 }
 
@@ -262,19 +248,15 @@ export async function fetchExerciseDemo(name: string): Promise<ExerciseDemo | nu
   }
   _lastDemoFetch = Date.now();
 
-  if (getRapidApiKey()) {
-    try {
-      const demo = await fetchFromExerciseDb(term, name);
-      if (demo) {
-        await setCachedDemo(cacheKey, demo);
-        return demo;
-      }
-      // Genuine "not in catalog" → try wger before caching a negative.
-    } catch (e) {
-      logError(e, { scope: 'fetchExerciseDemo', source: 'exercisedb', name });
+  try {
+    const demo = await fetchFromExerciseDb(term, name);
+    if (demo) {
+      await setCachedDemo(cacheKey, demo);
+      return demo;
     }
-  } else {
-    logError(new Error('EXPO_PUBLIC_RAPIDAPI_KEY missing'), { scope: 'fetchExerciseDemo' });
+    // Genuine "not in catalog" → try wger before caching a negative.
+  } catch (e) {
+    logError(e, { scope: 'fetchExerciseDemo', source: 'exercisedb', name });
   }
 
   // Secondary: wger (static image). Cache only 1 day so a recovered/subscribed

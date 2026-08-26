@@ -1,13 +1,10 @@
-// USDA FoodData Central key. This is a FREE, read-only, rate-limited public key
-// and is EXPO_PUBLIC_* by design (bundled into the client). The FDC API only
-// accepts it as an `api_key` query param — there is no header alternative — so
-// it necessarily appears in the request URL. Accepted low risk: the key grants
-// nothing beyond public nutrition lookups. We never log request URLs (audited),
-// and the Open Food Facts fallback below needs no key at all. Future hardening,
-// if ever warranted: proxy FDC calls through a Supabase edge function.
+// USDA FoodData Central search is proxied through the nutrition-lookup edge
+// function — USDA_API_KEY lives server-side only, never bundled into the
+// client. The Open Food Facts fallback below needs no key at all.
+import { supabase } from './supabase';
 import { fetchWithTimeout } from './http';
 
-const USDA_API_KEY = process.env.EXPO_PUBLIC_USDA_API_KEY ?? '';
+const NUTRITION_LOOKUP_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/nutrition-lookup`;
 
 export interface FoodItem {
   fdcId: number;
@@ -20,19 +17,9 @@ export interface FoodItem {
 
 // ── API response shapes ──────────────────────────────────────────────────────
 
-interface UsdaNutrient {
-  nutrientId: number;
-  value?: number;
-}
-
-interface UsdaFood {
-  fdcId: number;
-  description: string;
-  foodNutrients: UsdaNutrient[];
-}
-
-interface UsdaSearchResponse {
-  foods?: UsdaFood[];
+interface NutritionLookupResponse {
+  foods?: FoodItem[];
+  error?: string;
 }
 
 interface OFFNutriments {
@@ -63,11 +50,6 @@ interface OFFProductResponse {
 
 // ────────────────────────────────────────────────────────────────────────────
 
-function getNutrient(nutrients: UsdaNutrient[], id: number): number {
-  const n = nutrients.find((n) => n.nutrientId === id);
-  return Math.round(n?.value ?? 0);
-}
-
 /**
  * Scale a food's macros by a factor (portion sizing).
  * Calories round to whole numbers; macros keep one decimal.
@@ -94,21 +76,20 @@ export async function searchFoods(query: string): Promise<FoodItem[]> {
   }
   _lastSearchTime = now;
 
-  if (!USDA_API_KEY) throw new Error('USDA API key is not configured.');
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('You must be signed in to use this feature.');
 
-  const res = await fetchWithTimeout(
-    `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&api_key=${USDA_API_KEY}&dataType=SR%20Legacy,Branded&pageSize=20`
-  );
+  const res = await fetchWithTimeout(NUTRITION_LOOKUP_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({ query }),
+  });
   if (!res.ok) throw new Error('Search failed');
-  const data: UsdaSearchResponse = await res.json();
-  return (data.foods ?? []).map((f) => ({
-    fdcId: f.fdcId,
-    description: f.description,
-    calories: getNutrient(f.foodNutrients, 1008),
-    protein:  getNutrient(f.foodNutrients, 1003),
-    carbs:    getNutrient(f.foodNutrients, 1005),
-    fat:      getNutrient(f.foodNutrients, 1004),
-  }));
+  const data: NutritionLookupResponse = await res.json();
+  return data.foods ?? [];
 }
 
 /** Search Open Food Facts (free, no key — global products including Turkish brands) */

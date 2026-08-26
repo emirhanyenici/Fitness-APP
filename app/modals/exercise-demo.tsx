@@ -18,9 +18,10 @@ export default function ExerciseDemoModal() {
   const colors = useColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
-  const [demo,    setDemo]    = useState<ExerciseDemo | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [imgErr,  setImgErr]  = useState(false);
+  const [demo,      setDemo]      = useState<ExerciseDemo | null>(null);
+  const [loading,   setLoading]   = useState(true);
+  const [imgErr,    setImgErr]    = useState(false);
+  const [imgSource, setImgSource] = useState<{ uri: string; headers?: Record<string, string> } | null>(null);
 
   useEffect(() => {
     if (!name) { setLoading(false); return; }
@@ -29,6 +30,13 @@ export default function ExerciseDemoModal() {
       setLoading(false);
     });
   }, [name]);
+
+  useEffect(() => {
+    if (!demo?.gifUrl) { setImgSource(null); return; }
+    let cancelled = false;
+    demoImageSource(demo.gifUrl).then((src) => { if (!cancelled) setImgSource(src); });
+    return () => { cancelled = true; };
+  }, [demo?.gifUrl]);
 
   const openYouTube = () => {
     const query = encodeURIComponent(`how to do ${name} exercise proper form`);
@@ -68,9 +76,9 @@ export default function ExerciseDemoModal() {
               <ActivityIndicator size="large" color={colors.accent.primary} />
               <Text style={styles.loadingText}>{t('exerciseDemo.loading')}</Text>
             </View>
-          ) : demo?.gifUrl && !imgErr ? (
+          ) : demo?.gifUrl && imgSource && !imgErr ? (
             <Image
-              source={demoImageSource(demo.gifUrl)}
+              source={imgSource}
               style={styles.gif}
               resizeMode="contain"
               onError={() => setImgErr(true)}

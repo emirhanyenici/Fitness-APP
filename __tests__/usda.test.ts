@@ -3,6 +3,8 @@
  * Add Food search quantity step and the barcode portion editor.
  * Focus: calories round to whole numbers, macros keep one decimal.
  */
+jest.mock('../services/supabase', () => ({ supabase: { auth: { getSession: jest.fn() } } }));
+
 import { scaleFood, FoodItem } from '../services/usda';
 
 const egg: FoodItem = {

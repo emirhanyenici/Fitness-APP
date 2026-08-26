@@ -37,3 +37,13 @@ jobs:
 
       - name: Tests (jest)
         run: npx jest --ci --silent
+
+      # Fails the build on a critical vuln; high/moderate are reported but
+      # don't block (current highs are dev-tooling-only, tracked manually —
+      # see MEMORY.md). Re-run `npm audit fix` locally as new ones appear.
+      - name: Dependency audit (critical)
+        run: npm audit --audit-level=critical
+
+      - name: Dependency audit (high, informational)
+        if: always()
+        run: npm audit --audit-level=high || true
