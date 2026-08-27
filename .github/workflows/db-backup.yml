@@ -22,10 +22,14 @@ jobs:
         with:
           node-version: 20
 
-      - name: Dump database
+      - name: Dump database (schema + data)
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-        run: npx supabase db dump --db-url "$SUPABASE_DB_URL" -f backup.sql
+        run: |
+          npx supabase db dump --db-url "$SUPABASE_DB_URL" -f schema.sql
+          npx supabase db dump --db-url "$SUPABASE_DB_URL" --data-only -f data.sql
+          cat schema.sql data.sql > backup.sql
+          rm -f schema.sql data.sql
 
       - name: Encrypt backup
         env:
