@@ -1,0 +1,72 @@
+name: DB Backup
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: Dump, encrypt, and archive
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout aura-health (for supabase CLI via npx)
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Dump database
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: npx supabase db dump --db-url "$SUPABASE_DB_URL" -f backup.sql
+
+      - name: Encrypt backup
+        env:
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+        run: |
+          gpg --batch --yes --symmetric --cipher-algo AES256 \
+            --passphrase "$BACKUP_ENCRYPTION_KEY" \
+            --output backup.sql.gpg \
+            backup.sql
+          rm -f backup.sql
+
+      - name: Set up deploy key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.BACKUP_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts
+
+      - name: Clone backups repo
+        env:
+          GIT_SSH_COMMAND: ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes
+        run: git clone git@github.com:emirhanyenici/zenova-db-backups.git backups-repo
+
+      - name: Add backup and prune old ones
+        run: |
+          DATE=$(date -u +%F)
+          cp backup.sql.gpg "backups-repo/zenova-backup-${DATE}.sql.gpg"
+          cd backups-repo
+          find . -maxdepth 1 -name 'zenova-backup-*.sql.gpg' -mtime +30 -delete
+          git add -A
+
+      - name: Commit and push
+        env:
+          GIT_SSH_COMMAND: ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes
+        run: |
+          cd backups-repo
+          git config user.name "zenova-backup-bot"
+          git config user.email "actions@users.noreply.github.com"
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Backup $(date -u +%F)"
+          git push origin HEAD
