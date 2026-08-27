@@ -71,6 +71,7 @@ export default function AICoachModal() {
   const rawMessages     = useAIChatStore((s) => s.chats[userId]);
   const messages        = rawMessages ?? [WELCOME_MESSAGE];
   const addMessage      = useAIChatStore((s) => s.addMessage);
+  const markMessageFailed = useAIChatStore((s) => s.markMessageFailed);
   const clearHistory    = useAIChatStore((s) => s.clearHistory);
   const t = useT();
   const colors = useColors();
@@ -150,14 +151,15 @@ export default function AICoachModal() {
       };
       addMessage(userId, reply);
     } catch (e: any) {
+      markMessageFailed(userId, userMsg.id);
       Alert.alert(t('common.error'), e.message ?? 'Something went wrong');
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
       setTimeout(() => {
         if (mountedRef.current) listRef.current?.scrollToEnd({ animated: true });
       }, 100);
     }
-  }, [messages, loading, profile, recoveryEntries, mode, saveSuggestion, userId, t]);
+  }, [messages, loading, profile, recoveryEntries, mode, saveSuggestion, userId, t, markMessageFailed]);
 
   const renderMessage = useCallback(({ item }: { item: Message }) => {
     const isUser = item.role === 'user';

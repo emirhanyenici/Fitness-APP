@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, ActivityIndicator, AppState } from 'react-native';
+import { View, Text, ActivityIndicator, AppState, Alert } from 'react-native';
 import * as Linking from 'expo-linking';
 import { useFonts, Outfit_600SemiBold, Outfit_700Bold } from '@expo-google-fonts/outfit';
 import { DMSans_400Regular, DMSans_500Medium } from '@expo-google-fonts/dm-sans';
@@ -134,7 +134,12 @@ export default function RootLayout() {
       // access_token is a JWT; refresh_token is an opaque Supabase token
       // (not JWT-shaped) — only the access_token gets the structural check.
       if (access_token && refresh_token && isJWTShaped(access_token)) {
-        supabase.auth.setSession({ access_token, refresh_token });
+        supabase.auth.setSession({ access_token, refresh_token }).then(({ error }) => {
+          // A broken/expired reset link would otherwise fail silently —
+          // the user lands on reset-password with no session and no
+          // explanation of why the flow didn't work.
+          if (error) Alert.alert('Link expired', 'This password reset link is no longer valid. Please request a new one.');
+        });
       }
     };
     Linking.getInitialURL().then((url) => { if (url) handleUrl(url); });
@@ -148,7 +153,12 @@ export default function RootLayout() {
   // mount-time sync only fires once and never again on a simple app-switch.
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next) => {
-      if (next === 'active') void syncHealth();
+      if (next === 'active') {
+        void syncHealth();
+        // Retries RevenueCat hydration if a prior attempt failed (offline/
+        // timeout on cold start) — no-ops once already hydrated.
+        void initPurchases();
+      }
     });
     return () => sub.remove();
   }, []);

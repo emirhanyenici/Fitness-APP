@@ -192,18 +192,28 @@ export function mapHKWorkout(w: HKWorkoutLike): CompletedWorkout {
 
 // ── Sync ─────────────────────────────────────────────────────────────────────
 
-let syncInFlight = false;
+let syncInFlightPromise: Promise<void> | null = null;
 
 /**
  * Pulls the last 7 days from HealthKit into the stores. Safe to call anywhere:
  * no-ops unless connected on iOS with the module present. Each metric fails
  * independently (a denied read permission must not block the others).
+ * Concurrent calls share the same in-flight sync (await the same promise)
+ * instead of the caller silently getting nothing — matters for callers like
+ * pull-to-refresh that need to know the sync they awaited actually ran.
  */
-export async function syncHealthData(): Promise<void> {
+export function syncHealthData(): Promise<void> {
+  if (syncInFlightPromise) return syncInFlightPromise;
+  syncInFlightPromise = doSyncHealthData().finally(() => {
+    syncInFlightPromise = null;
+  });
+  return syncInFlightPromise;
+}
+
+async function doSyncHealthData(): Promise<void> {
   if (!useHealthStore.getState().connected) return;
   const hk = await loadModule();
-  if (!hk || syncInFlight) return;
-  syncInFlight = true;
+  if (!hk) return;
 
   const now = new Date();
   const from = new Date();
@@ -352,7 +362,7 @@ export async function syncHealthData(): Promise<void> {
 
     useHealthStore.getState().applySync({ steps, sleep, calories, distance, exerciseMin });
   } finally {
-    syncInFlight = false;
+    // Sync bookkeeping (syncInFlightPromise) is handled by the syncHealthData() wrapper.
   }
 }
 

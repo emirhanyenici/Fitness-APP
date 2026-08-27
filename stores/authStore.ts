@@ -60,12 +60,15 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 
   signInWithApple: async () => {
-    // Lazy import keeps the native module out of Android/web/Jest bundles.
-    const { signInWithAppleNative } = await import('../services/appleAuth');
-    const { identityToken, rawNonce, fullName } = await signInWithAppleNative();
-
+    // Set before opening the native sheet (not after) so the button's
+    // isLoading-gated disabled state actually covers that window too —
+    // otherwise a fast double-tap could open two concurrent Apple sheets.
     set({ isLoading: true });
     try {
+      // Lazy import keeps the native module out of Android/web/Jest bundles.
+      const { signInWithAppleNative } = await import('../services/appleAuth');
+      const { identityToken, rawNonce, fullName } = await signInWithAppleNative();
+
       const { data, error } = await supabase.auth.signInWithIdToken({
         provider: 'apple',
         token: identityToken,
@@ -88,7 +91,10 @@ export const useAuthStore = create<AuthStore>((set) => ({
     // be pushed up and wipe the user's cloud backup.
     stopSync();
 
-    await supabase.auth.signOut();
+    // Local cleanup below must run even if the server call fails (offline,
+    // timeout, 5xx) — otherwise a failed sign-out leaves the previous user's
+    // data intact for whoever logs in next on the same device.
+    await supabase.auth.signOut().catch(() => {});
     set({ session: null, user: null });
 
     // Clear every persisted store so no data leaks between users on the same device.

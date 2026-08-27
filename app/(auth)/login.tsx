@@ -359,8 +359,9 @@ export default function LoginScreen() {
             <View style={styles.dividerLine} />
           </View>
           <TouchableOpacity
-            style={styles.appleButton}
+            style={[styles.appleButton, isLoading && styles.appleButtonDisabled]}
             onPress={handleAppleSignIn}
+            disabled={isLoading}
             activeOpacity={0.85}
             accessibilityRole="button"
             accessibilityLabel={isSignUp ? t('auth.signUpWithApple') : t('auth.signInWithApple')}
@@ -438,6 +439,7 @@ const getStyles = (colors: Colors) => {
       width: '100%', height: 50, borderRadius: radius.lg, backgroundColor: '#000000',
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
     },
+    appleButtonDisabled: { opacity: 0.5 },
     appleLogo:       { color: '#FFFFFF', fontSize: 19, marginTop: -2 },
     appleButtonText: { color: '#FFFFFF', fontSize: 17, fontWeight: '600' },
 

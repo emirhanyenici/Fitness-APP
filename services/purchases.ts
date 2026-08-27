@@ -21,6 +21,14 @@ const API_KEY = Platform.select({
 const FORCE_PRO = process.env.EXPO_PUBLIC_FORCE_PRO === 'true';
 
 let configured = false;
+// Separate from `configured`: tracks whether getCustomerInfo() has ever
+// actually succeeded. A transient failure (offline/timeout) used to leave
+// `configured = true` forever (set right after Purchases.configure(), before
+// the await), which made every later initPurchases() call a no-op — a paying
+// user on a flaky network could get stuck on 'free' until they force-quit the
+// app. Now only a successful hydration marks it done; initPurchases() keeps
+// retrying (without re-configuring the SDK) until one succeeds.
+let hydrated = false;
 
 export function isPurchasesConfigured(): boolean {
   return configured;
@@ -42,21 +50,28 @@ function applyCustomerInfo(info: CustomerInfo): void {
 
 /**
  * Configure the SDK and hydrate the plan from the current customer info.
- * Safe to call multiple times; no-ops on web, in Expo Go (native module
- * missing), or when no API key is set — the app then stays on 'free'.
+ * Safe to call multiple times (e.g. on every foreground) — cheap no-op once
+ * hydration has actually succeeded; retries hydration without re-configuring
+ * the SDK if a prior attempt failed. No-ops entirely on web, in Expo Go
+ * (native module missing), or when no API key is set — the app then stays
+ * on 'free'.
  */
 export async function initPurchases(): Promise<void> {
-  if (configured) return;
+  if (hydrated) return;
   if (Platform.OS === 'web' || !API_KEY) return;
   try {
-    Purchases.configure({ apiKey: API_KEY });
-    configured = true;
-    // Live updates: fires on purchase, renewal, expiration and restore.
-    Purchases.addCustomerInfoUpdateListener(applyCustomerInfo);
+    if (!configured) {
+      Purchases.configure({ apiKey: API_KEY });
+      configured = true;
+      // Live updates: fires on purchase, renewal, expiration and restore.
+      Purchases.addCustomerInfoUpdateListener(applyCustomerInfo);
+    }
     applyCustomerInfo(await Purchases.getCustomerInfo());
+    hydrated = true;
   } catch (e) {
-    // Native module unavailable (Expo Go) or network/store failure —
-    // purchases simply stay disabled for this session.
+    // Native module unavailable (Expo Go) or network/store failure — plan
+    // stays at its current value (default 'free') for now; the next
+    // initPurchases() call (e.g. on foreground) will retry hydration.
     logError(e, { scope: 'purchases', op: 'init' });
   }
 }

@@ -9,6 +9,11 @@ export interface ChatMessage {
   text: string;
   suggestionType?: string | null;
   createdAt?: string; // ISO timestamp
+  /** Set when the request this message triggered failed (network/server
+   *  error) — excluded from quota counting so a dropped request doesn't
+   *  burn a free-tier send with no reply to show for it. Message stays
+   *  visible in the chat so the user can see/retry it. */
+  failed?: boolean;
 }
 
 /** Per-user daily send counter, kept separate from the message array so
@@ -19,7 +24,7 @@ export interface DailyCount { date: string; count: number }
 export function getTodayMsgCount(chats: Record<string, ChatMessage[]>, userId: string): number {
   const today = todayStr();
   return (chats[userId] ?? []).filter(
-    (m) => m.role === 'user' && !!m.createdAt && dateStr(new Date(m.createdAt)) === today
+    (m) => m.role === 'user' && !m.failed && !!m.createdAt && dateStr(new Date(m.createdAt)) === today
   ).length;
 }
 
@@ -49,6 +54,12 @@ interface AIChatStore {
   /** userId → today's user-message count (independent of the chats array) */
   dailyCounts: Record<string, DailyCount>;
   addMessage: (userId: string, msg: ChatMessage) => void;
+  /** Marks a previously-added user message as failed (its request errored)
+   *  and refunds the quota charge from that addMessage call — use when the
+   *  request that message triggered failed, so a network error doesn't burn
+   *  a free-tier send with no reply to show for it. Message stays in the
+   *  chat, just excluded from the daily count. */
+  markMessageFailed: (userId: string, messageId: string) => void;
   clearHistory: (userId: string) => void;
   clearAll: () => void;
 }
@@ -69,6 +80,20 @@ export const useAIChatStore = create<AIChatStore>()(
           const prev  = s.dailyCounts[userId];
           const count = prev?.date === today ? prev.count + 1 : 1;
           return { chats, dailyCounts: { ...s.dailyCounts, [userId]: { date: today, count } } };
+        }),
+
+      markMessageFailed: (userId, messageId) =>
+        set((s) => {
+          const current = s.chats[userId];
+          if (!current) return {};
+          const chats = {
+            ...s.chats,
+            [userId]: current.map((m) => (m.id === messageId ? { ...m, failed: true } : m)),
+          };
+          const today = todayStr();
+          const prev = s.dailyCounts[userId];
+          if (prev?.date !== today || prev.count <= 0) return { chats };
+          return { chats, dailyCounts: { ...s.dailyCounts, [userId]: { date: today, count: prev.count - 1 } } };
         }),
 
       // Deliberately leaves dailyCounts intact — clearing the conversation
