@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Linking } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, Pressable, StyleSheet, Alert, Linking } from 'react-native';
 import { router } from 'expo-router';
-import Purchases from 'react-native-purchases';
+import Purchases, { type PurchasesPackage } from 'react-native-purchases';
 import { isPurchasesConfigured, planFromCustomerInfo } from '../services/purchases';
+import { logError } from '../services/monitoring';
 import { useSubscriptionStore } from '../stores/subscriptionStore';
 import { withAlpha, type Colors } from '../constants/colors';
 import { useColors } from '../constants/useColors';
@@ -17,8 +18,53 @@ export default function PaywallScreen() {
   const colors = useColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
   const [loading, setLoading] = useState(false);
+  const [yearlyPkg, setYearlyPkg] = useState<PurchasesPackage | null>(null);
+  const [monthlyPkg, setMonthlyPkg] = useState<PurchasesPackage | null>(null);
   const setPlan = useSubscriptionStore((s) => s.setPlan);
   const t = useT();
+
+  // App Store 3.1.2: the price shown here must match the real, localized
+  // store price — the hardcoded t('paywall.*') strings below are a
+  // pre-load fallback only, used until this resolves (or if offerings
+  // fail to load, e.g. no network / not configured).
+  useEffect(() => {
+    if (!isPurchasesConfigured()) return;
+    let cancelled = false;
+    Purchases.getOfferings()
+      .then((offerings) => {
+        if (cancelled) return;
+        const current = offerings.current;
+        if (!current) return;
+        setYearlyPkg(current.availablePackages.find((p) => p.product.identifier === 'zenova_pro_yearly') ?? null);
+        setMonthlyPkg(current.availablePackages.find((p) => p.product.identifier === 'zenova_pro_monthly') ?? null);
+      })
+      .catch((e) => logError(e, { scope: 'paywall', op: 'getOfferings' }));
+    return () => { cancelled = true; };
+  }, []);
+
+  const pricing = useMemo(() => {
+    if (!yearlyPkg || !monthlyPkg) return null;
+    const currency = yearlyPkg.product.currencyCode;
+    const fmt = (n: number) => {
+      try { return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(n); }
+      catch { return n.toFixed(2); }
+    };
+    const yearlyPrice = yearlyPkg.product.priceString;
+    const monthlyPrice = monthlyPkg.product.priceString;
+    const yearlyEquivalentOfMonthly = monthlyPkg.product.price * 12;
+    const monthlyEquivalentOfYearly = yearlyPkg.product.price / 12;
+    const savingsPct = Math.round((1 - yearlyPkg.product.price / yearlyEquivalentOfMonthly) * 100);
+    return {
+      yearlyPrice,
+      vsMonthly: `vs ${fmt(yearlyEquivalentOfMonthly)}/yr monthly`,
+      bestValue: `Just ${fmt(monthlyEquivalentOfYearly)}/month · Best value`,
+      saveBadge: Number.isFinite(savingsPct) && savingsPct > 0 ? `SAVE ${savingsPct}%` : null,
+      thenPrice: `Billed ${yearlyPrice}/yr. Cancel anytime.`,
+      ctaYearlyA11y: `Subscribe yearly at ${yearlyPrice} per year`,
+      orMonthly: `Or ${monthlyPrice}/month →`,
+      monthlyA11y: `Subscribe monthly at ${monthlyPrice} per month`,
+    };
+  }, [yearlyPkg, monthlyPkg]);
 
   const FEATURES = [
     { icon: Brain,       title: t('paywall.featAiTitle'),          sub: t('paywall.featAiSub') },
@@ -36,17 +82,21 @@ export default function PaywallScreen() {
     }
     setLoading(true);
     try {
-      const offerings = await Purchases.getOfferings();
-      const current = offerings.current;
-      if (!current) {
-        Alert.alert(t('paywall.unavailable'), t('paywall.noOfferings'));
-        return;
-      }
+      let pkg: PurchasesPackage | null =
+        productId === 'zenova_pro_yearly' ? yearlyPkg :
+        productId === 'zenova_pro_monthly' ? monthlyPkg : null;
 
-      // Find the matching package by product identifier
-      const pkg = current.availablePackages.find(
-        (p) => p.product.identifier === productId
-      ) ?? current.availablePackages[0];
+      if (!pkg) {
+        const offerings = await Purchases.getOfferings();
+        const current = offerings.current;
+        if (!current) {
+          Alert.alert(t('paywall.unavailable'), t('paywall.noOfferings'));
+          return;
+        }
+        pkg = current.availablePackages.find(
+          (p) => p.product.identifier === productId
+        ) ?? current.availablePackages[0];
+      }
 
       if (!pkg) {
         Alert.alert(t('paywall.unavailable'), t('paywall.noPackage'));
@@ -125,61 +175,65 @@ export default function PaywallScreen() {
 
         <View style={styles.priceCard}>
           <View style={styles.priceTopRow}>
-            <View style={styles.saveBadge}><Text style={styles.saveBadgeText}>{t('paywall.save48')}</Text></View>
-            <Text style={styles.priceRef}>{t('paywall.vsMonthly')}</Text>
+            <View style={styles.saveBadge}><Text style={styles.saveBadgeText}>{pricing?.saveBadge ?? t('paywall.save48')}</Text></View>
+            <Text style={styles.priceRef}>{pricing?.vsMonthly ?? t('paywall.vsMonthly')}</Text>
           </View>
-          <Text style={styles.price}>$49.99<Text style={styles.pricePer}>{t('paywall.perYear')}</Text></Text>
-          <Text style={styles.priceSub}>{t('paywall.bestValue')}</Text>
+          <Text style={styles.price}>{pricing?.yearlyPrice ?? '$49.99'}<Text style={styles.pricePer}>{t('paywall.perYear')}</Text></Text>
+          <Text style={styles.priceSub}>{pricing?.bestValue ?? t('paywall.bestValue')}</Text>
         </View>
 
         <Button
-          label={t('paywall.startTrial')}
-          subLabel={t('paywall.thenPrice')}
+          label={t('paywall.ctaYearly')}
+          subLabel={pricing?.thenPrice ?? t('paywall.thenPrice')}
           onPress={() => handlePurchase('zenova_pro_yearly')}
           loading={loading}
-          accessibilityLabel={t('paywall.trialA11y')}
+          accessibilityLabel={pricing?.ctaYearlyA11y ?? t('paywall.ctaYearlyA11y')}
           style={{ width: '100%', marginBottom: spacing.sm }}
         />
 
-        <Text
-          style={[styles.monthly, loading && styles.linkDisabled]}
+        <Pressable
           onPress={() => !loading && handlePurchase('zenova_pro_monthly')}
           accessibilityRole="button"
-          accessibilityLabel={t('paywall.monthlyA11y')}
+          accessibilityLabel={pricing?.monthlyA11y ?? t('paywall.monthlyA11y')}
           accessibilityState={{ disabled: loading }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          {t('paywall.orMonthly')}
-        </Text>
+          <Text style={[styles.monthly, loading && styles.linkDisabled]}>
+            {pricing?.orMonthly ?? t('paywall.orMonthly')}
+          </Text>
+        </Pressable>
 
-        <Text
-          style={[styles.footer, loading && styles.linkDisabled]}
+        <Pressable
           onPress={() => !loading && handleRestore()}
           accessibilityRole="button"
           accessibilityLabel={t('paywall.restoreA11y')}
           accessibilityState={{ disabled: loading }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          {t('paywall.restoreFooter')}
-        </Text>
+          <Text style={[styles.footer, loading && styles.linkDisabled]}>
+            {t('paywall.restoreFooter')}
+          </Text>
+        </Pressable>
 
         {/* App Store 3.1.2: subscription screens must state auto-renew terms and
             link to the privacy policy + terms of use. */}
         <Text style={styles.autoRenewNote}>{t('paywall.autoRenewNote')}</Text>
         <View style={styles.legalRow}>
-          <Text
-            style={styles.legalLink}
+          <Pressable
             onPress={() => Linking.openURL('https://zenovaapp.com/terms')}
             accessibilityRole="link"
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            {t('profile.termsOfService')}
-          </Text>
+            <Text style={styles.legalLink}>{t('profile.termsOfService')}</Text>
+          </Pressable>
           <Text style={styles.legalDot}>·</Text>
-          <Text
-            style={styles.legalLink}
+          <Pressable
             onPress={() => Linking.openURL('https://zenovaapp.com/privacy')}
             accessibilityRole="link"
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            {t('profile.privacyPolicy')}
-          </Text>
+            <Text style={styles.legalLink}>{t('profile.privacyPolicy')}</Text>
+          </Pressable>
         </View>
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -209,8 +263,11 @@ const getStyles = (colors: Colors) => {
     pricePer: { fontFamily: typography.fonts.body, fontSize: typography.sizes.lg, color: colors.text.secondary },
     priceSub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, marginTop: spacing.xs },
     monthly: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.base, color: colors.accent.primary, marginVertical: spacing.base },
-    footer: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textAlign: 'center', marginTop: spacing.sm },
-    autoRenewNote: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textAlign: 'center', marginTop: spacing.base, paddingHorizontal: spacing.sm },
+    // text.secondary (not tertiary) — App Store 3.1.2 requires the
+    // auto-renew/restore terms to be clearly readable; tertiary fails
+    // WCAG AA contrast (~2.5:1) in light mode.
+    footer: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.secondary, textAlign: 'center', marginTop: spacing.sm },
+    autoRenewNote: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.secondary, textAlign: 'center', marginTop: spacing.base, paddingHorizontal: spacing.sm },
     legalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, marginTop: spacing.xs },
     legalLink: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.text.secondary, textDecorationLine: 'underline' },
     legalDot: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary },

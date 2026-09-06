@@ -695,7 +695,7 @@ function SnapScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBack
   };
 
   const analyze = async () => {
-    if (!imageB64) return;
+    if (!imageB64 || analyzing) return;
     // Free taste guard: quota may run out while this screen is already open.
     // Once this session has been charged once, further retries (same photo
     // re-analyzed, or a new one picked) are free — skip the local gate and
@@ -889,8 +889,8 @@ function SnapScreen({ onAdd, onBack }: { onAdd: (item: FoodItem) => void; onBack
           <TouchableOpacity style={styles.primaryBtn} onPress={handleAdd} activeOpacity={0.85}>
             <Text style={styles.primaryBtnText}>{t('addFood.addToLog')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={{ alignItems: 'center', marginTop: spacing.base }} onPress={analyze} accessibilityRole="button" accessibilityLabel={t('addFood.reAnalyzeA11y')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Text style={styles.backLink}>{t('addFood.reAnalyze')}</Text>
+          <TouchableOpacity style={{ alignItems: 'center', marginTop: spacing.base }} onPress={analyze} disabled={analyzing} accessibilityRole="button" accessibilityLabel={t('addFood.reAnalyzeA11y')} accessibilityState={{ disabled: analyzing }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Text style={[styles.backLink, analyzing && { opacity: 0.4 }]}>{t('addFood.reAnalyze')}</Text>
           </TouchableOpacity>
         </View>
       )}

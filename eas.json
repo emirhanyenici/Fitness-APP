@@ -27,10 +27,22 @@
       "env": {
         "EXPO_PUBLIC_APP_ENV": "production"
       }
+    },
+    "production-release": {
+      "extends": "production",
+      "env": {
+        "EXPO_PUBLIC_APP_ENV": "production",
+        "EXPO_PUBLIC_FORCE_PRO": "false"
+      }
     }
   },
   "submit": {
     "production": {
+      "ios": {
+        "ascAppId": "6790506351"
+      }
+    },
+    "production-release": {
       "ios": {
         "ascAppId": "6790506351"
       }

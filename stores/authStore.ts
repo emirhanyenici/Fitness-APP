@@ -67,7 +67,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
     try {
       // Lazy import keeps the native module out of Android/web/Jest bundles.
       const { signInWithAppleNative } = await import('../services/appleAuth');
-      const { identityToken, rawNonce, fullName } = await signInWithAppleNative();
+      const { identityToken, rawNonce, fullName, authorizationCode } = await signInWithAppleNative();
 
       const { data, error } = await supabase.auth.signInWithIdToken({
         provider: 'apple',
@@ -80,6 +80,30 @@ export const useAuthStore = create<AuthStore>((set) => ({
       // or it is lost forever (Supabase does not capture it from the token).
       if (fullName && data.user && !data.user.user_metadata?.full_name) {
         await supabase.auth.updateUser({ data: { full_name: fullName } });
+      }
+
+      // Best-effort, fire-and-forget: exchanges the short-lived authorization
+      // code for a long-lived Apple refresh token, stored server-side so
+      // delete-account can revoke this grant later (Apple 5.1.1(v)). Must
+      // happen now — the code expires in ~5 min and can't be used later.
+      // Never blocks or fails sign-in itself.
+      if (authorizationCode) {
+        (async () => {
+          try {
+            const url = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/apple-token-exchange`;
+            await fetch(url, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${data.session?.access_token}`,
+              },
+              body: JSON.stringify({ authorizationCode }),
+            });
+          } catch (e) {
+            const { logError } = await import('../services/monitoring');
+            logError(e, { scope: 'auth', op: 'appleTokenExchange' });
+          }
+        })();
       }
     } finally {
       set({ isLoading: false });

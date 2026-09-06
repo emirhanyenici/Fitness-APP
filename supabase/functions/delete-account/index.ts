@@ -11,9 +11,13 @@
  * role key. All user tables (user_state, subscriptions, ai_usage) reference
  * auth.users (id) ON DELETE CASCADE, so deleting the auth user wipes every
  * server-side row in one step.
+ *
+ * Also revokes the user's "Sign in with Apple" authorization first, if one
+ * is on file (Apple Guideline 5.1.1(v)) — see revokeAppleTokenIfAny below.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { buildAppleClientSecret } from '../_shared/appleClientSecret.ts';
 
 const RAW_ORIGINS = Deno.env.get('ALLOWED_ORIGINS') ?? '';
 const ALLOWED_ORIGINS: string[] = RAW_ORIGINS
@@ -23,6 +27,44 @@ const ALLOWED_ORIGINS: string[] = RAW_ORIGINS
 const SUPABASE_URL     = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_ANON    = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+const APPLE_CLIENT_ID  = Deno.env.get('APPLE_CLIENT_ID') ?? '';
+
+/**
+ * Revokes the user's "Sign in with Apple" authorization if one is on file
+ * (Apple Guideline 5.1.1(v)). Best-effort: any failure here is logged but
+ * must NOT block account deletion — the user still gets their account and
+ * data removed either way. No-ops silently if the user never signed in via
+ * Apple (no row in apple_tokens) or the Apple secrets aren't configured.
+ */
+async function revokeAppleTokenIfAny(admin: ReturnType<typeof createClient>, userId: string): Promise<void> {
+  try {
+    const { data: row } = await admin
+      .from('apple_tokens')
+      .select('refresh_token')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const refreshToken = (row as { refresh_token?: string } | null)?.refresh_token;
+    if (!refreshToken) return;
+
+    const clientSecret = await buildAppleClientSecret();
+    const revokeRes = await fetch('https://appleid.apple.com/auth/revoke', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: APPLE_CLIENT_ID,
+        client_secret: clientSecret,
+        token: refreshToken,
+        token_type_hint: 'refresh_token',
+      }),
+    });
+    if (!revokeRes.ok) {
+      console.error('apple token revoke failed:', revokeRes.status, await revokeRes.text());
+    }
+  } catch (err) {
+    console.error('apple token revoke error:', err);
+  }
+}
 
 function corsHeaders(origin: string | null): Record<string, string> {
   // CORS is browser-only; native mobile apps send no Origin header (unaffected).
@@ -74,6 +116,7 @@ Deno.serve(async (req) => {
   }
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  await revokeAppleTokenIfAny(admin, user.id);
   const { error: deleteError } = await admin.auth.admin.deleteUser(user.id);
   if (deleteError) {
     console.error('account deletion failed:', deleteError.message);

@@ -14,6 +14,14 @@ export interface AppleCredentialResult {
   rawNonce: string;
   /** Only provided by Apple on the very first authorization for this app. */
   fullName: string | null;
+  /**
+   * Short-lived (~5 min) code for server-side exchange into a long-lived
+   * Apple refresh token — must be sent to the backend immediately after
+   * sign-in (it cannot be stored/reused later). This is what lets
+   * delete-account revoke the user's "Sign in with Apple" grant on account
+   * deletion (Apple Guideline 5.1.1(v)). Null if Apple didn't return one.
+   */
+  authorizationCode: string | null;
 }
 
 /** Thrown code when the user dismisses the native Apple sheet. */
@@ -50,5 +58,6 @@ export async function signInWithAppleNative(): Promise<AppleCredentialResult> {
     identityToken: credential.identityToken,
     rawNonce,
     fullName: nameParts || null,
+    authorizationCode: credential.authorizationCode ?? null,
   };
 }
