@@ -41,7 +41,7 @@
       "backgroundColor": "#0D1526"
     },
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "usesAppleSignIn": true,
       "bundleIdentifier": "com.zenova.lifescore",
       "buildNumber": "1",
