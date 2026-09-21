@@ -58,7 +58,18 @@ jobs:
           DATE=$(date -u +%F)
           cp backup.sql.gpg "backups-repo/zenova-backup-${DATE}.sql.gpg"
           cd backups-repo
-          find . -maxdepth 1 -name 'zenova-backup-*.sql.gpg' -mtime +30 -delete
+          # Retention: keep the last 30 days. Prune by the date embedded in the
+          # filename — a fresh clone gives every file the same mtime, so
+          # `find -mtime +30` would never match and backups would pile up
+          # forever. (Old ones stay in git history until the repo is rewritten.)
+          CUTOFF=$(date -u -d "$DATE - 30 days" +%F)
+          for f in zenova-backup-*.sql.gpg; do
+            FILE_DATE=${f#zenova-backup-}; FILE_DATE=${FILE_DATE%.sql.gpg}
+            if [[ "$FILE_DATE" < "$CUTOFF" ]]; then
+              echo "Pruning $f (older than $CUTOFF)"
+              rm -f "$f"
+            fi
+          done
           git add -A
 
       - name: Commit and push

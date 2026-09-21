@@ -2,7 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 // Restrict CORS to known origins.
 // Set ALLOWED_ORIGINS in Supabase dashboard → Edge Functions → Secrets
-// as a comma-separated list, e.g. "https://yourapp.com,exp://localhost:8082"
+// as a comma-separated list, e.g. "https://zenovaapp.com,exp://localhost:8082"
 const RAW_ORIGINS = Deno.env.get('ALLOWED_ORIGINS') ?? '';
 const ALLOWED_ORIGINS: string[] = RAW_ORIGINS
   ? RAW_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
