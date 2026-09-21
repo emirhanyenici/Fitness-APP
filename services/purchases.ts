@@ -99,3 +99,27 @@ export async function logOutPurchases(): Promise<void> {
     logError(e, { scope: 'purchases', op: 'logOut' });
   }
 }
+
+export interface SubscriptionPeriodLabel {
+  /** Full length, e.g. "1 year", "3 months", "1 week". */
+  length: string;
+  /** Unit for "per" pricing, e.g. "year", "month", "week". */
+  per: string;
+}
+
+/**
+ * App Store 3.1.2 requires the paywall to state each subscription's
+ * length in plain words next to its price. Maps an ISO-8601 duration
+ * from RevenueCat (`product.subscriptionPeriod`, e.g. "P1Y", "P1M",
+ * "P3M", "P1W") to display strings. Returns null for a missing or
+ * unrecognized period so the caller can fall back to a per-product label.
+ */
+export function formatSubscriptionPeriod(iso: string | null | undefined): SubscriptionPeriodLabel | null {
+  if (!iso) return null;
+  const m = /^P(\d+)([DWMY])$/.exec(iso);
+  if (!m) return null;
+  const n = Number(m[1]);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const unit = { D: 'day', W: 'week', M: 'month', Y: 'year' }[m[2] as 'D' | 'W' | 'M' | 'Y'];
+  return { length: `${n} ${unit}${n === 1 ? '' : 's'}`, per: n === 1 ? unit : `${n} ${unit}s` };
+}

@@ -11,7 +11,7 @@ jest.mock('react-native-purchases', () => ({
   },
 }));
 
-import { planFromCustomerInfo } from '../services/purchases';
+import { planFromCustomerInfo, formatSubscriptionPeriod } from '../services/purchases';
 
 const withEntitlements = (keys: string[]) => ({
   entitlements: {
@@ -38,5 +38,32 @@ describe('planFromCustomerInfo', () => {
 
   it('ignores unrelated entitlements', () => {
     expect(planFromCustomerInfo(withEntitlements(['something_else']))).toBe('free');
+  });
+});
+
+// App Store 3.1.2: the paywall must state each subscription's length next
+// to its price; this maps RevenueCat's ISO-8601 period to display strings.
+describe('formatSubscriptionPeriod', () => {
+  it('maps the yearly product period', () => {
+    expect(formatSubscriptionPeriod('P1Y')).toEqual({ length: '1 year', per: 'year' });
+  });
+
+  it('maps the monthly product period', () => {
+    expect(formatSubscriptionPeriod('P1M')).toEqual({ length: '1 month', per: 'month' });
+  });
+
+  it('pluralizes multi-unit periods', () => {
+    expect(formatSubscriptionPeriod('P3M')).toEqual({ length: '3 months', per: '3 months' });
+    expect(formatSubscriptionPeriod('P1W')).toEqual({ length: '1 week', per: 'week' });
+    expect(formatSubscriptionPeriod('P7D')).toEqual({ length: '7 days', per: '7 days' });
+  });
+
+  it('returns null for missing or unrecognized periods', () => {
+    expect(formatSubscriptionPeriod(null)).toBeNull();
+    expect(formatSubscriptionPeriod(undefined)).toBeNull();
+    expect(formatSubscriptionPeriod('')).toBeNull();
+    expect(formatSubscriptionPeriod('P0M')).toBeNull();
+    expect(formatSubscriptionPeriod('1M')).toBeNull();
+    expect(formatSubscriptionPeriod('P1Y2M')).toBeNull();
   });
 });

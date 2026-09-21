@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Pressable, StyleSheet, Alert, Linking } from 'react-native';
 import { router } from 'expo-router';
 import Purchases, { type PurchasesPackage } from 'react-native-purchases';
-import { isPurchasesConfigured, planFromCustomerInfo } from '../services/purchases';
+import { isPurchasesConfigured, planFromCustomerInfo, formatSubscriptionPeriod } from '../services/purchases';
 import { logError } from '../services/monitoring';
 import { useSubscriptionStore } from '../stores/subscriptionStore';
 import { withAlpha, type Colors } from '../constants/colors';
@@ -12,7 +12,24 @@ import { spacing, radius } from '../constants/spacing';
 import { getElevation } from '../constants/elevation';
 import { useT } from '../constants/i18n';
 import { Button } from '../components/ui/Button';
-import { Icon, X, Crown, Brain, Camera, ChartColumn, TrendingUp, NotebookPen } from '../components/ui/Icon';
+import { Skeleton } from '../components/ui/Skeleton';
+import { Icon, X, Crown, Brain, Camera, ChartColumn, TrendingUp, NotebookPen, Check } from '../components/ui/Icon';
+
+type ProductId = 'zenova_pro_yearly' | 'zenova_pro_monthly';
+
+/** One selectable subscription option, fully described per App Store 3.1.2. */
+interface PlanOption {
+  id: ProductId;
+  pkg: PurchasesPackage;
+  title: string;
+  length: string;
+  per: string;
+  price: string;
+  /** Yearly only: "≈ $x.xx / month" equivalent. */
+  perMonth: string | null;
+  /** Yearly only: "SAVE n%" vs. 12 × monthly. */
+  saveBadge: string | null;
+}
 
 export default function PaywallScreen() {
   const colors = useColors();
@@ -20,51 +37,66 @@ export default function PaywallScreen() {
   const [loading, setLoading] = useState(false);
   const [yearlyPkg, setYearlyPkg] = useState<PurchasesPackage | null>(null);
   const [monthlyPkg, setMonthlyPkg] = useState<PurchasesPackage | null>(null);
+  // 'loading' until getOfferings resolves; 'error' if it fails or the SDK
+  // isn't configured — the paywall then shows no price at all rather than
+  // a placeholder that could disagree with the store (App Store 3.1.2).
+  const [offeringsState, setOfferingsState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [selectedId, setSelectedId] = useState<ProductId>('zenova_pro_yearly');
   const setPlan = useSubscriptionStore((s) => s.setPlan);
   const t = useT();
 
-  // App Store 3.1.2: the price shown here must match the real, localized
-  // store price — the hardcoded t('paywall.*') strings below are a
-  // pre-load fallback only, used until this resolves (or if offerings
-  // fail to load, e.g. no network / not configured).
   useEffect(() => {
-    if (!isPurchasesConfigured()) return;
+    if (!isPurchasesConfigured()) { setOfferingsState('error'); return; }
     let cancelled = false;
     Purchases.getOfferings()
       .then((offerings) => {
         if (cancelled) return;
         const current = offerings.current;
-        if (!current) return;
-        setYearlyPkg(current.availablePackages.find((p) => p.product.identifier === 'zenova_pro_yearly') ?? null);
-        setMonthlyPkg(current.availablePackages.find((p) => p.product.identifier === 'zenova_pro_monthly') ?? null);
+        const yearly = current?.availablePackages.find((p) => p.product.identifier === 'zenova_pro_yearly') ?? null;
+        const monthly = current?.availablePackages.find((p) => p.product.identifier === 'zenova_pro_monthly') ?? null;
+        setYearlyPkg(yearly);
+        setMonthlyPkg(monthly);
+        setOfferingsState(yearly || monthly ? 'ready' : 'error');
       })
-      .catch((e) => logError(e, { scope: 'paywall', op: 'getOfferings' }));
+      .catch((e) => {
+        logError(e, { scope: 'paywall', op: 'getOfferings' });
+        if (!cancelled) setOfferingsState('error');
+      });
     return () => { cancelled = true; };
   }, []);
 
-  const pricing = useMemo(() => {
-    if (!yearlyPkg || !monthlyPkg) return null;
-    const currency = yearlyPkg.product.currencyCode;
-    const fmt = (n: number) => {
-      try { return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(n); }
-      catch { return n.toFixed(2); }
+  // App Store 3.1.2: each option states title + length + price, all from
+  // the live store product (localized price, real billing period).
+  const plans = useMemo<PlanOption[]>(() => {
+    const build = (id: ProductId, pkg: PurchasesPackage | null, fallbackPer: 'year' | 'month'): PlanOption | null => {
+      if (!pkg) return null;
+      const period = formatSubscriptionPeriod(pkg.product.subscriptionPeriod)
+        ?? { length: `1 ${fallbackPer}`, per: fallbackPer };
+      return {
+        id,
+        pkg,
+        title: t(id === 'zenova_pro_yearly' ? 'paywall.planYearlyTitle' : 'paywall.planMonthlyTitle'),
+        length: period.length,
+        per: period.per,
+        price: pkg.product.priceString,
+        perMonth: null,
+        saveBadge: null,
+      };
     };
-    const yearlyPrice = yearlyPkg.product.priceString;
-    const monthlyPrice = monthlyPkg.product.priceString;
-    const yearlyEquivalentOfMonthly = monthlyPkg.product.price * 12;
-    const monthlyEquivalentOfYearly = yearlyPkg.product.price / 12;
-    const savingsPct = Math.round((1 - yearlyPkg.product.price / yearlyEquivalentOfMonthly) * 100);
-    return {
-      yearlyPrice,
-      vsMonthly: `vs ${fmt(yearlyEquivalentOfMonthly)}/yr monthly`,
-      bestValue: `Just ${fmt(monthlyEquivalentOfYearly)}/month · Best value`,
-      saveBadge: Number.isFinite(savingsPct) && savingsPct > 0 ? `SAVE ${savingsPct}%` : null,
-      thenPrice: `Billed ${yearlyPrice}/yr. Cancel anytime.`,
-      ctaYearlyA11y: `Subscribe yearly at ${yearlyPrice} per year`,
-      orMonthly: `Or ${monthlyPrice}/month →`,
-      monthlyA11y: `Subscribe monthly at ${monthlyPrice} per month`,
-    };
-  }, [yearlyPkg, monthlyPkg]);
+    const yearly = build('zenova_pro_yearly', yearlyPkg, 'year');
+    const monthly = build('zenova_pro_monthly', monthlyPkg, 'month');
+    if (yearly && yearlyPkg) {
+      const perMonthStr = yearlyPkg.product.pricePerMonthString;
+      if (perMonthStr) yearly.perMonth = t('paywall.yearlyPerMonth', { price: perMonthStr });
+      if (monthlyPkg) {
+        const pct = Math.round((1 - yearlyPkg.product.price / (monthlyPkg.product.price * 12)) * 100);
+        if (Number.isFinite(pct) && pct > 0) yearly.saveBadge = t('paywall.saveBadge', { pct });
+      }
+    }
+    return [yearly, monthly].filter((p): p is PlanOption => p != null);
+  }, [yearlyPkg, monthlyPkg, t]);
+
+  const selected = plans.find((p) => p.id === selectedId) ?? plans[0] ?? null;
 
   const FEATURES = [
     { icon: Brain,       title: t('paywall.featAiTitle'),          sub: t('paywall.featAiSub') },
@@ -75,35 +107,14 @@ export default function PaywallScreen() {
     { icon: Crown,       title: t('paywall.featProgressionTitle'), sub: t('paywall.featProgressionSub') },
   ];
 
-  const handlePurchase = async (productId: string) => {
-    if (!isPurchasesConfigured()) {
+  const handlePurchase = async () => {
+    if (!isPurchasesConfigured() || !selected) {
       Alert.alert(t('paywall.unavailable'), t('paywall.noOfferings'));
       return;
     }
     setLoading(true);
     try {
-      let pkg: PurchasesPackage | null =
-        productId === 'zenova_pro_yearly' ? yearlyPkg :
-        productId === 'zenova_pro_monthly' ? monthlyPkg : null;
-
-      if (!pkg) {
-        const offerings = await Purchases.getOfferings();
-        const current = offerings.current;
-        if (!current) {
-          Alert.alert(t('paywall.unavailable'), t('paywall.noOfferings'));
-          return;
-        }
-        pkg = current.availablePackages.find(
-          (p) => p.product.identifier === productId
-        ) ?? current.availablePackages[0];
-      }
-
-      if (!pkg) {
-        Alert.alert(t('paywall.unavailable'), t('paywall.noPackage'));
-        return;
-      }
-
-      const { customerInfo } = await Purchases.purchasePackage(pkg);
+      const { customerInfo } = await Purchases.purchasePackage(selected.pkg);
       const plan = planFromCustomerInfo(customerInfo);
       if (plan !== 'free') {
         setPlan(plan);
@@ -173,35 +184,66 @@ export default function PaywallScreen() {
           ))}
         </View>
 
-        <View style={styles.priceCard}>
-          <View style={styles.priceTopRow}>
-            <View style={styles.saveBadge}><Text style={styles.saveBadgeText}>{pricing?.saveBadge ?? t('paywall.save48')}</Text></View>
-            <Text style={styles.priceRef}>{pricing?.vsMonthly ?? t('paywall.vsMonthly')}</Text>
+        <Text style={styles.sectionLabel}>{t('paywall.choosePlan')}</Text>
+
+        {offeringsState === 'loading' && (
+          <View style={styles.plans} accessibilityLabel={t('paywall.loadingPrices')}>
+            <Skeleton height={92} borderRadius={radius.xl} />
+            <Skeleton height={92} borderRadius={radius.xl} />
           </View>
-          <Text style={styles.price}>{pricing?.yearlyPrice ?? '$49.99'}<Text style={styles.pricePer}>{t('paywall.perYear')}</Text></Text>
-          <Text style={styles.priceSub}>{pricing?.bestValue ?? t('paywall.bestValue')}</Text>
-        </View>
+        )}
+        {offeringsState === 'error' && (
+          <View style={styles.errorCard}>
+            <Text style={styles.errorText}>{t('paywall.pricesUnavailable')}</Text>
+          </View>
+        )}
+        {offeringsState === 'ready' && (
+          <View style={styles.plans}>
+            {plans.map((p) => {
+              const isSelected = selected?.id === p.id;
+              return (
+                <Pressable
+                  key={p.id}
+                  onPress={() => !loading && setSelectedId(p.id)}
+                  style={[styles.planCard, isSelected && styles.planCardSelected]}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: isSelected, checked: isSelected, disabled: loading }}
+                  accessibilityLabel={t('paywall.planA11y', { title: p.title, length: p.length, price: p.price, per: p.per })}
+                >
+                  <View style={[styles.radio, isSelected && styles.radioSelected]}>
+                    {isSelected && <Icon icon={Check} size="sm" color={colors.text.inverse} strokeWidth={3} />}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.planTitleRow}>
+                      <Text style={styles.planTitle}>{p.title}</Text>
+                      {p.saveBadge && (
+                        <View style={styles.saveBadge}><Text style={styles.saveBadgeText}>{p.saveBadge}</Text></View>
+                      )}
+                    </View>
+                    <Text style={styles.planLength}>{t('paywall.planLength', { length: p.length })}</Text>
+                    {p.perMonth && <Text style={styles.planPerMonth}>{p.perMonth} · {t('paywall.bestValue')}</Text>}
+                  </View>
+                  <View style={styles.planPriceCol}>
+                    <Text style={styles.planPrice}>{p.price}</Text>
+                    <Text style={styles.planPer}>/ {p.per}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
 
         <Button
-          label={t('paywall.ctaYearly')}
-          subLabel={pricing?.thenPrice ?? t('paywall.thenPrice')}
-          onPress={() => handlePurchase('zenova_pro_yearly')}
+          label={selected ? t('paywall.cta', { price: selected.price, per: selected.per }) : t('paywall.ctaLoading')}
+          subLabel={selected ? t('paywall.autoRenewsAt', { price: selected.price, per: selected.per }) : undefined}
+          onPress={handlePurchase}
           loading={loading}
-          accessibilityLabel={pricing?.ctaYearlyA11y ?? t('paywall.ctaYearlyA11y')}
+          disabled={!selected}
+          accessibilityLabel={selected
+            ? t('paywall.ctaA11y', { title: selected.title, price: selected.price, per: selected.per })
+            : t('paywall.ctaLoading')}
           style={{ width: '100%', marginBottom: spacing.sm }}
         />
-
-        <Pressable
-          onPress={() => !loading && handlePurchase('zenova_pro_monthly')}
-          accessibilityRole="button"
-          accessibilityLabel={pricing?.monthlyA11y ?? t('paywall.monthlyA11y')}
-          accessibilityState={{ disabled: loading }}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Text style={[styles.monthly, loading && styles.linkDisabled]}>
-            {pricing?.orMonthly ?? t('paywall.orMonthly')}
-          </Text>
-        </Pressable>
 
         <Pressable
           onPress={() => !loading && handleRestore()}
@@ -216,7 +258,7 @@ export default function PaywallScreen() {
         </Pressable>
 
         {/* App Store 3.1.2: subscription screens must state auto-renew terms and
-            link to the privacy policy + terms of use. */}
+            link to the Terms of Use (EULA) + privacy policy. */}
         <Text style={styles.autoRenewNote}>{t('paywall.autoRenewNote')}</Text>
         <View style={styles.legalRow}>
           <Pressable
@@ -224,7 +266,7 @@ export default function PaywallScreen() {
             accessibilityRole="link"
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Text style={styles.legalLink}>{t('profile.termsOfService')}</Text>
+            <Text style={styles.legalLink}>{t('paywall.termsOfUse')}</Text>
           </Pressable>
           <Text style={styles.legalDot}>·</Text>
           <Pressable
@@ -254,15 +296,23 @@ const getStyles = (colors: Colors) => {
     featureRow: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, flexDirection: 'row', alignItems: 'center', gap: spacing.base, ...elevation.card },
     featureTitle: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.primary },
     featureSub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, marginTop: 2 },
-    priceCard: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.25), borderRadius: radius.xl, padding: spacing.xl, width: '100%', alignItems: 'center', marginBottom: spacing.base, ...elevation.raised },
-    priceTopRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: spacing.sm },
-    saveBadge:     { backgroundColor: colors.status.success, borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 4 },
+    sectionLabel: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.sm, color: colors.text.secondary, alignSelf: 'flex-start', marginBottom: spacing.sm, textTransform: 'uppercase', letterSpacing: 1 },
+    plans: { width: '100%', gap: spacing.sm, marginBottom: spacing.base },
+    planCard: { backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, flexDirection: 'row', alignItems: 'center', gap: spacing.md, ...elevation.card },
+    planCardSelected: { borderColor: colors.accent.primary, borderWidth: 2, ...elevation.raised },
+    radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.border.default, alignItems: 'center', justifyContent: 'center' },
+    radioSelected: { backgroundColor: colors.accent.primary, borderColor: colors.accent.primary },
+    planTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
+    planTitle: { fontFamily: typography.fonts.heading, fontSize: typography.sizes.base, color: colors.text.primary },
+    planLength: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, marginTop: 2 },
+    planPerMonth: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.secondary, marginTop: 2 },
+    planPriceCol: { alignItems: 'flex-end' },
+    planPrice: { fontFamily: typography.fonts.mono, fontSize: typography.sizes.lg, color: colors.text.primary },
+    planPer: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.secondary },
+    saveBadge:     { backgroundColor: colors.status.success, borderRadius: radius.full, paddingHorizontal: 10, paddingVertical: 3 },
     saveBadgeText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.text.inverse },
-    priceRef:      { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary, textDecorationLine: 'line-through' },
-    price: { fontFamily: typography.fonts.mono, fontSize: typography.sizes['3xl'], color: colors.text.primary },
-    pricePer: { fontFamily: typography.fonts.body, fontSize: typography.sizes.lg, color: colors.text.secondary },
-    priceSub: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, marginTop: spacing.xs },
-    monthly: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.base, color: colors.accent.primary, marginVertical: spacing.base },
+    errorCard: { width: '100%', backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base },
+    errorText: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, textAlign: 'center' },
     // text.secondary (not tertiary) — App Store 3.1.2 requires the
     // auto-renew/restore terms to be clearly readable; tertiary fails
     // WCAG AA contrast (~2.5:1) in light mode.
