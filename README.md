@@ -61,7 +61,9 @@ __tests__/      Jest tests
   (critical blocks, high is informational).
 - **db-backup.yml** — nightly (03:17 UTC) `supabase db dump` (schema + data),
   GPG-encrypted with `BACKUP_ENCRYPTION_KEY`, pushed to `zenova-db-backups`
-  via `BACKUP_DEPLOY_KEY`. 30-day retention, pruned by filename date.
+  via `BACKUP_DEPLOY_KEY`. 30-day retention, pruned by filename date. Guarded
+  with `if: github.repository == ...` so it only runs here, not in the release
+  mirror (which has no secrets).
 
 Required repo secrets: `SUPABASE_DB_URL`, `BACKUP_ENCRYPTION_KEY`, `BACKUP_DEPLOY_KEY`.
 

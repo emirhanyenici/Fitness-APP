@@ -12,6 +12,10 @@ concurrency:
 jobs:
   backup:
     name: Dump, encrypt, and archive
+    # Only the primary repo holds the backup secrets. The release mirror
+    # (zenova-lifescore-release) carries this same file, and without the guard
+    # its nightly cron fires too and fails every time on the missing secrets.
+    if: github.repository == 'emirhanyenici/Fitness-APP'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout aura-health (for supabase CLI via npx)
