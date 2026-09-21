@@ -17,6 +17,8 @@ import { Icon, X, Crown, Brain, Camera, ChartColumn, TrendingUp, NotebookPen, Ch
 
 type ProductId = 'zenova_pro_yearly' | 'zenova_pro_monthly';
 
+const APPLE_STANDARD_EULA_URL = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
+
 /** One selectable subscription option, fully described per App Store 3.1.2. */
 interface PlanOption {
   id: ProductId;
@@ -261,12 +263,22 @@ export default function PaywallScreen() {
             link to the Terms of Use (EULA) + privacy policy. */}
         <Text style={styles.autoRenewNote}>{t('paywall.autoRenewNote')}</Text>
         <View style={styles.legalRow}>
+          {/* App Information uses Apple's standard EULA, so the "Terms of Use"
+              link must point at it; Zenova's own terms are linked alongside. */}
+          <Pressable
+            onPress={() => Linking.openURL(APPLE_STANDARD_EULA_URL)}
+            accessibilityRole="link"
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.legalLink}>{t('paywall.termsOfUse')}</Text>
+          </Pressable>
+          <Text style={styles.legalDot}>·</Text>
           <Pressable
             onPress={() => Linking.openURL('https://zenovaapp.com/terms')}
             accessibilityRole="link"
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Text style={styles.legalLink}>{t('paywall.termsOfUse')}</Text>
+            <Text style={styles.legalLink}>{t('paywall.zenovaTerms')}</Text>
           </Pressable>
           <Text style={styles.legalDot}>·</Text>
           <Pressable
@@ -318,7 +330,7 @@ const getStyles = (colors: Colors) => {
     // WCAG AA contrast (~2.5:1) in light mode.
     footer: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.secondary, textAlign: 'center', marginTop: spacing.sm },
     autoRenewNote: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.secondary, textAlign: 'center', marginTop: spacing.base, paddingHorizontal: spacing.sm },
-    legalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, marginTop: spacing.xs },
+    legalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.xs },
     legalLink: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.text.secondary, textDecorationLine: 'underline' },
     legalDot: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary },
     linkDisabled: { opacity: 0.4 },

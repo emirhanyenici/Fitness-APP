@@ -671,6 +671,7 @@ export const en = {
     restoreFooter: 'Restore Purchases',
     autoRenewNote: 'Payment is charged to your Apple ID / Google account at confirmation of purchase. Subscriptions renew automatically unless cancelled at least 24 hours before the end of the current period. Manage or cancel anytime in your App Store / Play Store account settings.',
     termsOfUse: 'Terms of Use (EULA)',
+    zenovaTerms: 'Zenova Terms',
     restoreA11y: 'Restore purchase',
     unavailable: 'Unavailable',
     noOfferings: 'No offerings found. Please try again later.',
