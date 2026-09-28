@@ -21,7 +21,6 @@ import { useColors } from '../../constants/useColors';
 import { typography } from '../../constants/typography';
 import { spacing, radius } from '../../constants/spacing';
 import { getElevation } from '../../constants/elevation';
-import { MEDICAL_DISCLAIMER } from '../../constants/legal';
 import { isValidHeightCm, isValidWeightKg } from '../../services/recommendations';
 import { kgToLbs, lbsToKg, cmToIn, inToCm, cmToFtIn, parseLocaleFloat } from '../../services/units';
 import {
@@ -156,7 +155,7 @@ export default function ProfileScreen() {
         });
         break;
       case 'disclaimer':
-        Alert.alert(t('profile.healthDisclaimer'), MEDICAL_DISCLAIMER);
+        router.push('/modals/sources');
         break;
       case 'privacy':
         Linking.openURL('https://zenovaapp.com/privacy');

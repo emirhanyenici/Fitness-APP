@@ -353,6 +353,17 @@ export default function HomeScreen() {
             <Text style={styles.targetLbl}>{t('home.workout')}</Text>
           </View>
         </View>
+        {/* App Store 1.4.1: recommendations/calculations need an easy-to-find
+            citation to the source they're based on. */}
+        <TouchableOpacity
+          onPress={() => router.push('/modals/sources')}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={t('home.targetsSources')}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Text style={styles.targetsSourcesLink}>{t('home.targetsSources')}</Text>
+        </TouchableOpacity>
       </Card>
 
       {/* ── Daily AI Plan ── */}
@@ -522,6 +533,7 @@ const getStyles = (colors: Colors) => {
   targetChip:       { flex: 1, alignItems: 'center', gap: 2 },
   targetVal:        { fontFamily: typography.fonts.mono, fontSize: typography.sizes.md, color: colors.text.primary },
   targetLbl:        { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.tertiary },
+  targetsSourcesLink: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.accent.primary, textAlign: 'center', marginTop: spacing.sm },
   targetDiv:        { width: 1, height: 32, backgroundColor: colors.border.subtle },
 
   planCard:      { marginBottom: spacing.base },

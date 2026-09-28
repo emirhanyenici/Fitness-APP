@@ -208,6 +208,7 @@ export default function RootLayout() {
             <Stack.Screen name="modals/exercise-demo" options={{ presentation: 'modal' }} />
             <Stack.Screen name="modals/custom-program" options={{ presentation: 'modal' }} />
             <Stack.Screen name="modals/add-measurement" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="modals/sources" options={{ presentation: 'modal' }} />
             <Stack.Screen name="modals/history" />
             <Stack.Screen name="modals/leaderboard" />
           </Stack>

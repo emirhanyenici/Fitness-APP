@@ -93,6 +93,7 @@ export const en = {
     upgrade: 'Upgrade →',
     aiCoachSubtitle: 'Ask about workouts, nutrition & recovery',
     dayStreak: 'day streak',
+    targetsSources: 'How these are calculated →',
   },
 
   nutrition: {
@@ -686,6 +687,7 @@ export const en = {
     noActiveSub: 'No active subscription found for this account.',
     restoreFailed: 'Restore failed',
     tryAgain: 'Please try again.',
+    retry: 'Try Again',
   },
 
   profile: {
@@ -749,6 +751,15 @@ export const en = {
     currentPlan: 'Current plan: {plan}',
     currentPlanUpgrade: 'Current plan: {plan}. Upgrade',
     version: 'Zenova LifeScore v1.0.0',
+    viewSources: 'View sources',
+  },
+  sources: {
+    title: 'Sources',
+    disclaimerTitle: 'Health Disclaimer',
+    referencesTitle: 'References',
+    referencesSub: 'Every calculated target in Zenova (calories, macros, sleep, workouts) is based on the published formula or public health guideline below.',
+    viewSource: 'View source',
+    goBack: 'Go back',
   },
   achievements: {
     sectionTitle: 'Achievements',

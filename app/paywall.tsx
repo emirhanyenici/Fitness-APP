@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Pressable, StyleSheet, Alert, Linking } from 'react-native';
 import { router } from 'expo-router';
 import Purchases, { type PurchasesPackage } from 'react-native-purchases';
-import { isPurchasesConfigured, planFromCustomerInfo, formatSubscriptionPeriod } from '../services/purchases';
+import { initPurchases, isPurchasesConfigured, planFromCustomerInfo, formatSubscriptionPeriod } from '../services/purchases';
 import { logError } from '../services/monitoring';
 import { useSubscriptionStore } from '../stores/subscriptionStore';
 import { withAlpha, type Colors } from '../constants/colors';
@@ -47,11 +47,25 @@ export default function PaywallScreen() {
   const setPlan = useSubscriptionStore((s) => s.setPlan);
   const t = useT();
 
-  useEffect(() => {
-    if (!isPurchasesConfigured()) { setOfferingsState('error'); return; }
+  // Loads (or reloads) the store offerings. Pulled out of the effect so the
+  // error card's "Try Again" button can re-run it after a transient failure
+  // (e.g. a slow/flaky network on cold start) instead of leaving the paywall
+  // permanently stuck with no purchasable plans and no way to recover short
+  // of force-quitting the app — App Store 2.1(a) flagged exactly this.
+  const loadOfferings = useCallback(() => {
+    setOfferingsState('loading');
     let cancelled = false;
-    Purchases.getOfferings()
-      .then((offerings) => {
+    (async () => {
+      // initPurchases() is idempotent and cheap once already configured —
+      // awaiting it here closes the race where the paywall mounts (e.g. via
+      // deep link) before _layout's fire-and-forget initPurchases() call has
+      // finished configuring the SDK, which used to fail isPurchasesConfigured()
+      // permanently for this mount since the check below only ran once.
+      await initPurchases();
+      if (cancelled) return;
+      if (!isPurchasesConfigured()) { setOfferingsState('error'); return; }
+      try {
+        const offerings = await Purchases.getOfferings();
         if (cancelled) return;
         const current = offerings.current;
         const yearly = current?.availablePackages.find((p) => p.product.identifier === 'zenova_pro_yearly') ?? null;
@@ -59,13 +73,15 @@ export default function PaywallScreen() {
         setYearlyPkg(yearly);
         setMonthlyPkg(monthly);
         setOfferingsState(yearly || monthly ? 'ready' : 'error');
-      })
-      .catch((e) => {
+      } catch (e) {
         logError(e, { scope: 'paywall', op: 'getOfferings' });
         if (!cancelled) setOfferingsState('error');
-      });
+      }
+    })();
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => loadOfferings(), [loadOfferings]);
 
   // App Store 3.1.2: each option states title + length + price, all from
   // the live store product (localized price, real billing period).
@@ -197,6 +213,15 @@ export default function PaywallScreen() {
         {offeringsState === 'error' && (
           <View style={styles.errorCard}>
             <Text style={styles.errorText}>{t('paywall.pricesUnavailable')}</Text>
+            <Pressable
+              onPress={loadOfferings}
+              accessibilityRole="button"
+              accessibilityLabel={t('paywall.retry')}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={styles.retryBtn}
+            >
+              <Text style={styles.retryBtnText}>{t('paywall.retry')}</Text>
+            </Pressable>
           </View>
         )}
         {offeringsState === 'ready' && (
@@ -323,8 +348,10 @@ const getStyles = (colors: Colors) => {
     planPer: { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.text.secondary },
     saveBadge:     { backgroundColor: colors.status.success, borderRadius: radius.full, paddingHorizontal: 10, paddingVertical: 3 },
     saveBadgeText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.xs, color: colors.text.inverse },
-    errorCard: { width: '100%', backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base },
+    errorCard: { width: '100%', backgroundColor: colors.bg.secondary, borderWidth: 1, borderColor: colors.border.subtle, borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.base, alignItems: 'center', gap: spacing.sm },
     errorText: { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.text.secondary, textAlign: 'center' },
+    retryBtn: { paddingHorizontal: spacing.base, paddingVertical: spacing.xs, borderRadius: radius.full, borderWidth: 1, borderColor: colors.accent.primary },
+    retryBtnText: { fontFamily: typography.fonts.bodyMed, fontSize: typography.sizes.sm, color: colors.accent.primary },
     // text.secondary (not tertiary) — App Store 3.1.2 requires the
     // auto-renew/restore terms to be clearly readable; tertiary fails
     // WCAG AA contrast (~2.5:1) in light mode.
