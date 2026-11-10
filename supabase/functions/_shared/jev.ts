@@ -6,7 +6,8 @@
  */
 import type { NoulQuestion, Probs } from './jevPolicy.ts';
 
-const API_KEY = Deno.env.get('TYPESAFE_API_KEY') ?? '';
+// Accepts either secret name (the dashboard secret was created as TypeSafe_JEV_API_Key).
+const API_KEY = Deno.env.get('TYPESAFE_API_KEY') ?? Deno.env.get('TypeSafe_JEV_API_Key') ?? '';
 const MODEL   = Deno.env.get('TYPESAFE_MODEL') ?? 'jev-latest';
 const URL_    = 'https://api.typesafe.ai/v1/systemone';
 
