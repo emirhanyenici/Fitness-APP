@@ -18,13 +18,17 @@ export type Probs = Record<string, number> | null;
 
 export const THRESHOLDS = {
   /** Eating-disorder / dangerous-restriction signals — hard stop. */
-  eatingDisorder: 0.8,
+  eatingDisorder: 0.7,
+  /** User states a daily calorie goal far below safe levels. */
+  veryLowCalorie: 0.7,
   /** Clearly unrelated to health/fitness — hard stop (also blocks free-LLM abuse). */
   offTopic: 0.9,
   /** Medical question — steer the model + add a see-a-professional note. */
   medical: 0.7,
-  /** Coach reply that diagnoses/prescribes/dangerously restricts. */
-  unsafeReply: 0.7,
+  /** Coach reply that recommends dangerous dieting — replaced entirely. */
+  dangerousDietReply: 0.7,
+  /** Coach reply that diagnoses / prescribes — footer appended. */
+  medicalReply: 0.7,
   /** Photo result looks like not-food. */
   notFood: 0.25,
   /** Photo calories implausible for the listed items. */
@@ -74,6 +78,15 @@ export function triageRequest(messages: ChatMsg[]) {
           false: 'Normal diet, weight-loss, bulking or nutrition question within safe, ordinary ranges',
         },
       },
+      veryLowCalorie: {
+        type: 'noul',
+        instructions:
+          'The latest user message states that the user wants to eat, consume or aim for a very low daily calorie amount, below about 1000 kcal per day (for example "400 calories a day", "günde 400 kalori", "500 kcal daily"), or asks for such a plan.',
+        criteria: {
+          true: 'Sets or asks for a daily intake goal under about 1000 kcal',
+          false: 'Does not state a daily intake goal that low (a single meal or food item with few calories does not count)',
+        },
+      },
       medical: {
         type: 'noul',
         instructions:
@@ -101,6 +114,7 @@ export type TriageAction = 'block_eating_disorder' | 'block_off_topic' | 'steer_
 export function decideTriage(p: Probs): TriageAction {
   if (!p) return 'allow';
   if ((p.eatingDisorder ?? 0) >= THRESHOLDS.eatingDisorder) return 'block_eating_disorder';
+  if ((p.veryLowCalorie ?? 0) >= THRESHOLDS.veryLowCalorie) return 'block_eating_disorder';
   if ((p.offTopic ?? 0) >= THRESHOLDS.offTopic) return 'block_off_topic';
   if ((p.medical ?? 0) >= THRESHOLDS.medical) return 'steer_medical';
   return 'allow';
@@ -112,21 +126,35 @@ export function replyCheckRequest(reply: string) {
   return {
     state: { coach_reply: reply.slice(0, 3000) },
     questions: {
-      unsafe: {
+      dangerousDiet: {
         type: 'noul',
         instructions:
-          'The coach reply gives a medical diagnosis, prescribes treatment or medication doses, or recommends dangerous dieting such as under about 1200 kcal per day, multi-day fasting, or purging.',
+          'The coach reply recommends or accepts dangerous dieting: a daily intake under about 1200 kcal, multi-day fasting, purging, or other extreme restriction.',
         criteria: {
-          true: 'Contains a diagnosis, treatment or dosing advice, or dangerous dieting advice',
-          false: 'General wellness, training or nutrition guidance within safe ranges',
+          true: 'Recommends or plans a daily intake under about 1200 kcal, long fasting, or purging',
+          false: 'Nutrition and training guidance within safe, ordinary ranges',
+        },
+      },
+      medicalAdvice: {
+        type: 'noul',
+        instructions:
+          'The coach reply gives a medical diagnosis or prescribes treatment or medication doses.',
+        criteria: {
+          true: 'Contains a diagnosis, treatment plan or dosing advice',
+          false: 'General wellness, training or nutrition guidance',
         },
       },
     },
   };
 }
 
-export function decideReply(p: Probs): 'append_footer' | 'allow' {
-  return p && (p.unsafe ?? 0) >= THRESHOLDS.unsafeReply ? 'append_footer' : 'allow';
+export type ReplyAction = 'replace_with_safety' | 'append_footer' | 'allow';
+
+export function decideReply(p: Probs): ReplyAction {
+  if (!p) return 'allow';
+  if ((p.dangerousDiet ?? 0) >= THRESHOLDS.dangerousDietReply) return 'replace_with_safety';
+  if ((p.medicalAdvice ?? 0) >= THRESHOLDS.medicalReply) return 'append_footer';
+  return 'allow';
 }
 
 // ── analyze-photo: sanity-check the vision result (text only) ────────────────

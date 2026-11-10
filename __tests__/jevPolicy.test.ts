@@ -13,7 +13,10 @@ describe('decideTriage', () => {
     expect(decideTriage({ eatingDisorder: THRESHOLDS.eatingDisorder })).toBe('block_eating_disorder');
   });
   it('does not block just below the threshold', () => {
-    expect(decideTriage({ eatingDisorder: 0.79, offTopic: 0.89, medical: 0.69 })).toBe('allow');
+    expect(decideTriage({ eatingDisorder: 0.69, veryLowCalorie: 0.69, offTopic: 0.89, medical: 0.69 })).toBe('allow');
+  });
+  it('blocks a stated very-low daily calorie goal', () => {
+    expect(decideTriage({ eatingDisorder: 0.2, veryLowCalorie: 0.85 })).toBe('block_eating_disorder');
   });
   it('blocks clear off-topic, steers medical', () => {
     expect(decideTriage({ offTopic: 0.95 })).toBe('block_off_topic');
@@ -22,10 +25,11 @@ describe('decideTriage', () => {
 });
 
 describe('decideReply / decidePhoto', () => {
-  it('appends the footer only for confidently unsafe replies', () => {
+  it('replaces dangerous-diet replies, footers medical ones, allows the rest', () => {
     expect(decideReply(null)).toBe('allow');
-    expect(decideReply({ unsafe: 0.5 })).toBe('allow');
-    expect(decideReply({ unsafe: 0.9 })).toBe('append_footer');
+    expect(decideReply({ dangerousDiet: 0.5, medicalAdvice: 0.5 })).toBe('allow');
+    expect(decideReply({ dangerousDiet: 0.9, medicalAdvice: 0.9 })).toBe('replace_with_safety');
+    expect(decideReply({ dangerousDiet: 0.1, medicalAdvice: 0.9 })).toBe('append_footer');
   });
   it('flags non-food or implausible calories, fails open otherwise', () => {
     expect(decidePhoto(null)).toBe('ok');
@@ -42,10 +46,10 @@ describe('request builders', () => {
     expect(r.state.recent_conversation).toHaveLength(4);
     expect(r.state.recent_conversation[0].text.length).toBe(600);
     expect(r.state.latest_user_message.length).toBe(1000);
-    expect(Object.keys(r.questions)).toEqual(['eatingDisorder', 'medical', 'offTopic']);
+    expect(Object.keys(r.questions)).toEqual(['eatingDisorder', 'veryLowCalorie', 'medical', 'offTopic']);
   });
   it('reply and photo checks build valid noul questions', () => {
-    expect(replyCheckRequest('hi').questions.unsafe.type).toBe('noul');
+    expect(Object.keys(replyCheckRequest('hi').questions)).toEqual(['dangerousDiet', 'medicalAdvice']);
     const p = photoCheckRequest('Rice', [{ name: 'rice', grams: 100, calories: 130 }], 130);
     expect(Object.keys(p.questions)).toEqual(['isFood', 'plausible']);
   });

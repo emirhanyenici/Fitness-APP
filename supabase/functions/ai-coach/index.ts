@@ -325,6 +325,10 @@ Deno.serve(async (req) => {
     const guardReply = async (text: string): Promise<string> => {
       if (!text || mode === 'weekly_report') return text;
       const verdict = decideReply(await jevNouls(replyCheckRequest(text)));
+      if (verdict === 'replace_with_safety') {
+        console.log('Jev reply check: replaced dangerous-diet reply');
+        return EATING_DISORDER_MESSAGE;
+      }
       return verdict === 'append_footer' ? text + SAFETY_FOOTER : text;
     };
 
