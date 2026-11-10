@@ -88,4 +88,15 @@ jobs:
             exit 0
           fi
           git commit -m "Backup $(date -u +%F)"
-          git push origin HEAD
+          # Retry transient GitHub/SSH failures (a single blip failed run #72
+          # even though dump + encryption had succeeded).
+          for attempt in 1 2 3 4; do
+            if git push origin HEAD; then
+              exit 0
+            fi
+            echo "Push failed (attempt $attempt/4); retrying..."
+            sleep $((attempt * 15))
+            git pull --rebase origin HEAD || true
+          done
+          echo "Push failed after 4 attempts" >&2
+          exit 1
