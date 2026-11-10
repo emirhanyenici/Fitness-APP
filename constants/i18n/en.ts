@@ -671,6 +671,7 @@ export const en = {
     autoRenewsAt: 'Auto-renews at {price} / {per} until cancelled.',
     restoreFooter: 'Restore Purchases',
     autoRenewNote: 'Payment is charged to your Apple ID / Google account at confirmation of purchase. Subscriptions renew automatically unless cancelled at least 24 hours before the end of the current period. Manage or cancel anytime in your App Store / Play Store account settings.',
+    autoRenewNoteIos: 'Payment is charged to your Apple ID at confirmation of purchase. Subscriptions renew automatically unless cancelled at least 24 hours before the end of the current period. Manage or cancel anytime in your App Store account settings.',
     termsOfUse: 'Terms of Use (EULA)',
     zenovaTerms: 'Zenova Terms',
     restoreA11y: 'Restore purchase',
@@ -691,6 +692,7 @@ export const en = {
   },
 
   profile: {
+    bmiSources: 'How BMI is calculated · Sources',
     title: 'Profile',
     edit: 'Edit',
     save: 'Save',
@@ -752,6 +754,13 @@ export const en = {
     currentPlanUpgrade: 'Current plan: {plan}. Upgrade',
     version: 'Zenova LifeScore v1.0.0',
     viewSources: 'View sources',
+  },
+  aiConsent: {
+    title: 'Enable AI features?',
+    body: 'Zenova\'s AI Coach, Snap your food, and Weekly Report are powered by a third-party AI provider (xAI). To answer, Zenova sends it: the messages you type, meal photos you snap, a few profile preferences (goal, diet type, fitness and activity level, gender, workout frequency/environment), and your weekly stats or recent sleep/mood/energy trend. Your name, email, and account ID are never sent. You can decline and keep using the rest of Zenova.',
+    accept: 'Accept & Enable AI Features',
+    decline: 'Not now',
+    declined: 'AI features are off. You can enable them any time you use an AI feature.',
   },
   sources: {
     title: 'Sources',

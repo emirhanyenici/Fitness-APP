@@ -4,6 +4,7 @@
  */
 
 import { supabase } from './supabase';
+import { ensureAiConsent } from './aiConsent';
 import { fetchWithTimeout } from './http';
 
 const EDGE_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/analyze-photo`;
@@ -80,6 +81,9 @@ export function sanitizeSnapResult(raw: unknown): SnapResult {
  * only the first charged request per session consumes the daily quota.
  */
 export async function analyzeFood(base64: string, sessionId: string): Promise<SnapResult> {
+  if (!(await ensureAiConsent())) {
+    throw new Error('AI features are turned off. Accept AI consent to analyze meal photos.');
+  }
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
     throw new Error('You must be signed in to use this feature.');

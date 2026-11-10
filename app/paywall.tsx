@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Pressable, StyleSheet, Alert, Linking } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Pressable, StyleSheet, Alert, Linking, Platform } from 'react-native';
 import { router } from 'expo-router';
 import Purchases, { type PurchasesPackage } from 'react-native-purchases';
 import { initPurchases, isPurchasesConfigured, planFromCustomerInfo, formatSubscriptionPeriod } from '../services/purchases';
@@ -286,7 +286,7 @@ export default function PaywallScreen() {
 
         {/* App Store 3.1.2: subscription screens must state auto-renew terms and
             link to the Terms of Use (EULA) + privacy policy. */}
-        <Text style={styles.autoRenewNote}>{t('paywall.autoRenewNote')}</Text>
+        <Text style={styles.autoRenewNote}>{t(Platform.OS === 'ios' ? 'paywall.autoRenewNoteIos' : 'paywall.autoRenewNote')}</Text>
         <View style={styles.legalRow}>
           {/* App Information uses Apple's standard EULA, so the "Terms of Use"
               link must point at it; Zenova's own terms are linked alongside. */}

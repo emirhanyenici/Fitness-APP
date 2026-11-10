@@ -58,6 +58,12 @@ export const CITATIONS: Citation[] = [
     url: 'https://www.cdc.gov/sleep/about/index.html',
   },
   {
+    metric: 'BMI (body mass index) & categories',
+    title: 'Body Mass Index (BMI): formula (kg/m²) and adult weight categories',
+    source: 'Centers for Disease Control and Prevention / World Health Organization',
+    url: 'https://www.cdc.gov/bmi/adult-calculator/bmi-categories.html',
+  },
+  {
     metric: 'Workout frequency & duration',
     title: 'Physical Activity Guidelines for Adults',
     source: 'Centers for Disease Control and Prevention',

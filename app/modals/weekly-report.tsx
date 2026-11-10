@@ -4,6 +4,7 @@ import {
   StyleSheet, ActivityIndicator, Alert,
 } from 'react-native';
 import { router } from 'expo-router';
+import { ensureAiConsent } from '../../services/aiConsent';
 import { useNutritionStore } from '../../stores/nutritionStore';
 import { useRecoveryStore } from '../../stores/recoveryStore';
 import { useWorkoutStore } from '../../stores/workoutStore';
@@ -114,6 +115,13 @@ SUMMARY STATS:
 - Average sleep: ${stats.avgSleep > 0 ? `${stats.avgSleep.toFixed(1)}h` : 'not logged'}
 
 Write a short motivating coach's summary (5-8 sentences) of their week: call out what went well, what to watch, and the single most important thing to change next week. Be honest, specific to their numbers, and direct. Plain text only — no markdown, no headers, no bullet lists.`;
+
+    if (!(await ensureAiConsent())) {
+      // No consent: nothing leaves the device — show the local, rule-based report.
+      setData({ ...base, aiNarrative: null, source: 'local' });
+      setLoading(false);
+      return;
+    }
 
     try {
       // Send the user's session JWT so the edge function can authenticate and

@@ -421,6 +421,20 @@ export default function ProfileScreen() {
           </View>
         )}
 
+        {!editing && (
+          <TouchableOpacity
+            onPress={() => router.push('/modals/sources')}
+            activeOpacity={0.7}
+            accessibilityRole="link"
+            accessibilityLabel={t('profile.bmiSources')}
+            style={{ alignSelf: 'center', marginTop: spacing.xs, marginBottom: spacing.sm }}
+          >
+            <Text style={{ fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.accent.primary, textDecorationLine: 'underline' }}>
+              {t('profile.bmiSources')}
+            </Text>
+          </TouchableOpacity>
+        )}
+
         {/* ── Cancel button when editing ── */}
         {editing && (
           <TouchableOpacity

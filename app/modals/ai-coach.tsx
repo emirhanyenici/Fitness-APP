@@ -10,6 +10,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useUserStore } from '../../stores/userStore';
 import { useRecoveryStore } from '../../stores/recoveryStore';
 import { useAISuggestionsStore, SuggestionType } from '../../stores/aiSuggestionsStore';
+import { ensureAiConsent } from '../../services/aiConsent';
 import { useAIChatStore, ChatMessage, WELCOME_MESSAGE } from '../../stores/aiChatStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useSubscriptionStore } from '../../stores/subscriptionStore';
@@ -112,6 +113,8 @@ export default function AICoachModal() {
             .map((k) => [k, profile[k]])
         )
       : null;
+
+    if (!(await ensureAiConsent())) return;
 
     addMessage(userId, userMsg);
     setInput('');
