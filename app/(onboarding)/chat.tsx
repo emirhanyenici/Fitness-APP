@@ -304,6 +304,20 @@ export default function OnboardingChat() {
                 </View>
               )}
 
+              {/* App Store 1.4.1: BMI must link to its sources where it is shown. */}
+              {liveBmi !== null && (
+                <TouchableOpacity
+                  onPress={() => router.push('/modals/sources')}
+                  activeOpacity={0.7}
+                  accessibilityRole="link"
+                  accessibilityLabel={t('onboarding.bmiSources')}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={styles.bmiSourcesLink}
+                >
+                  <Text style={styles.bmiSourcesText}>{t('onboarding.bmiSources')}</Text>
+                </TouchableOpacity>
+              )}
+
               {/* Continue */}
               <TouchableOpacity
                 style={[styles.calcBtn, liveBmi === null && styles.calcBtnDisabled]}
@@ -396,6 +410,8 @@ const getStyles = (colors: Colors) => StyleSheet.create({
   bmiScaleDot:     { width: 6, height: 6, borderRadius: 3 },
   bmiScaleLabel:   { fontFamily: typography.fonts.body, fontSize: 9, color: colors.text.tertiary, textAlign: 'center' },
   commentBox:      { backgroundColor: colors.accent.dim, borderRadius: radius.xl, padding: spacing.base, width: '100%', borderWidth: 1, borderColor: withAlpha(colors.accent.primary, 0.19) },
+  bmiSourcesLink:  { alignSelf: 'center', paddingVertical: spacing.xs },
+  bmiSourcesText:  { fontFamily: typography.fonts.body, fontSize: typography.sizes.xs, color: colors.accent.primary, textDecorationLine: 'underline' },
   commentText:     { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.accent.primary, lineHeight: 20 },
   rangeError:      { fontFamily: typography.fonts.body, fontSize: typography.sizes.sm, color: colors.status.danger, lineHeight: 20, marginTop: spacing.sm },
 });

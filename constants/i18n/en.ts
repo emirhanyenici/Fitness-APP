@@ -378,6 +378,7 @@ export const en = {
     weightEg: 'e.g. 70',
     weightA11y: 'Weight in kilograms',
     bmiUnit: 'BMI',
+    bmiSources: 'How BMI is calculated · Sources',
     scaleUnder: 'Under',
     scaleNormal: 'Normal',
     scaleOver: 'Over',
