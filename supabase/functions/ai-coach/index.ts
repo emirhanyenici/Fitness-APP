@@ -1,4 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { jevNouls } from '../_shared/jev.ts';
+import {
+  triageRequest, decideTriage, replyCheckRequest, decideReply,
+  EATING_DISORDER_MESSAGE, OFF_TOPIC_MESSAGE, MEDICAL_STEER_NOTE, SAFETY_FOOTER,
+} from '../_shared/jevPolicy.ts';
 
 // Restrict CORS to known origins.
 // Set ALLOWED_ORIGINS in Supabase dashboard → Edge Functions → Secrets
@@ -297,8 +302,31 @@ Deno.serve(async (req) => {
       ? [{ role: 'user', content: 'Generate a complete weekly workout plan for me based on my profile. Format it day by day.' }]
       : messages!;
 
+    // Jev triage (chat only — plan/weekly-report prompts are built server/client
+    // side, not free-form user text). One request, three parallel judgments.
+    const isChat = !mode || mode === 'chat';
+    let steerMedical = false;
+    if (isChat && messages) {
+      const action = decideTriage(await jevNouls(triageRequest(messages)));
+      if (action === 'block_eating_disorder' || action === 'block_off_topic') {
+        console.log('Jev triage blocked:', action);
+        return new Response(
+          JSON.stringify({ content: action === 'block_eating_disorder' ? EATING_DISORDER_MESSAGE : OFF_TOPIC_MESSAGE }),
+          { headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' } },
+        );
+      }
+      steerMedical = action === 'steer_medical';
+    }
+
+    // Verify the coach's own reply before it reaches the user.
+    const guardReply = async (text: string): Promise<string> => {
+      if (!text || mode === 'weekly_report') return text;
+      const verdict = decideReply(await jevNouls(replyCheckRequest(text)));
+      return verdict === 'append_footer' ? text + SAFETY_FOOTER : text;
+    };
+
     const baseMessages = [
-      { role: 'system', content: SYSTEM_PROMPT + contextNote },
+      { role: 'system', content: SYSTEM_PROMPT + contextNote + (steerMedical ? MEDICAL_STEER_NOTE : '') },
       ...finalMessages,
     ];
 
@@ -373,14 +401,14 @@ Deno.serve(async (req) => {
 
       console.log('xAI usage (ai-coach, tool-followup):', JSON.stringify(followUpData.usage ?? {}));
 
-      const followUpContent = followUpData.choices?.[0]?.message?.content ?? '';
+      const followUpContent = await guardReply(followUpData.choices?.[0]?.message?.content ?? '');
       return new Response(
         JSON.stringify({ content: followUpContent }),
         { headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' } }
       );
     }
 
-    const content = data.choices?.[0]?.message?.content ?? '';
+    const content = await guardReply(data.choices?.[0]?.message?.content ?? '');
     return new Response(
       JSON.stringify({ content }),
       { headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' } }

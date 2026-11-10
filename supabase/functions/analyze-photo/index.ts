@@ -29,6 +29,8 @@ const SUPABASE_URL   = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_ANON  = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { jevNouls } from '../_shared/jev.ts';
+import { photoCheckRequest, decidePhoto } from '../_shared/jevPolicy.ts';
 
 Deno.serve(async (req) => {
   const origin = req.headers.get('origin');
@@ -267,8 +269,17 @@ contains no food, return {"name": null}.`;
           fat:      num(parsed.fat, 500),
         };
 
-    const confidence = parsed.confidence === 'high' || parsed.confidence === 'low' ? parsed.confidence : 'medium';
-    const notes = typeof parsed.notes === 'string' ? parsed.notes.trim().slice(0, 200) : '';
+    let confidence = parsed.confidence === 'high' || parsed.confidence === 'low' ? parsed.confidence : 'medium';
+    let notes = typeof parsed.notes === 'string' ? parsed.notes.trim().slice(0, 200) : '';
+
+    // Jev sanity check on the vision result (text only, fail-open): if the items
+    // don't look like food or the calories look implausible, don't hide the
+    // result — downgrade confidence and tell the user to double-check.
+    const photoVerdict = decidePhoto(await jevNouls(photoCheckRequest(name, items, totals.calories)));
+    if (photoVerdict === 'doubtful') {
+      confidence = 'low';
+      notes = notes ? `${notes} Please double-check this estimate.` : 'Please double-check this estimate.';
+    }
 
     const result = {
       name,

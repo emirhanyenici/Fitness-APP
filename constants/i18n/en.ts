@@ -757,7 +757,7 @@ export const en = {
   },
   aiConsent: {
     title: 'Enable AI features?',
-    body: 'Zenova\'s AI Coach, Snap your food, and Weekly Report are powered by a third-party AI provider (xAI). To answer, Zenova sends it: the messages you type, meal photos you snap, a few profile preferences (goal, diet type, fitness and activity level, gender, workout frequency/environment), and your weekly stats or recent sleep/mood/energy trend. Your name, email, and account ID are never sent. You can decline and keep using the rest of Zenova.',
+    body: 'Zenova\'s AI Coach, Snap your food, and Weekly Report are powered by third-party AI providers: xAI (generates answers and reads meal photos) and TypeSafe (a safety check on the text of your coach messages, the coach\'s replies, and Snap results). Zenova sends them: the messages you type, meal photos you snap, a few profile preferences (goal, diet type, fitness and activity level, gender, workout frequency/environment), and your weekly stats or recent sleep/mood/energy trend. Your name, email, and account ID are never sent. You can decline and keep using the rest of Zenova.',
     accept: 'Accept & Enable AI Features',
     decline: 'Not now',
     declined: 'AI features are off. You can enable them any time you use an AI feature.',
